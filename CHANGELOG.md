@@ -7,6 +7,95 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2025-08-03
+
+### 🐛 Fixed
+
+#### Generation Config Bug Fix
+- **Critical Fix**: Fixed `GenerationConfig` options being dropped in `Gemini.APIs.Coordinator` module
+  - Previously, only 4 basic options (`temperature`, `max_output_tokens`, `top_p`, `top_k`) were supported
+  - Now supports all 12 `GenerationConfig` fields including `response_schema`, `response_mime_type`, `stop_sequences`, etc.
+  - Fixed inconsistency between `Gemini.Generate` and `Gemini.APIs.Coordinator` modules
+  - Both modules now handle generation config options identically
+
+#### Enhanced Generation Config Support
+- **Complete Field Coverage**: Added support for all missing `GenerationConfig` fields:
+  - `response_schema` - For structured JSON output
+  - `response_mime_type` - For controlling output format
+  - `stop_sequences` - For custom stop sequences
+  - `candidate_count` - For multiple response candidates
+  - `presence_penalty` - For controlling topic repetition
+  - `frequency_penalty` - For controlling word repetition
+  - `response_logprobs` - For response probability logging
+  - `logprobs` - For token probability information
+
+#### Improved Request Building
+- **Struct Priority**: `GenerationConfig` structs now take precedence over individual keyword options
+- **Key Conversion**: Proper snake_case to camelCase conversion for all API fields
+- **Nil Filtering**: Automatic filtering of nil values to reduce request payload size
+- **Backward Compatibility**: Existing code using individual options continues to work unchanged
+
+### 🧪 Testing
+
+#### Comprehensive Test Coverage
+- **70 New Tests**: Added extensive test suite covering all generation config scenarios
+- **Bug Reproduction**: Tests that demonstrate the original bug and verify the fix
+- **Field Coverage**: Individual tests for each of the 12 generation config fields
+- **Integration Testing**: End-to-end tests with real API request structure validation
+- **Regression Prevention**: Tests ensure the bug cannot reoccur in future versions
+
+#### Test Categories Added
+- Individual option handling tests
+- GenerationConfig struct handling tests
+- Mixed option scenarios (struct + individual options)
+- Edge case handling (nil values, invalid types)
+- API request structure validation
+- Backward compatibility verification
+
+### 🔧 Technical Improvements
+
+#### Code Quality
+- **Helper Functions**: Added `convert_to_camel_case/1` and `struct_to_api_map/1` utilities
+- **Error Handling**: Improved validation and error messages for generation config
+- **Documentation**: Enhanced inline documentation for generation config handling
+- **Type Safety**: Maintained strict type checking while expanding functionality
+
+#### Performance
+- **Request Optimization**: Reduced API request payload size by filtering nil values
+- **Processing Efficiency**: Streamlined generation config building process
+- **Memory Usage**: More efficient handling of large GenerationConfig structs
+
+### 📚 Documentation
+
+#### Updated Examples
+- Enhanced examples to demonstrate new generation config capabilities
+- Added response schema examples for structured output
+- Updated documentation to reflect consistent behavior across modules
+
+### Migration Notes
+
+#### For Existing Users
+No breaking changes - all existing code continues to work. However, you can now use previously unsupported options:
+
+```elixir
+# These options now work in all modules:
+{:ok, response} = Gemini.generate("Explain AI", [
+  response_schema: %{"type" => "object", "properties" => %{"summary" => %{"type" => "string"}}},
+  response_mime_type: "application/json",
+  stop_sequences: ["END", "STOP"],
+  presence_penalty: 0.5,
+  frequency_penalty: 0.3
+])
+
+# GenerationConfig structs now work consistently:
+config = %Gemini.Types.GenerationConfig{
+  temperature: 0.7,
+  response_schema: %{"type" => "object"},
+  max_output_tokens: 1000
+}
+{:ok, response} = Gemini.generate("Hello", generation_config: config)
+```
+
 ## [0.1.0] - 2025-07-20
 
 ### 🎉 Major Release - Production Ready Multi-Auth Implementation
@@ -129,7 +218,7 @@ config :gemini_ex,
 - **Multi-auth Isolation**: Secure credential separation between strategies
 - **Error Handling**: No sensitive data in error messages
 
-## [0.0.3] - 2025-01-07
+## [0.0.3] - 2025-07-07
 
 ### Fixed
 - **API Response Parsing**: Fixed issue where `usage_metadata` was always nil on successful `Gemini.generate/2` calls ([#3](https://github.com/nshkrdotcom/gemini_ex/issues/3))
@@ -255,6 +344,7 @@ config :gemini_ex,
 - Minimal latency overhead
 - Concurrent request processing
 
+[0.1.1]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.1.1
 [0.1.0]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.1.0
 [0.0.3]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.0.3
 [0.0.2]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.0.2

@@ -1,7 +1,7 @@
 defmodule Gemini.MixProject do
   use Mix.Project
 
-  @version "0.1.0"
+  @version "0.1.1"
   @source_url "https://github.com/nshkrdotcom/gemini_ex"
 
   def project do
@@ -46,7 +46,9 @@ defmodule Gemini.MixProject do
       # Development and testing
       {:ex_doc, "~> 0.38.2", only: :dev, runtime: false},
       {:credo, "~> 1.7.12", only: [:dev, :test], runtime: false},
-      {:dialyxir, "~> 1.4.5", only: [:dev], runtime: false}
+      {:dialyxir, "~> 1.4.5", only: [:dev], runtime: false},
+      {:mox, "~> 1.0", only: :test},
+      {:meck, "~> 0.9", only: :test}
     ]
   end
 

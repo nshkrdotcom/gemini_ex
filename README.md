@@ -17,7 +17,8 @@ A comprehensive Elixir client for Google's Gemini AI API with dual authenticatio
 - **📊 Built-in Telemetry**: Comprehensive observability and metrics out of the box
 - **💬 Chat Sessions**: Multi-turn conversation management with state persistence
 - **🎭 Multimodal**: Full support for text, image, audio, and video content
-- **🚀 Production Ready**: Robust error handling, retry logic, and performance optimizations
+- **⚙️ Complete Generation Config**: Full support for all 12 generation config options including structured output
+- **� Producltion Ready**: Robust error handling, retry logic, and performance optimizations
 - **🔧 Flexible Configuration**: Environment variables, application config, and per-request overrides
 
 ## 📦 Installation
@@ -27,7 +28,7 @@ Add `gemini` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:gemini_ex, "~> 0.1.0"}
+    {:gemini_ex, "~> 0.1.1"}
   ]
 end
 ```
@@ -65,6 +66,20 @@ IO.puts(text)
   temperature: 0.7,
   max_output_tokens: 1000
 ])
+
+# Advanced generation config with structured output
+{:ok, response} = Gemini.generate("Analyze this topic and provide a summary", [
+  response_schema: %{
+    "type" => "object",
+    "properties" => %{
+      "summary" => %{"type" => "string"},
+      "key_points" => %{"type" => "array", "items" => %{"type" => "string"}},
+      "confidence" => %{"type" => "number"}
+    }
+  },
+  response_mime_type: "application/json",
+  temperature: 0.3
+])
 ```
 
 ### Advanced Streaming
@@ -81,6 +96,39 @@ IO.puts(text)
 Gemini.Streaming.pause_stream(stream_id)
 Gemini.Streaming.resume_stream(stream_id)
 Gemini.Streaming.stop_stream(stream_id)
+```
+
+### Advanced Generation Configuration
+
+```elixir
+# Using GenerationConfig struct for complex configurations
+config = %Gemini.Types.GenerationConfig{
+  temperature: 0.7,
+  max_output_tokens: 2000,
+  response_schema: %{
+    "type" => "object",
+    "properties" => %{
+      "analysis" => %{"type" => "string"},
+      "recommendations" => %{"type" => "array", "items" => %{"type" => "string"}}
+    }
+  },
+  response_mime_type: "application/json",
+  stop_sequences: ["END", "COMPLETE"],
+  presence_penalty: 0.5,
+  frequency_penalty: 0.3
+}
+
+{:ok, response} = Gemini.generate("Analyze market trends", generation_config: config)
+
+# All generation config options are supported:
+{:ok, response} = Gemini.generate("Creative writing task", [
+  temperature: 0.9,           # Creativity level
+  top_p: 0.8,                # Nucleus sampling
+  top_k: 40,                 # Top-k sampling
+  candidate_count: 3,        # Multiple responses
+  response_logprobs: true,   # Include probabilities
+  logprobs: 5               # Token probabilities
+])
 ```
 
 ### Multi-turn Conversations
@@ -298,6 +346,34 @@ The library features a modular, layered architecture:
 - **Type Layer**: Comprehensive schemas with runtime validation
 
 ## 🔧 Advanced Usage
+
+### Complete Generation Configuration Support
+
+All 12 generation config options are fully supported across all API entry points:
+
+```elixir
+# Structured output with JSON schema
+{:ok, response} = Gemini.generate("Analyze this data", [
+  response_schema: %{
+    "type" => "object",
+    "properties" => %{
+      "summary" => %{"type" => "string"},
+      "insights" => %{"type" => "array", "items" => %{"type" => "string"}}
+    }
+  },
+  response_mime_type: "application/json"
+])
+
+# Creative writing with advanced controls
+{:ok, response} = Gemini.generate("Write a story", [
+  temperature: 0.9,
+  top_p: 0.8,
+  top_k: 40,
+  presence_penalty: 0.6,
+  frequency_penalty: 0.4,
+  stop_sequences: ["THE END", "EPILOGUE"]
+])
+```
 
 ### Custom Model Configuration
 

@@ -26,3 +26,5 @@ repomix*.xml
 ex_llm/
 
 *.tar
+
+repomix*.xml

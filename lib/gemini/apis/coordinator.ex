@@ -321,6 +321,43 @@ defmodule Gemini.APIs.Coordinator do
 
   # Private Helper Functions
 
+  @doc false
+  @spec convert_to_camel_case(atom()) :: String.t()
+  defp convert_to_camel_case(atom_key) when is_atom(atom_key) do
+    atom_key
+    |> Atom.to_string()
+    |> String.split("_")
+    |> case do
+      [first | rest] ->
+        first <> Enum.map_join(rest, "", &String.capitalize/1)
+
+      [] ->
+        ""
+    end
+  end
+
+  @doc false
+  @spec struct_to_api_map(Gemini.Types.GenerationConfig.t()) :: map()
+  defp struct_to_api_map(%Gemini.Types.GenerationConfig{} = config) do
+    config
+    |> Map.from_struct()
+    |> Enum.reduce(%{}, fn {key, value}, acc ->
+      camel_key = convert_to_camel_case(key)
+      Map.put(acc, camel_key, value)
+    end)
+    |> filter_nil_values()
+  end
+
+  @doc false
+  @spec filter_nil_values(map()) :: map()
+  defp filter_nil_values(map) when is_map(map) do
+    map
+    |> Enum.reject(fn {_key, value} ->
+      is_nil(value) or (is_list(value) and value == [])
+    end)
+    |> Enum.into(%{})
+  end
+
   @spec build_generate_request(
           String.t() | [Content.t()] | GenerateContentRequest.t(),
           request_opts()
@@ -341,7 +378,17 @@ defmodule Gemini.APIs.Coordinator do
     }
 
     # Add generation config if provided
-    config = build_generation_config(opts)
+    # Check for :generation_config option first, then fall back to individual options
+    config =
+      case Keyword.get(opts, :generation_config) do
+        %Gemini.Types.GenerationConfig{} = generation_config ->
+          # Convert GenerationConfig struct directly to API format
+          struct_to_api_map(generation_config)
+
+        nil ->
+          # Build from individual options for backward compatibility
+          build_generation_config(opts)
+      end
 
     final_content =
       if map_size(config) > 0 do
@@ -362,7 +409,17 @@ defmodule Gemini.APIs.Coordinator do
     }
 
     # Add generation config if provided
-    config = build_generation_config(opts)
+    # Check for :generation_config option first, then fall back to individual options
+    config =
+      case Keyword.get(opts, :generation_config) do
+        %Gemini.Types.GenerationConfig{} = generation_config ->
+          # Convert GenerationConfig struct directly to API format
+          struct_to_api_map(generation_config)
+
+        nil ->
+          # Build from individual options for backward compatibility
+          build_generation_config(opts)
+      end
 
     final_content =
       if map_size(config) > 0 do
@@ -418,11 +475,47 @@ defmodule Gemini.APIs.Coordinator do
   defp build_generation_config(opts) do
     opts
     |> Enum.reduce(%{}, fn
-      {:temperature, temp}, acc when is_number(temp) -> Map.put(acc, :temperature, temp)
-      {:max_output_tokens, max}, acc when is_integer(max) -> Map.put(acc, :maxOutputTokens, max)
-      {:top_p, top_p}, acc when is_number(top_p) -> Map.put(acc, :topP, top_p)
-      {:top_k, top_k}, acc when is_integer(top_k) -> Map.put(acc, :topK, top_k)
-      _, acc -> acc
+      # Basic generation parameters
+      {:temperature, temp}, acc when is_number(temp) ->
+        Map.put(acc, :temperature, temp)
+
+      {:max_output_tokens, max}, acc when is_integer(max) ->
+        Map.put(acc, :maxOutputTokens, max)
+
+      {:top_p, top_p}, acc when is_number(top_p) ->
+        Map.put(acc, :topP, top_p)
+
+      {:top_k, top_k}, acc when is_integer(top_k) ->
+        Map.put(acc, :topK, top_k)
+
+      # Advanced generation parameters
+      {:response_schema, schema}, acc when is_map(schema) ->
+        Map.put(acc, :responseSchema, schema)
+
+      {:response_mime_type, mime_type}, acc when is_binary(mime_type) ->
+        Map.put(acc, :responseMimeType, mime_type)
+
+      {:stop_sequences, sequences}, acc when is_list(sequences) ->
+        Map.put(acc, :stopSequences, sequences)
+
+      {:candidate_count, count}, acc when is_integer(count) and count > 0 ->
+        Map.put(acc, :candidateCount, count)
+
+      {:presence_penalty, penalty}, acc when is_number(penalty) ->
+        Map.put(acc, :presencePenalty, penalty)
+
+      {:frequency_penalty, penalty}, acc when is_number(penalty) ->
+        Map.put(acc, :frequencyPenalty, penalty)
+
+      {:response_logprobs, logprobs}, acc when is_boolean(logprobs) ->
+        Map.put(acc, :responseLogprobs, logprobs)
+
+      {:logprobs, logprobs}, acc when is_integer(logprobs) ->
+        Map.put(acc, :logprobs, logprobs)
+
+      # Ignore unknown options
+      _, acc ->
+        acc
     end)
   end
 
