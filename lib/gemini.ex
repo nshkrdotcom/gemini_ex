@@ -528,8 +528,17 @@ defmodule Gemini do
       case candidate do
         %{content: %{parts: parts}} ->
           parts
-          |> Enum.filter(fn part -> part.function_call != nil end)
-          |> Enum.map(fn part -> part.function_call end)
+          |> Enum.filter(fn part -> Map.has_key?(part, :function_call) and part.function_call != nil end)
+          |> Enum.map(fn part ->
+            # Convert raw function call data to ADM FunctionCall struct
+            function_call_data = part.function_call
+            {:ok, function_call} = Altar.ADM.new_function_call(%{
+              name: function_call_data.name,
+              args: function_call_data.args || %{},
+              call_id: function_call_data.name <> "_" <> (:crypto.strong_rand_bytes(8) |> Base.encode16(case: :lower))
+            })
+            function_call
+          end)
 
         _ ->
           []

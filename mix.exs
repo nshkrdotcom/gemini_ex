@@ -43,8 +43,8 @@ defmodule Gemini.MixProject do
       {:joken, "~> 2.6.2"},
       {:telemetry, "~> 1.3.0"},
 
-      # ALTAR ADM - local path dependency for tool contract
-      {:altar, path: "./ALTAR"},
+      # ALTAR ADM - tool contract dependency
+      {:altar, "~> 0.1.0"},
 
       # Development and testing
       {:ex_doc, "~> 0.38.2", only: :dev, runtime: false},

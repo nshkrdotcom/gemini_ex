@@ -136,7 +136,7 @@ example_code = """
 {:ok, response} = Gemini.generate_content_with_auto_tools(
   "What's the weather like in Tokyo and what time is it there?",
   tools: [weather_declaration, time_declaration],
-  model: "gemini-1.5-flash",
+  model: "gemini-2.5-flash",
   temperature: 0.1
 )
 
@@ -149,7 +149,7 @@ end
 {:ok, stream_id} = Gemini.stream_generate_with_auto_tools(
   "Calculate 15 * 23 and then tell me the weather in the result city",
   tools: [calc_declaration, weather_declaration],
-  model: "gemini-1.5-flash"
+  model: "gemini-2.5-flash"
 )
 
 :ok = Gemini.subscribe_stream(stream_id)
