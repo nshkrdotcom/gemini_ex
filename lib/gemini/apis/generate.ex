@@ -448,8 +448,8 @@ defmodule Gemini.Generate do
         end
 
       Map.has_key?(part_data, "functionResponse") ->
-        function_response_data = Map.get(part_data, "functionResponse")
-        {:ok, %Part{function_response: function_response_data}}
+        # functionResponse parts are stored as raw maps, not in Part struct fields
+        {:ok, part_data}
 
       true ->
         {:ok, Part.text("")}

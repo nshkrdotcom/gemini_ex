@@ -634,7 +634,8 @@ defmodule Gemini.Streaming.UnifiedManager do
         end
 
       Map.has_key?(part, :functionResponse) ->
-        %Gemini.Types.Part{function_response: part.functionResponse}
+        # functionResponse parts are stored as raw maps
+        part
 
       true ->
         %Gemini.Types.Part{text: ""}

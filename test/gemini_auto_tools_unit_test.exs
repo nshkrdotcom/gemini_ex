@@ -104,18 +104,18 @@ defmodule Gemini.AutoToolsUnitTest do
         })
 
       chat = Chat.new()
-      updated_chat = Chat.add_turn(chat, "user", [tool_result])
+      updated_chat = Chat.add_turn(chat, "tool", [tool_result])
 
       assert length(updated_chat.history) == 1
       [content] = updated_chat.history
 
-      assert content.role == "user"
+      assert content.role == "tool"
       assert length(content.parts) == 1
 
       [part] = content.parts
-      assert Map.has_key?(part, :functionResponse)
-      assert part.functionResponse.name == "test_call_123"
-      assert part.functionResponse.response.content == %{result: "test_output"}
+      assert Map.has_key?(part, "functionResponse")
+      assert part["functionResponse"]["name"] == "test_call_123"
+      assert part["functionResponse"]["response"]["content"] == %{result: "test_output"}
     end
   end
 
@@ -137,18 +137,18 @@ defmodule Gemini.AutoToolsUnitTest do
 
       content = Content.from_tool_results([result1, result2])
 
-      assert content.role == "user"
+      assert content.role == "tool"
       assert length(content.parts) == 2
 
       [part1, part2] = content.parts
 
-      assert Map.has_key?(part1, :functionResponse)
-      assert part1.functionResponse.name == "call_1"
-      assert part1.functionResponse.response.content == "result_1"
+      assert Map.has_key?(part1, "functionResponse")
+      assert part1["functionResponse"]["name"] == "call_1"
+      assert part1["functionResponse"]["response"]["content"] == "result_1"
 
-      assert Map.has_key?(part2, :functionResponse)
-      assert part2.functionResponse.name == "call_2"
-      assert part2.functionResponse.response.content == %{data: "result_2"}
+      assert Map.has_key?(part2, "functionResponse")
+      assert part2["functionResponse"]["name"] == "call_2"
+      assert part2["functionResponse"]["response"]["content"] == %{data: "result_2"}
     end
   end
 

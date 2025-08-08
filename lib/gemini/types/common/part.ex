@@ -10,7 +10,6 @@ defmodule Gemini.Types.Part do
     field(:text, String.t() | nil, default: nil)
     field(:inline_data, Gemini.Types.Blob.t() | nil, default: nil)
     field(:function_call, Altar.ADM.FunctionCall.t() | nil, default: nil)
-    field(:function_response, map() | nil, default: nil)
   end
 
   @typedoc "Text content."

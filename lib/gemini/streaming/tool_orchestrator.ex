@@ -297,10 +297,10 @@ defmodule Gemini.Streaming.ToolOrchestrator do
   defp format_parts_for_api(parts) do
     Enum.map(parts, fn part ->
       cond do
-        part.text != nil ->
+        is_map(part) and Map.has_key?(part, :text) and part.text != nil ->
           %{text: part.text}
 
-        part.function_call != nil ->
+        is_map(part) and Map.has_key?(part, :function_call) and part.function_call != nil ->
           %{
             functionCall: %{
               name: part.function_call.name,
@@ -308,10 +308,15 @@ defmodule Gemini.Streaming.ToolOrchestrator do
             }
           }
 
-        part.function_response != nil ->
-          %{functionResponse: part.function_response}
+        is_map(part) and Map.has_key?(part, "functionResponse") ->
+          # functionResponse parts are already in the correct format
+          part
 
-        part.inline_data != nil ->
+        is_map(part) and Map.has_key?(part, :functionResponse) ->
+          # functionResponse parts are already in the correct format
+          part
+
+        is_map(part) and Map.has_key?(part, :inline_data) and part.inline_data != nil ->
           %{
             inlineData: %{
               mimeType: part.inline_data.mime_type,
@@ -444,8 +449,8 @@ defmodule Gemini.Streaming.ToolOrchestrator do
       send(state.subscriber_pid, {:stream_error, state.stream_id, error})
       {:stop, :normal, state}
     else
-      # Add user's function response turn to chat history
-      updated_chat = Chat.add_turn(state.chat, "user", tool_results)
+      # Add tool's function response turn to chat history
+      updated_chat = Chat.add_turn(state.chat, "tool", tool_results)
 
       # Start the second streaming request
       case start_second_stream(%{state | chat: updated_chat}) do

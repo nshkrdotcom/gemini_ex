@@ -72,7 +72,7 @@ defmodule Gemini.ToolsManualLoopTest do
     assert Map.has_key?(tool_result.content, :timestamp)
 
     # Step 8: Add the tool's turn (containing the ToolResult) to the chat history
-    chat = Chat.add_turn(chat, "user", tool_results)
+    chat = Chat.add_turn(chat, "tool", tool_results)
 
     # Step 9: In a real test, we would call generate_content again with the complete history
     # and assert that the final response correctly uses the tool's result
@@ -95,13 +95,14 @@ defmodule Gemini.ToolsManualLoopTest do
     assert function_call_part.function_call.name == "test_processor"
 
     # Tool turn should contain the function response
-    assert tool_turn.role == "user"
+    assert tool_turn.role == "tool"
     assert length(tool_turn.parts) == 1
     function_response_part = hd(tool_turn.parts)
-    assert Map.has_key?(function_response_part, :functionResponse)
+    assert Map.has_key?(function_response_part, "functionResponse")
 
-    assert function_response_part.functionResponse.response.content.result ==
-             "processed_hello_world"
+    # The content structure preserves the original tool result structure
+    content = function_response_part["functionResponse"]["response"]["content"]
+    assert content.result == "processed_hello_world"
   end
 
   # Helper functions for the test

@@ -122,22 +122,22 @@ defmodule Gemini.APIs.GenerateParsingTest do
 
       content = Content.from_tool_results(results)
 
-      assert %Content{role: "user", parts: parts} = content
+      assert %Content{role: "tool", parts: parts} = content
       assert length(parts) == 2
 
       [part1, part2] = parts
 
       assert %{
-               functionResponse: %{
-                 name: "call_123",
-                 response: %{content: "The weather in San Francisco is sunny, 72°F"}
+               "functionResponse" => %{
+                 "name" => "call_123",
+                 "response" => %{"content" => "The weather in San Francisco is sunny, 72°F"}
                }
              } = part1
 
       assert %{
-               functionResponse: %{
-                 name: "call_456",
-                 response: %{content: "The weather in New York is cloudy, 65°F"}
+               "functionResponse" => %{
+                 "name" => "call_456",
+                 "response" => %{"content" => "The weather in New York is cloudy, 65°F"}
                }
              } = part2
     end
@@ -153,12 +153,12 @@ defmodule Gemini.APIs.GenerateParsingTest do
 
       content = Content.from_tool_results(results)
 
-      assert %Content{role: "user", parts: [part]} = content
+      assert %Content{role: "tool", parts: [part]} = content
 
       assert %{
-               functionResponse: %{
-                 name: "call_error",
-                 response: %{content: %{error: "API key invalid"}}
+               "functionResponse" => %{
+                 "name" => "call_error",
+                 "response" => %{"content" => %{error: "API key invalid"}}
                }
              } = part
     end
@@ -166,7 +166,7 @@ defmodule Gemini.APIs.GenerateParsingTest do
     test "handles empty results list" do
       content = Content.from_tool_results([])
 
-      assert %Content{role: "user", parts: []} = content
+      assert %Content{role: "tool", parts: []} = content
     end
 
     test "preserves complex content structures" do
@@ -183,13 +183,13 @@ defmodule Gemini.APIs.GenerateParsingTest do
 
       content = Content.from_tool_results(results)
 
-      assert %Content{role: "user", parts: [part]} = content
+      assert %Content{role: "tool", parts: [part]} = content
 
       assert %{
-               functionResponse: %{
-                 name: "call_complex",
-                 response: %{
-                   content: %{
+               "functionResponse" => %{
+                 "name" => "call_complex",
+                 "response" => %{
+                   "content" => %{
                      "data" => [1, 2, 3],
                      "metadata" => %{"source" => "api", "timestamp" => "2024-01-01"}
                    }

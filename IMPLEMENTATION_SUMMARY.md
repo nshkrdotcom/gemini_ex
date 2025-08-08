@@ -79,7 +79,7 @@ I have successfully implemented the automatic tool execution feature for the Gem
 ## 📊 Test Results
 
 ```
-Running ExUnit with seed: 605877, max_cases: 48
+Running ExUnit with seed: 789770, max_cases: 48
 Excluding tags: [:live_api, :skip]
 
 271 tests, 0 failures, 32 excluded
@@ -91,6 +91,30 @@ All tests pass successfully, including:
 - ✅ Chat history management
 - ✅ Content serialization/deserialization
 - ✅ Streaming orchestration
+
+## 🔧 Critical Fixes Applied
+
+Based on comprehensive review, the following critical issues were identified and fixed:
+
+### 1. **Correct Role for Tool Results** ✅
+- **Issue**: Function responses were using "user" role instead of "tool" role
+- **Fix**: Updated `Content.from_tool_results/1` to use "tool" role as per Gemini API specification
+- **Impact**: Ensures API compatibility and correct conversation flow
+
+### 2. **Part Struct Architecture** ✅
+- **Issue**: Added `function_response` field to Part struct, breaking architectural consistency
+- **Fix**: Removed the field and handle functionResponse as raw maps like other parts
+- **Impact**: Maintains architectural consistency and prevents future issues
+
+### 3. **Key Format Consistency** ✅
+- **Issue**: Mixed usage of atom keys vs string keys in serialization
+- **Fix**: Standardized on string keys for API compatibility
+- **Impact**: Ensures consistent serialization/deserialization throughout the pipeline
+
+### 4. **Chat Module Role Support** ✅
+- **Issue**: Chat.add_turn/3 didn't accept "tool" role
+- **Fix**: Extended role validation to include "tool" alongside "user" and "model"
+- **Impact**: Enables proper tool result handling in chat history
 
 ## 🚀 Usage Examples
 

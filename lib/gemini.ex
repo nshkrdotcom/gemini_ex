@@ -505,8 +505,8 @@ defmodule Gemini do
             # Execute the function calls
             case Tools.execute_calls(function_calls) do
               {:ok, tool_results} ->
-                # Add user's function response turn to chat history
-                final_chat = Chat.add_turn(updated_chat, "user", tool_results)
+                # Add tool's function response turn to chat history
+                final_chat = Chat.add_turn(updated_chat, "tool", tool_results)
 
                 # Recursively continue the loop with decremented turn limit
                 orchestrate_tool_loop(final_chat, turn_limit - 1)

@@ -73,7 +73,7 @@ defmodule Gemini.Chat do
   """
   @spec add_turn(t(), String.t(), String.t() | [map()] | [FunctionCall.t()] | [ToolResult.t()]) ::
           t()
-  def add_turn(%__MODULE__{} = chat, role, message) when role in ["user", "model"] do
+  def add_turn(%__MODULE__{} = chat, role, message) when role in ["user", "model", "tool"] do
     content = build_content(role, message)
     %{chat | history: chat.history ++ [content]}
   end
@@ -102,8 +102,8 @@ defmodule Gemini.Chat do
     %Content{role: "model", parts: parts}
   end
 
-  defp build_content("user", tool_results) when is_list(tool_results) do
-    # Handle user's function response turn using the Content helper
+  defp build_content("tool", tool_results) when is_list(tool_results) do
+    # Handle tool's function response turn using the Content helper
     Content.from_tool_results(tool_results)
   end
 
