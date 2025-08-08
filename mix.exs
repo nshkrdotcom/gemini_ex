@@ -76,10 +76,14 @@ defmodule Gemini.MixProject do
         "STREAMING.md",
         "STREAMING_ARCHITECTURE.md",
         "TELEMETRY_IMPLEMENTATION.md",
+        "AUTOMATIC_TOOL_EXECUTION.md",
         "CHANGELOG.md"
       ],
       groups_for_extras: [
         Guides: ["README.md"],
+        Features: [
+          "AUTOMATIC_TOOL_EXECUTION.md"
+        ],
         Architecture: [
           "ARCHITECTURE.md",
           "AUTHENTICATION_SYSTEM.md",
