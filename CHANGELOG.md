@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2025-08-07
+
+### 🎉 Major Feature: Automatic Tool Calling
+
+This release introduces a complete, production-grade tool-calling (function calling) feature set, providing a seamless, Python-SDK-like experience for building powerful AI agents. The implementation is architected on top of the robust, type-safe `ALTAR` protocol for maximum reliability and future scalability.
+
+### Added
+
+#### 🤖 Automatic Tool Execution Engine
+- **New Public API**: `Gemini.generate_content_with_auto_tools/2` orchestrates the entire multi-turn tool-calling loop. The library now automatically detects when a model wants to call a tool, executes it, sends the result back, and returns the final, synthesized text response.
+- **Recursive Orchestrator**: A resilient, private orchestrator manages the conversation, preventing infinite loops with a configurable `:turn_limit`.
+- **Streaming Support**: `Gemini.stream_generate_with_auto_tools/2` provides a fully automated tool-calling experience for streaming. A new `ToolOrchestrator` GenServer manages the complex, multi-stage stream, ensuring the end-user only receives the final text chunks.
+
+#### 🔧 Manual Tool Calling Foundation (For Advanced Users)
+- **New `Gemini.Tools` Facade**: Provides a clean, high-level API (`register/2`, `execute_calls/1`) for developers who need full control over the tool-calling loop.
+- **Parallel Execution**: `Gemini.Tools.execute_calls/1` uses `Task.async_stream` to execute multiple tool calls from the model in parallel, improving performance.
+- **Robust Error Handling**: Individual tool failures are captured as a valid `ToolResult` and do not crash the calling process.
+
+#### 🏛️ Architectural Foundation (`ALTAR` Integration)
+- **ALTAR Dependency**: The project now builds upon the `altar` library, using its robust Data Model (`ADM`) and Local Execution Runtime (`LATER`).
+- **Supervised `Registry`**: `gemini_ex` now starts and supervises its own named `Altar.LATER.Registry` process (`Gemini.Tools.Registry`), providing a stable, application-wide endpoint for tool management.
+- **Formalized `Gemini.Chat` Module**: The chat history management has been completely refactored into a new `Gemini.Chat` struct and module, providing immutable, type-safe handling of complex multi-turn histories that include `function_call` and `function_response` turns.
+
+### Changed
+
+- **`Part` Struct:** The `Gemini.Types.Part` struct was updated to include a `function_call` field, enabling type-safe parsing of model responses.
+- **Response Parsing:** The core response parser in `Gemini.Generate` has been significantly enhanced to safely deserialize `functionCall` parts from the API, validating them against the `Altar.ADM` contract.
+- **Chat History:** The `Gemini.send_message/2` function has been refactored to use the new, more powerful `Gemini.Chat` module.
+
+### Fixed
+
+- **CRITICAL: Tool Response Role:** The role for `functionResponse` turns sent to the API is now correctly set to `"tool"` (was `"user"`), ensuring API compatibility.
+- **Architectural Consistency:** Removed an erroneous `function_response` field from the `Part` struct. `functionResponse` parts are now correctly handled as raw maps, consistent with the library's design.
+- **Test Consistency:** Updated all relevant tests to use `camelCase` string keys when asserting against API-formatted data structures, improving test accuracy.
+
+### 📚 Documentation & Examples
+- **New Example (`auto_tool_calling_demo.exs`):** A comprehensive script demonstrating how to register multiple tools and use the new automatic execution APIs for both standard and streaming requests.
+- **New Example (`manual_tool_calling_demo.exs`):** A clear demonstration of the advanced, step-by-step manual tool-calling loop.
+
 ## [0.1.1] - 2025-08-03
 
 ### 🐛 Fixed
