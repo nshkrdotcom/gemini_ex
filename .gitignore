@@ -28,3 +28,6 @@ ex_llm/
 *.tar
 
 repomix*.xml
+
+
+/ALTAR/
