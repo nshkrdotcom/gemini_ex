@@ -162,6 +162,7 @@ defmodule Gemini do
   """
 
   alias Gemini.APIs.Coordinator
+  alias Gemini.Chat
   alias Gemini.Error
   alias Gemini.Types.Content
   alias Gemini.Types.Response.GenerateContentResponse
@@ -275,50 +276,33 @@ defmodule Gemini do
 
   See `t:Gemini.options/0` for available options.
   """
-  @spec chat(options()) :: {:ok, map()}
+  @spec chat(options()) :: {:ok, Chat.t()}
   def chat(opts \\ []) do
-    {:ok, %{history: [], opts: opts}}
+    {:ok, Chat.new(opts)}
   end
 
   @doc """
   Send a message in a chat session.
   """
-  @spec send_message(map(), String.t()) ::
-          {:ok, GenerateContentResponse.t(), map()} | {:error, Error.t()}
-  def send_message(chat, message) do
-    # Build the full conversation history including the new message
-    contents =
-      chat.history
-      |> Enum.map(fn
-        %{role: "user", content: text} when is_binary(text) ->
-          Content.text(text, "user")
+  @spec send_message(Chat.t(), String.t()) ::
+          {:ok, GenerateContentResponse.t(), Chat.t()} | {:error, Error.t()}
+  def send_message(%Chat{} = chat, message) do
+    # Add the user's message to the chat history
+    updated_chat = Chat.add_turn(chat, "user", message)
 
-        %{role: "model", content: %GenerateContentResponse{} = response} ->
-          # Extract the model's text from the response
-          case extract_text(response) do
-            {:ok, text} -> Content.text(text, "model")
-            _ -> nil
-          end
-
-        _ ->
-          nil
-      end)
-      |> Enum.reject(&is_nil/1)
-      |> Kernel.++([Content.text(message, "user")])
-
-    case generate(contents, chat.opts) do
+    case generate(updated_chat.history, updated_chat.opts) do
       {:ok, response} ->
-        updated_chat = %{
-          chat
-          | history:
-              chat.history ++
-                [
-                  %{role: "user", content: message},
-                  %{role: "model", content: response}
-                ]
-        }
+        # Extract text from response and add model's turn
+        case extract_text(response) do
+          {:ok, text} ->
+            final_chat = Chat.add_turn(updated_chat, "model", text)
+            {:ok, response, final_chat}
 
-        {:ok, response, updated_chat}
+          {:error, _} ->
+            # If we can't extract text, still add the raw response
+            final_chat = Chat.add_turn(updated_chat, "model", "")
+            {:ok, response, final_chat}
+        end
 
       {:error, error} ->
         {:error, error}
