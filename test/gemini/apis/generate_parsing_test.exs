@@ -122,7 +122,7 @@ defmodule Gemini.APIs.GenerateParsingTest do
 
       content = Content.from_tool_results(results)
 
-      assert %Content{role: "tool", parts: parts} = content
+      assert %Content{role: "user", parts: parts} = content
       assert length(parts) == 2
 
       [part1, part2] = parts
@@ -153,7 +153,7 @@ defmodule Gemini.APIs.GenerateParsingTest do
 
       content = Content.from_tool_results(results)
 
-      assert %Content{role: "tool", parts: [part]} = content
+      assert %Content{role: "user", parts: [part]} = content
 
       assert %{
                functionResponse: %{
@@ -166,7 +166,7 @@ defmodule Gemini.APIs.GenerateParsingTest do
     test "handles empty results list" do
       content = Content.from_tool_results([])
 
-      assert %Content{role: "tool", parts: []} = content
+      assert %Content{role: "user", parts: []} = content
     end
 
     test "preserves complex content structures" do
@@ -183,7 +183,7 @@ defmodule Gemini.APIs.GenerateParsingTest do
 
       content = Content.from_tool_results(results)
 
-      assert %Content{role: "tool", parts: [part]} = content
+      assert %Content{role: "user", parts: [part]} = content
 
       assert %{
                functionResponse: %{

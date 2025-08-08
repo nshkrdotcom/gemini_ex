@@ -57,20 +57,20 @@ defmodule Gemini.Types.Content do
   Create content from tool results for function response.
 
   Takes a list of validated ToolResult structs and transforms them into
-  a single Content struct with role "tool" containing functionResponse parts.
+  a single Content struct with role "user" containing functionResponse parts.
 
   ## Parameters
     - `results` - List of Altar.ADM.ToolResult.t() structs
 
   ## Returns
-    - Content struct with role "tool" and functionResponse parts
+    - Content struct with role "user" and functionResponse parts
 
   ## Examples
 
       iex> results = [%Altar.ADM.ToolResult{call_id: "call_123", content: "result"}]
       iex> Gemini.Types.Content.from_tool_results(results)
       %Gemini.Types.Content{
-        role: "tool",
+        role: "user",
         parts: [%{functionResponse: %{name: "call_123", response: %{content: "result"}}}]
       }
 
@@ -88,7 +88,7 @@ defmodule Gemini.Types.Content do
       end)
 
     %__MODULE__{
-      role: "tool",
+      role: "user",
       parts: parts
     }
   end

@@ -447,6 +447,10 @@ defmodule Gemini.Generate do
             {:error, reason}
         end
 
+      Map.has_key?(part_data, "functionResponse") ->
+        function_response_data = Map.get(part_data, "functionResponse")
+        {:ok, %Part{function_response: function_response_data}}
+
       true ->
         {:ok, Part.text("")}
     end

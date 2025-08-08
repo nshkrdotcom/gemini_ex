@@ -135,6 +135,7 @@ defmodule Gemini.APIs.Coordinator do
     model = Keyword.get(opts, :model, Gemini.Config.get_model(:default))
 
     with {:ok, request_body} <- build_generate_request(input, opts) do
+      # Pass through the auto_execute_tools option to the UnifiedManager
       UnifiedManager.start_stream(model, request_body, opts)
     else
       {:error, reason} -> {:error, reason}

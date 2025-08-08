@@ -164,6 +164,7 @@ defmodule Gemini do
   alias Gemini.APIs.Coordinator
   alias Gemini.Chat
   alias Gemini.Error
+  alias Gemini.Tools
   alias Gemini.Types.Content
   alias Gemini.Types.Response.GenerateContentResponse
 
@@ -321,6 +322,56 @@ defmodule Gemini do
   end
 
   @doc """
+  Start a streaming session with automatic tool execution.
+
+  This function provides streaming support for the automatic tool-calling loop.
+  When the model returns function calls, they are executed automatically and the
+  conversation continues until a final text response is streamed to the subscriber.
+
+  ## Parameters
+  - `contents`: String prompt or list of Content structs
+  - `opts`: Standard generation options plus:
+    - `:turn_limit` - Maximum number of tool-calling turns (default: 10)
+    - `:tools` - List of tool declarations (required for tool calling)
+    - `:tool_config` - Tool configuration (optional)
+
+  ## Examples
+
+      # Register a tool first
+      {:ok, declaration} = Altar.ADM.new_function_declaration(%{
+        name: "get_weather",
+        description: "Gets weather for a location",
+        parameters: %{
+          type: "object",
+          properties: %{location: %{type: "string"}},
+          required: ["location"]
+        }
+      })
+      :ok = Gemini.Tools.register(declaration, &MyApp.get_weather/1)
+
+      # Start streaming with automatic tool execution
+      {:ok, stream_id} = Gemini.stream_generate_with_auto_tools(
+        "What's the weather in San Francisco?",
+        tools: [declaration],
+        model: "gemini-1.5-flash"
+      )
+
+      # Subscribe to receive only the final text response
+      :ok = Gemini.subscribe_stream(stream_id)
+
+  ## Returns
+  - `{:ok, stream_id}`: Stream started successfully
+  - `{:error, term()}`: Error during stream setup
+  """
+  @spec stream_generate_with_auto_tools(String.t() | [Content.t()], options()) ::
+          {:ok, String.t()} | {:error, Error.t()}
+  def stream_generate_with_auto_tools(contents, opts \\ []) do
+    # Add auto_execute_tools flag to options
+    enhanced_opts = Keyword.put(opts, :auto_execute_tools, true)
+    Coordinator.stream_generate_content(contents, enhanced_opts)
+  end
+
+  @doc """
   Subscribe to streaming events.
   """
   @spec subscribe_stream(String.t()) :: :ok | {:error, Error.t()}
@@ -334,6 +385,65 @@ defmodule Gemini do
   @spec get_stream_status(String.t()) :: {:ok, map()} | {:error, Error.t()}
   def get_stream_status(stream_id) do
     Coordinator.stream_status(stream_id)
+  end
+
+  @doc """
+  Generate content with automatic tool execution.
+
+  This function provides a seamless, Python-SDK-like experience by automatically
+  handling the tool-calling loop. When the model returns function calls, they are
+  executed automatically and the conversation continues until a final text response
+  is received.
+
+  ## Parameters
+  - `contents`: String prompt or list of Content structs
+  - `opts`: Standard generation options plus:
+    - `:turn_limit` - Maximum number of tool-calling turns (default: 10)
+    - `:tools` - List of tool declarations (required for tool calling)
+    - `:tool_config` - Tool configuration (optional)
+
+  ## Examples
+
+      # Register a tool first
+      {:ok, declaration} = Altar.ADM.new_function_declaration(%{
+        name: "get_weather",
+        description: "Gets weather for a location",
+        parameters: %{
+          type: "object",
+          properties: %{location: %{type: "string"}},
+          required: ["location"]
+        }
+      })
+      :ok = Gemini.Tools.register(declaration, &MyApp.get_weather/1)
+
+      # Use automatic tool execution
+      {:ok, response} = Gemini.generate_content_with_auto_tools(
+        "What's the weather in San Francisco?",
+        tools: [declaration],
+        model: "gemini-1.5-flash"
+      )
+
+  ## Returns
+  - `{:ok, GenerateContentResponse.t()}`: Final text response after all tool calls
+  - `{:error, term()}`: Error during generation or tool execution
+  """
+  @spec generate_content_with_auto_tools(String.t() | [Content.t()], options()) ::
+          {:ok, GenerateContentResponse.t()} | {:error, Error.t()}
+  def generate_content_with_auto_tools(contents, opts \\ []) do
+    turn_limit = Keyword.get(opts, :turn_limit, 10)
+
+    # Create initial chat state
+    chat = Chat.new(opts)
+
+    # Add user's initial message to chat
+    initial_chat =
+      case contents do
+        text when is_binary(text) -> Chat.add_turn(chat, "user", text)
+        content_list when is_list(content_list) -> %{chat | history: content_list}
+      end
+
+    # Start the orchestration loop
+    orchestrate_tool_loop(initial_chat, turn_limit)
   end
 
   @doc """
@@ -369,6 +479,63 @@ defmodule Gemini do
   end
 
   def extract_text(_), do: {:error, "Invalid response format"}
+
+  # Private orchestrator function that implements the recursive state machine
+  @spec orchestrate_tool_loop(Chat.t(), non_neg_integer()) ::
+          {:ok, GenerateContentResponse.t()} | {:error, Error.t()}
+  defp orchestrate_tool_loop(_chat, turn_limit) when turn_limit <= 0 do
+    {:error, %Error{type: :turn_limit_exceeded, message: "Maximum tool-calling turns exceeded"}}
+  end
+
+  defp orchestrate_tool_loop(chat, turn_limit) do
+    # Make API call with current chat history
+    case Coordinator.generate_content(chat.history, chat.opts) do
+      {:ok, response} ->
+        # Check if response contains function calls
+        case extract_function_calls_from_response(response) do
+          [] ->
+            # No function calls - this is the final text response
+            {:ok, response}
+
+          function_calls ->
+            # Response contains function calls - continue the loop
+            # Add model's function call turn to chat history
+            updated_chat = Chat.add_turn(chat, "model", function_calls)
+
+            # Execute the function calls
+            case Tools.execute_calls(function_calls) do
+              {:ok, tool_results} ->
+                # Add user's function response turn to chat history
+                final_chat = Chat.add_turn(updated_chat, "user", tool_results)
+
+                # Recursively continue the loop with decremented turn limit
+                orchestrate_tool_loop(final_chat, turn_limit - 1)
+            end
+        end
+
+      {:error, error} ->
+        {:error, error}
+    end
+  end
+
+  # Helper function to extract function calls from a GenerateContentResponse
+  @spec extract_function_calls_from_response(GenerateContentResponse.t()) :: [
+          Altar.ADM.FunctionCall.t()
+        ]
+  defp extract_function_calls_from_response(%GenerateContentResponse{candidates: candidates}) do
+    candidates
+    |> Enum.flat_map(fn candidate ->
+      case candidate do
+        %{content: %{parts: parts}} ->
+          parts
+          |> Enum.filter(fn part -> part.function_call != nil end)
+          |> Enum.map(fn part -> part.function_call end)
+
+        _ ->
+          []
+      end
+    end)
+  end
 
   @doc """
   Check if a model exists.

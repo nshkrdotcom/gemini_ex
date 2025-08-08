@@ -18,6 +18,8 @@ defmodule Gemini.Streaming.UnifiedManager do
 
   alias Gemini.Client.HTTPStreaming
   alias Gemini.Auth.MultiAuthCoordinator
+  alias Gemini.Streaming.ToolOrchestrator
+  alias Gemini.Chat
 
   @type stream_id :: String.t()
   @type subscriber_ref :: {pid(), reference()}
@@ -243,21 +245,43 @@ defmodule Gemini.Streaming.UnifiedManager do
             auth_strategy: auth_strategy
           }
 
-          # Start the actual streaming process
-          case start_stream_process(stream_state) do
-            {:ok, stream_pid} ->
-              updated_stream = %{stream_state | stream_pid: stream_pid, status: :active}
+          # Check if this is an automatic tool calling stream
+          case Keyword.get(opts, :auto_execute_tools, false) do
+            true ->
+              # Start tool orchestrator for automatic tool calling
+              case start_auto_tool_stream(stream_state) do
+                {:ok, orchestrator_pid} ->
+                  updated_stream = %{stream_state | stream_pid: orchestrator_pid, status: :active}
 
-              new_state = %{
-                state
-                | streams: Map.put(state.streams, stream_id, updated_stream),
-                  stream_counter: state.stream_counter + 1
-              }
+                  new_state = %{
+                    state
+                    | streams: Map.put(state.streams, stream_id, updated_stream),
+                      stream_counter: state.stream_counter + 1
+                  }
 
-              {:reply, {:ok, stream_id}, new_state}
+                  {:reply, {:ok, stream_id}, new_state}
 
-            {:error, reason} ->
-              {:reply, {:error, reason}, state}
+                {:error, reason} ->
+                  {:reply, {:error, reason}, state}
+              end
+
+            false ->
+              # Start regular streaming process
+              case start_stream_process(stream_state) do
+                {:ok, stream_pid} ->
+                  updated_stream = %{stream_state | stream_pid: stream_pid, status: :active}
+
+                  new_state = %{
+                    state
+                    | streams: Map.put(state.streams, stream_id, updated_stream),
+                      stream_counter: state.stream_counter + 1
+                  }
+
+                  {:reply, {:ok, stream_id}, new_state}
+
+                {:error, reason} ->
+                  {:reply, {:error, reason}, state}
+              end
           end
 
         {:error, reason} ->
@@ -545,6 +569,75 @@ defmodule Gemini.Streaming.UnifiedManager do
 
       {:error, reason} ->
         {:error, "Auth failed: #{reason}"}
+    end
+  end
+
+  @spec start_auto_tool_stream(stream_state()) :: {:ok, pid()} | {:error, term()}
+  defp start_auto_tool_stream(stream_state) do
+    # Convert request body to Chat struct for the orchestrator
+    chat = request_body_to_chat(stream_state.request_body, stream_state.config)
+
+    # Start the tool orchestrator
+    # Note: The orchestrator will send events to self() (UnifiedManager)
+    # which will then forward them to subscribers
+    case ToolOrchestrator.start_link(
+           stream_state.stream_id,
+           self(),
+           chat,
+           stream_state.auth_strategy,
+           stream_state.config
+         ) do
+      {:ok, orchestrator_pid} ->
+        {:ok, orchestrator_pid}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  @spec request_body_to_chat(map(), keyword()) :: Chat.t()
+  defp request_body_to_chat(request_body, config) do
+    # Extract contents from request body and convert to Content structs
+    contents =
+      case Map.get(request_body, :contents, []) do
+        contents when is_list(contents) ->
+          Enum.map(contents, &convert_api_content_to_struct/1)
+
+        _ ->
+          []
+      end
+
+    # Create chat with history and options
+    chat = Chat.new(config)
+    %{chat | history: contents}
+  end
+
+  @spec convert_api_content_to_struct(map()) :: Gemini.Types.Content.t()
+  defp convert_api_content_to_struct(%{role: role, parts: parts}) do
+    converted_parts = Enum.map(parts, &convert_api_part_to_struct/1)
+    %Gemini.Types.Content{role: role, parts: converted_parts}
+  end
+
+  @spec convert_api_part_to_struct(map()) :: Gemini.Types.Part.t()
+  defp convert_api_part_to_struct(part) do
+    cond do
+      Map.has_key?(part, :text) ->
+        %Gemini.Types.Part{text: part.text}
+
+      Map.has_key?(part, :functionCall) ->
+        case Altar.ADM.FunctionCall.new(part.functionCall) do
+          {:ok, function_call} ->
+            %Gemini.Types.Part{function_call: function_call}
+
+          {:error, _} ->
+            %Gemini.Types.Part{text: ""}
+        end
+
+      Map.has_key?(part, :functionResponse) ->
+        %Gemini.Types.Part{function_response: part.functionResponse}
+
+      true ->
+        %Gemini.Types.Part{text: ""}
     end
   end
 

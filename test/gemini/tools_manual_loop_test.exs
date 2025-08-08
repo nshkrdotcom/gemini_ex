@@ -98,9 +98,9 @@ defmodule Gemini.ToolsManualLoopTest do
     assert tool_turn.role == "user"
     assert length(tool_turn.parts) == 1
     function_response_part = hd(tool_turn.parts)
-    assert Map.has_key?(function_response_part, :function_response)
+    assert Map.has_key?(function_response_part, :functionResponse)
 
-    assert function_response_part.function_response.response.content.result ==
+    assert function_response_part.functionResponse.response.content.result ==
              "processed_hello_world"
   end
 

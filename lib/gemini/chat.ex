@@ -103,20 +103,8 @@ defmodule Gemini.Chat do
   end
 
   defp build_content("user", tool_results) when is_list(tool_results) do
-    # Handle user's function response turn
-    parts =
-      Enum.map(tool_results, fn %ToolResult{} = result ->
-        %{
-          function_response: %{
-            name: result.call_id,
-            response: %{
-              content: result.content
-            }
-          }
-        }
-      end)
-
-    %Content{role: "user", parts: parts}
+    # Handle user's function response turn using the Content helper
+    Content.from_tool_results(tool_results)
   end
 
   defp build_content(role, parts) when is_list(parts) do
