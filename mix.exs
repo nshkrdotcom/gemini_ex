@@ -1,7 +1,7 @@
 defmodule Gemini.MixProject do
   use Mix.Project
 
-  @version "0.2.0"
+  @version "0.2.1"
   @source_url "https://github.com/nshkrdotcom/gemini_ex"
 
   def project do
@@ -44,7 +44,7 @@ defmodule Gemini.MixProject do
       {:telemetry, "~> 1.3.0"},
 
       # ALTAR ADM - tool contract dependency
-      {:altar, "~> 0.1.0"},
+      {:altar, "~> 0.1.2"},
 
       # Development and testing
       {:ex_doc, "~> 0.38.2", only: :dev, runtime: false},
