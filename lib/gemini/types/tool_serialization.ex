@@ -42,7 +42,11 @@ defmodule Gemini.Types.ToolSerialization do
     end
   end
 
-  defp function_declaration_to_map(%FunctionDeclaration{name: name, description: description, parameters: parameters}) do
+  defp function_declaration_to_map(%FunctionDeclaration{
+         name: name,
+         description: description,
+         parameters: parameters
+       }) do
     %{
       "name" => name,
       "description" => description,
@@ -80,7 +84,10 @@ defmodule Gemini.Types.ToolSerialization do
   end
 
   defp serialize_schema_value(%{} = value), do: serialize_schema(value)
-  defp serialize_schema_value(list) when is_list(list), do: Enum.map(list, &serialize_schema_value/1)
+
+  defp serialize_schema_value(list) when is_list(list),
+    do: Enum.map(list, &serialize_schema_value/1)
+
   defp serialize_schema_value(value), do: value
 
   defp camelize_key(key) when is_atom(key) do

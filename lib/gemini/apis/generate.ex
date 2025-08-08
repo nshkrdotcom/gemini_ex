@@ -320,7 +320,8 @@ defmodule Gemini.Generate do
   defp normalize_system_instruction(%Content{} = content), do: content
   defp normalize_system_instruction(text) when is_binary(text), do: Content.text(text)
 
-  defp parse_generate_response(response) do
+  @doc false
+  def parse_generate_response(response) do
     try do
       candidates =
         response
@@ -338,7 +339,14 @@ defmodule Gemini.Generate do
 
       {:ok, generate_response}
     rescue
-      e -> {:error, Error.invalid_response("Failed to parse generate response: #{inspect(e)}")}
+      e ->
+        case e do
+          %RuntimeError{message: "Model returned malformed FunctionCall: " <> reason} ->
+            {:error, Error.invalid_response("Model returned malformed FunctionCall: #{reason}")}
+
+          _ ->
+            {:error, Error.invalid_response("Failed to parse generate response: #{inspect(e)}")}
+        end
     end
   end
 
@@ -386,31 +394,62 @@ defmodule Gemini.Generate do
   end
 
   defp parse_content(content_data) do
-    parts =
-      content_data
-      |> Map.get("parts", [])
-      |> Enum.map(fn part_data ->
-        cond do
-          Map.has_key?(part_data, "text") ->
-            Part.text(Map.get(part_data, "text"))
+    case parse_parts(Map.get(content_data, "parts", [])) do
+      {:ok, parts} ->
+        %Content{
+          parts: parts,
+          role: Map.get(content_data, "role", "user")
+        }
 
-          Map.has_key?(part_data, "inlineData") ->
-            inline_data = Map.get(part_data, "inlineData")
+      {:error, reason} ->
+        raise "Model returned malformed FunctionCall: #{reason}"
+    end
+  end
 
-            Part.blob(
-              Map.get(inline_data, "data"),
-              Map.get(inline_data, "mimeType")
-            )
+  defp parse_parts(parts_data) do
+    parts_data
+    |> Enum.reduce_while({:ok, []}, fn part_data, {:ok, acc} ->
+      case parse_part(part_data) do
+        {:ok, part} -> {:cont, {:ok, [part | acc]}}
+        {:error, reason} -> {:halt, {:error, reason}}
+      end
+    end)
+    |> case do
+      {:ok, parts} -> {:ok, Enum.reverse(parts)}
+      {:error, reason} -> {:error, reason}
+    end
+  end
 
-          true ->
-            Part.text("")
+  defp parse_part(part_data) do
+    cond do
+      Map.has_key?(part_data, "text") ->
+        {:ok, Part.text(Map.get(part_data, "text"))}
+
+      Map.has_key?(part_data, "inlineData") ->
+        inline_data = Map.get(part_data, "inlineData")
+
+        part =
+          Part.blob(
+            Map.get(inline_data, "data"),
+            Map.get(inline_data, "mimeType")
+          )
+
+        {:ok, part}
+
+      Map.has_key?(part_data, "functionCall") ->
+        function_call_data = Map.get(part_data, "functionCall")
+
+        case Altar.ADM.FunctionCall.new(function_call_data) do
+          {:ok, function_call} ->
+            {:ok, %Part{function_call: function_call}}
+
+          {:error, reason} ->
+            {:error, reason}
         end
-      end)
 
-    %Content{
-      parts: parts,
-      role: Map.get(content_data, "role", "user")
-    }
+      true ->
+        {:ok, Part.text("")}
+    end
   end
 
   defp parse_prompt_feedback(nil), do: nil
