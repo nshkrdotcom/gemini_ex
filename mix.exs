@@ -71,6 +71,7 @@ defmodule Gemini.MixProject do
       homepage_url: @source_url,
       extras: [
         "README.md",
+        "ALTAR_INTEGRATION.md",
         "ARCHITECTURE.md",
         "AUTHENTICATION_SYSTEM.md",
         "STREAMING.md",
@@ -80,7 +81,7 @@ defmodule Gemini.MixProject do
         "CHANGELOG.md"
       ],
       groups_for_extras: [
-        Guides: ["README.md"],
+        Guides: ["README.md", "ALTAR_INTEGRATION.md"],
         Features: [
           "AUTOMATIC_TOOL_EXECUTION.md"
         ],
@@ -176,11 +177,12 @@ defmodule Gemini.MixProject do
       name: "gemini_ex",
       description: description(),
       files:
-        ~w(lib mix.exs README.md ARCHITECTURE.md AUTHENTICATION_SYSTEM.md STREAMING.md STREAMING_ARCHITECTURE.md TELEMETRY_IMPLEMENTATION.md CHANGELOG.md LICENSE),
+        ~w(lib mix.exs README.md ALTAR_INTEGRATION.md ARCHITECTURE.md AUTHENTICATION_SYSTEM.md STREAMING.md STREAMING_ARCHITECTURE.md TELEMETRY_IMPLEMENTATION.md CHANGELOG.md LICENSE),
       licenses: ["MIT"],
       links: %{
         "GitHub" => @source_url,
         "Online documentation" => "https://hexdocs.pm/gemini_ex",
+        "ALTAR Integration Story" => "https://hexdocs.pm/gemini_ex/ALTAR_INTEGRATION.html",
         "Changelog" => "#{@source_url}/blob/main/CHANGELOG.md"
       },
       maintainers: ["nshkrdotcom"],

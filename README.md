@@ -22,6 +22,14 @@ A comprehensive Elixir client for Google's Gemini AI API with dual authenticatio
 - **🚀 Production Ready**: Robust error handling, retry logic, and performance optimizations
 - **🔧 Flexible Configuration**: Environment variables, application config, and per-request overrides
 
+## 🔗 ALTAR Integration: The Path to Production
+
+`gemini_ex` is the first project to integrate with the **ALTAR Productivity Platform**, a system designed to bridge the gap between local AI development and enterprise-grade production deployment.
+
+We've adopted ALTAR's `LATER` protocol to provide a best-in-class local tool-calling experience. This is the first step in a long-term vision to offer a seamless "promotion path" for your AI tools, from local testing to a secure, scalable, and governed production environment via ALTAR's `GRID` protocol.
+
+**[➡️ Learn the full story behind our integration in `ALTAR_INTEGRATION.md`](ALTAR_INTEGRATION.md)**
+
 ## 📦 Installation
 
 Add `gemini` to your list of dependencies in `mix.exs`:
