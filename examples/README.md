@@ -35,6 +35,43 @@ elixir examples/auto_tool_calling_demo.exs
 
 **Notes:** This script registers mock tools (weather, time, calculator) and shows the complete setup. The final API call is commented out and requires a valid API key to run. Showcases the streamlined approach to tool calling without manual conversation management.
 
+### `live_auto_tool_test.exs` ⚡ **LIVE EXAMPLE**
+
+**A comprehensive live test demonstrating real automatic tool execution with the Gemini API.**
+
+**To run:**
+```shell
+elixir examples/live_auto_tool_test.exs
+```
+
+**What makes this special:**
+- ✅ **Actually calls the Gemini API** - not a mock or simulation
+- ✅ **Executes real Elixir code** - introspects modules like `Enum`, `String`, `GenServer` using `Code.ensure_loaded/1` and `Code.fetch_docs/1`
+- ✅ **Demonstrates the complete pipeline** - tool registration → API call → tool execution → response synthesis
+- ✅ **Self-contained** - runs independently with `Mix.install` dependency management
+- ✅ **Comprehensive logging** - shows exactly what's happening at each step
+
+**Features demonstrated:**
+- Real Elixir module introspection using built-in reflection APIs
+- Live automatic tool execution with the actual Gemini API
+- End-to-end workflow validation from tool registration to final response
+- Comprehensive error handling and debug output
+- Professional output formatting with step-by-step progress indicators
+
+**Requirements:** `GEMINI_API_KEY` environment variable (this is a live API test)
+
+**Example output:**
+```
+🎉 SUCCESS! Final Response from Gemini:
+The `Enum` module in Elixir is a powerful tool for working with collections...
+Based on the information retrieved using `get_elixir_module_info`, here's a breakdown:
+1. Main Purpose: Provides consistent iteration over enumerables (lists, maps, ranges)
+2. Common Functions: map/2, filter/2, reduce/3, sum/1, sort/1...
+3. Usefulness: Unified interface, functional programming, high performance...
+```
+
+**Notes:** This is the most comprehensive demonstration of the automatic tool-calling feature. Unlike other examples that use mock data, this script actually calls the Gemini API and executes real Elixir code to introspect modules. It serves as both a feature demonstration and an integration test for the entire automatic tool-calling pipeline.
+
 ### `manual_tool_calling_demo.exs`
 
 Demonstrates the manual, step-by-step tool-calling loop using the Chat and Tools modules.
@@ -128,8 +165,9 @@ The examples use the following environment variables for authentication:
 
 1. **For basic functionality:** Start with `demo.exs` to see core features
 2. **For tool calling:** Try `auto_tool_calling_demo.exs` for the high-level approach
-3. **For streaming:** Run `streaming_demo.exs` to see real-time generation
-4. **For architecture understanding:** Explore `demo_unified.exs`
-5. **For testing:** Use `live_api_test.exs` to validate your setup
+3. **For live tool calling:** Run `live_auto_tool_test.exs` to see real automatic tool execution with the Gemini API ⚡
+4. **For streaming:** Run `streaming_demo.exs` to see real-time generation
+5. **For architecture understanding:** Explore `demo_unified.exs`
+6. **For testing:** Use `live_api_test.exs` to validate your setup
 
 Each example includes detailed output and explanations to help you understand the library's capabilities and how to integrate them into your own applications.

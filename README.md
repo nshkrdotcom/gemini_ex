@@ -500,7 +500,43 @@ mix run examples/manual_tool_calling_demo.exs
 
 ---
 
-#### 9. **`live_api_test.exs`** - API Testing and Validation
+#### 9. **`live_auto_tool_test.exs`** - Live End-to-End Tool Calling Test ⚡ **LIVE EXAMPLE**
+**A comprehensive live test demonstrating real automatic tool execution with the Gemini API.**
+
+```bash
+elixir examples/live_auto_tool_test.exs
+```
+
+**Features demonstrated:**
+- **Real Elixir module introspection** using `Code.ensure_loaded/1` and `Code.fetch_docs/1`
+- **Live automatic tool execution** with the actual Gemini API
+- **End-to-end workflow validation** from tool registration to final response
+- **Comprehensive error handling** and debug output
+- **Self-contained execution** with `Mix.install` dependency management
+- **Professional output formatting** with step-by-step progress indicators
+
+**What makes this special:**
+- ✅ **Actually calls the Gemini API** - not a mock or simulation
+- ✅ **Executes real Elixir code** - introspects modules like `Enum`, `String`, `GenServer`
+- ✅ **Demonstrates the complete pipeline** - tool registration → API call → tool execution → response synthesis
+- ✅ **Self-contained** - runs independently with just an API key
+- ✅ **Comprehensive logging** - shows exactly what's happening at each step
+
+**Requirements:** `GEMINI_API_KEY` environment variable (this is a live API test)
+
+**Example output:**
+```
+🎉 SUCCESS! Final Response from Gemini:
+The `Enum` module in Elixir is a powerful tool for working with collections...
+Based on the information retrieved using `get_elixir_module_info`, here's a breakdown:
+1. Main Purpose: Provides consistent iteration over enumerables (lists, maps, ranges)
+2. Common Functions: map/2, filter/2, reduce/3, sum/1, sort/1...
+3. Usefulness: Unified interface, functional programming, high performance...
+```
+
+---
+
+#### 10. **`live_api_test.exs`** - API Testing and Validation
 **Comprehensive testing utility for validating both authentication methods.**
 
 ```bash
