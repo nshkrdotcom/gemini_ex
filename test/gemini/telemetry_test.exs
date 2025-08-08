@@ -56,12 +56,12 @@ defmodule Gemini.TelemetryTest do
     end
 
     test "build_request_metadata/3 creates proper metadata" do
-      opts = [model: "gemini-2.0-flash", function: :generate_content, contents_type: :text]
+      opts = [model: "gemini-2.0-flash-lite", function: :generate_content, contents_type: :text]
       metadata = Gemini.Telemetry.build_request_metadata("https://example.com", :post, opts)
 
       assert metadata.url == "https://example.com"
       assert metadata.method == :post
-      assert metadata.model == "gemini-2.0-flash"
+      assert metadata.model == "gemini-2.0-flash-lite"
       assert metadata.function == :generate_content
       assert metadata.contents_type == :text
       assert is_integer(metadata.system_time)

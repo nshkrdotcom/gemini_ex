@@ -7,7 +7,7 @@ require Logger
 defmodule TelemetryShowcase do
   @moduledoc """
   Comprehensive demonstration of the Gemini library's telemetry system.
-  
+
   This example shows:
   - Telemetry event attachment and handling
   - Real-time monitoring of API requests and streaming
@@ -155,19 +155,19 @@ defmodule TelemetryShowcase do
 
     # Demonstrate disabling/enabling
     IO.puts("\nTesting telemetry toggle:")
-    
+
     # Disable telemetry
     Application.put_env(:gemini, :telemetry_enabled, false)
     IO.puts("• After disabling: #{Gemini.Config.telemetry_enabled?()}")
-    
+
     # Test event emission when disabled (should not show output)
     IO.puts("• Testing event emission when disabled (no output expected):")
     Gemini.Telemetry.execute([:test, :disabled], %{value: 1}, %{source: "demo"})
-    
+
     # Re-enable telemetry
     Application.put_env(:gemini, :telemetry_enabled, true)
     IO.puts("• After re-enabling: #{Gemini.Config.telemetry_enabled?()}")
-    
+
     # Test event emission when enabled
     IO.puts("• Testing event emission when enabled:")
     Gemini.Telemetry.execute([:test, :enabled], %{value: 42}, %{source: "demo"})
@@ -218,7 +218,7 @@ defmodule TelemetryShowcase do
     request_metadata = Gemini.Telemetry.build_request_metadata(
       "https://api.example.com/generate",
       :post,
-      model: "gemini-pro",
+      model: "gemini-2.0-flash-lite",
       function: :generate_content,
       contents_type: :text
     )
@@ -229,7 +229,7 @@ defmodule TelemetryShowcase do
       "https://api.example.com/stream",
       :post,
       stream_id,
-      model: "gemini-pro"
+      model: "gemini-2.0-flash-lite"
     )
     IO.puts("  • Stream metadata keys: #{Map.keys(stream_metadata) |> Enum.join(", ")}")
     IO.puts("  • Stream ID: #{stream_metadata.stream_id}")
@@ -282,10 +282,10 @@ defmodule TelemetryShowcase do
         case Gemini.start_stream("Count from 1 to 3 briefly.") do
           {:ok, stream_id} ->
             IO.puts("🌊 Started stream: #{stream_id}")
-            
+
             # Subscribe to stream to trigger events
             :ok = Gemini.subscribe_stream(stream_id)
-            
+
             # Let stream run for a bit to collect events
             receive do
               {:stream_complete, ^stream_id} ->
@@ -341,7 +341,7 @@ defmodule TelemetryShowcase do
     # Detach all handlers
     [
       [:gemini, :request, :start],
-      [:gemini, :request, :stop], 
+      [:gemini, :request, :stop],
       [:gemini, :request, :exception],
       [:gemini, :stream, :start],
       [:gemini, :stream, :chunk],

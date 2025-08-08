@@ -17,7 +17,7 @@ defmodule Gemini.APIs.CoordinatorTest do
             "finishReason" => "STOP"
           }
         ],
-        "modelVersion" => "gemini-2.0-flash"
+        "modelVersion" => "gemini-2.0-flash-lite"
       }
 
       # Test the private function by calling the public interface that uses it

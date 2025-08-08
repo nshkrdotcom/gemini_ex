@@ -76,10 +76,10 @@ defmodule LiveAPITest do
     cond do
       service_account_file && File.exists?(service_account_file) ->
         IO.puts("Found service account file: #{service_account_file}")
-        
+
         # Try to extract project_id from service account file if not set
         project_id = project_id || extract_project_from_service_account(service_account_file)
-        
+
         if project_id do
           # Configure for Vertex AI
           Gemini.configure(:vertex_ai, %{
@@ -87,12 +87,12 @@ defmodule LiveAPITest do
             project_id: project_id,
             location: "us-central1"
           })
-          
+
           IO.puts("Configured Vertex AI with project: #{project_id}")
-          
+
           # Test simple text generation
           test_simple_generation("Vertex AI")
-          
+
           # Test model listing (different for Vertex AI)
           test_vertex_model_operations()
         else
@@ -107,7 +107,7 @@ defmodule LiveAPITest do
 
   defp test_simple_generation(auth_type) do
     IO.puts("\n  📝 Testing simple text generation with #{auth_type}")
-    
+
     case Gemini.generate("What is the capital of France? Give a brief answer.") do
       {:ok, response} ->
         case Gemini.extract_text(response) do
@@ -123,18 +123,18 @@ defmodule LiveAPITest do
 
   defp test_model_listing(auth_type) do
     IO.puts("\n  📋 Testing model listing with #{auth_type}")
-    
+
     case Gemini.list_models() do
       {:ok, response} ->
         model_count = length(response.models)
         IO.puts("  ✅ Found #{model_count} models")
-        
+
         # Show first few model names
         model_names = response.models
                      |> Enum.take(3)
                      |> Enum.map(& &1.name)
         IO.puts("  First models: #{inspect(model_names)}")
-        
+
       {:error, error} ->
         IO.puts("  ❌ Model listing failed: #{inspect(error)}")
     end
@@ -142,14 +142,14 @@ defmodule LiveAPITest do
 
   defp test_vertex_model_operations do
     IO.puts("\n  📋 Testing Vertex AI model operations")
-    
+
     # For Vertex AI, we test specific model existence
-    model_name = "gemini-2.0-flash"
-    
+    model_name = "gemini-2.0-flash-lite"
+
     case Gemini.model_exists?(model_name) do
       {:ok, true} ->
         IO.puts("  ✅ Model #{model_name} exists")
-        
+
         # Try to get model details
         case Gemini.get_model(model_name) do
           {:ok, model} ->
@@ -157,7 +157,7 @@ defmodule LiveAPITest do
           {:error, error} ->
             IO.puts("  ⚠️  Model details failed: #{inspect(error)}")
         end
-        
+
       {:ok, false} ->
         IO.puts("  ❌ Model #{model_name} does not exist")
     end
@@ -165,9 +165,9 @@ defmodule LiveAPITest do
 
   defp test_token_counting(auth_type) do
     IO.puts("\n  🔢 Testing token counting with #{auth_type}")
-    
+
     test_text = "Hello, how are you doing today? This is a test message for token counting."
-    
+
     case Gemini.count_tokens(test_text) do
       {:ok, response} ->
         IO.puts("  ✅ Token count: #{response.total_tokens} tokens")
@@ -182,29 +182,29 @@ defmodule LiveAPITest do
 
     # Test streaming with current auth config
     test_stream_generation()
-    
+
     # Test managed streaming
     test_managed_streaming()
   end
 
   defp test_stream_generation do
     IO.puts("\n  🔄 Testing stream generation")
-    
+
     prompt = "Write a very short poem about coding. Keep it under 50 words."
-    
+
     case Gemini.stream_generate(prompt) do
       {:ok, responses} ->
         IO.puts("  ✅ Received #{length(responses)} stream responses")
-        
+
         # Combine all text from stream
         all_text = responses
                   |> Enum.map(&Gemini.extract_text/1)
                   |> Enum.filter(&match?({:ok, _}, &1))
                   |> Enum.map(fn {:ok, text} -> text end)
                   |> Enum.join("")
-        
+
         IO.puts("  📝 Streamed text: #{String.slice(all_text, 0, 200)}...")
-        
+
       {:error, error} ->
         IO.puts("  ❌ Stream generation failed: #{inspect(error)}")
     end
@@ -212,29 +212,29 @@ defmodule LiveAPITest do
 
   defp test_managed_streaming do
     IO.puts("\n  🎛️  Testing managed streaming")
-    
+
     # Start the streaming manager
     case Gemini.start_link() do
       {:ok, _} ->
         IO.puts("  ✅ Streaming manager started")
-        
+
         prompt = "Count from 1 to 5, explaining each number briefly."
-        
+
         case Gemini.start_stream(prompt) do
           {:ok, stream_id} ->
             IO.puts("  ✅ Started stream: #{stream_id}")
-            
+
             # Subscribe to the stream
             :ok = Gemini.subscribe_stream(stream_id)
             IO.puts("  ✅ Subscribed to stream")
-            
+
             # Wait for stream events
             collect_stream_events(stream_id, 0, 5000)  # 5 second timeout
-            
+
           {:error, error} ->
             IO.puts("  ❌ Failed to start managed stream: #{inspect(error)}")
         end
-        
+
       {:error, error} ->
         IO.puts("  ❌ Failed to start streaming manager: #{inspect(error)}")
     end
@@ -252,16 +252,16 @@ defmodule LiveAPITest do
         end
         IO.puts("  📦 Stream event #{event_count + 1}: #{String.slice(content, 0, 100)}#{if String.length(content) > 100, do: "...", else: ""}")
         collect_stream_events(stream_id, event_count + 1, timeout)
-        
+
       {:stream_complete, ^stream_id} ->
         IO.puts("  ✅ Stream completed with #{event_count} events")
-        
+
       {:stream_error, ^stream_id, error} ->
         IO.puts("  ❌ Stream error: #{inspect(error)}")
-        
+
     after timeout ->
       IO.puts("  ⏰ Stream timeout after #{event_count} events")
-      
+
       # Check stream status
       case Gemini.get_stream_status(stream_id) do
         {:ok, status} ->

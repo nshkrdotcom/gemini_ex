@@ -72,7 +72,7 @@ defmodule Gemini.APIs.Tokens do
       {:ok, response} = Tokens.count(contents)
 
       # With specific model
-      {:ok, response} = Tokens.count("Hello", model: "gemini-1.5-pro")
+      {:ok, response} = Tokens.count("Hello", model: "gemini-2.5-pro")
 
       # Using GenerateContentRequest
       {:ok, gen_request} = GenerateContentRequest.new("Hello", generation_config: config)
@@ -161,13 +161,13 @@ defmodule Gemini.APIs.Tokens do
         "How are you?",
         "Tell me a story about dragons"
       ]
-      
+
       {:ok, results} = Tokens.count_batch(inputs)
-      
+
       # Process results in your application code
 
       # With options
-      {:ok, results} = Tokens.count_batch(inputs, model: "gemini-1.5-pro")
+      {:ok, results} = Tokens.count_batch(inputs, model: "gemini-2.5-pro")
   """
   @spec count_batch([String.t() | [Content.t()]], keyword()) ::
           {:ok, [CountTokensResponse.t()]} | {:error, Error.t()}
@@ -256,7 +256,7 @@ defmodule Gemini.APIs.Tokens do
 
   ## Examples
 
-      {:ok, analysis} = Tokens.check_fit("Hello world", "gemini-2.0-flash")
+      {:ok, analysis} = Tokens.check_fit("Hello world", "gemini-2.0-flash-lite")
       # => {:ok, %{fits: true, tokens: 3, limit: 1000000, remaining: 999997}}
 
       # With output buffer

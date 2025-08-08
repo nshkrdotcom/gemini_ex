@@ -58,7 +58,7 @@ IO.puts("🚀 Testing automatic tool calling...")
 result = Gemini.generate_content_with_auto_tools(
   prompt,
   tools: [tool_declaration],
-  model: "gemini-1.5-flash",
+  model: "gemini-2.0-flash-lite",
   temperature: 0.1,
   turn_limit: 3
 )

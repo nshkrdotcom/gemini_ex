@@ -159,7 +159,7 @@ defmodule Gemini.StreamingIntegrationTest do
 
       try do
         contents = "Hello, world!"
-        opts = [model: "gemini-2.0-flash"]
+        opts = [model: "gemini-2.0-flash-lite"]
 
         # Should fail with proper error when no auth is configured
         assert {:error, error_msg} = UnifiedManager.start_stream(contents, opts, self())
@@ -197,7 +197,7 @@ defmodule Gemini.StreamingIntegrationTest do
 
       try do
         contents = "Hello, world!"
-        opts = [model: "gemini-2.0-flash"]
+        opts = [model: "gemini-2.0-flash-lite"]
 
         case UnifiedManager.start_stream(contents, opts, self()) do
           {:ok, stream_id} ->
@@ -206,7 +206,7 @@ defmodule Gemini.StreamingIntegrationTest do
             # Verify stream is tracked
             {:ok, info} = UnifiedManager.get_stream_info(stream_id)
             assert info.status in [:starting, :active]
-            assert info.model == "gemini-2.0-flash"
+            assert info.model == "gemini-2.0-flash-lite"
 
             # Clean up the stream
             UnifiedManager.stop_stream(stream_id)
@@ -442,7 +442,7 @@ defmodule Gemini.StreamingIntegrationTest do
           # Use existing manager
 
           contents = "Count from 1 to 5, one number per response"
-          opts = [model: "gemini-2.0-flash"]
+          opts = [model: "gemini-2.0-flash-lite"]
 
           {:ok, stream_id} = UnifiedManager.start_stream(contents, opts, self())
 

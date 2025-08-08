@@ -22,7 +22,8 @@ defmodule Gemini.Config do
     flash_2_5_lite: "gemini-2.5-flash-lite",
     live_2_5_flash_preview: "gemini-live-2.5-flash-preview",
     flash_2_5_preview_native_audio_dialog: "gemini-2.5-flash-preview-native-audio-dialog",
-    flash_2_5_exp_native_audio_thinking_dialog: "gemini-2.5-flash-exp-native-audio-thinking-dialog",
+    flash_2_5_exp_native_audio_thinking_dialog:
+      "gemini-2.5-flash-exp-native-audio-thinking-dialog",
     flash_2_5_preview_tts: "gemini-2.5-flash-preview-tts",
     pro_2_5_preview_tts: "gemini-2.5-pro-preview-tts",
 

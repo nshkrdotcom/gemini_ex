@@ -20,6 +20,7 @@ defmodule Gemini.Streaming.ToolOrchestrator do
   alias Gemini.Chat
   alias Gemini.Tools
   alias Gemini.Types.Content
+  alias Gemini.Config
 
   @type orchestrator_state :: %{
           stream_id: String.t(),
@@ -358,7 +359,7 @@ defmodule Gemini.Streaming.ToolOrchestrator do
   defp get_streaming_url_and_headers(state, auth_strategy, auth_headers) do
     case MultiAuthCoordinator.get_credentials(auth_strategy, state.config) do
       {:ok, credentials} ->
-        model = Keyword.get(state.config, :model, "gemini-1.5-flash")
+        model = Keyword.get(state.config, :model, Config.default_model())
 
         base_url =
           case auth_strategy do

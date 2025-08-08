@@ -16,16 +16,16 @@ defmodule Gemini.IntegrationTest do
     end
 
     test "gets specific model information" do
-      {:ok, model} = Gemini.get_model("gemini-2.0-flash")
+      {:ok, model} = Gemini.get_model("gemini-2.0-flash-lite")
 
-      assert model.name =~ "gemini-2.0-flash"
+      assert model.name =~ "gemini-2.0-flash-lite"
       assert is_binary(model.display_name)
       assert is_integer(model.input_token_limit)
       assert model.input_token_limit > 0
     end
 
     test "checks model existence" do
-      {:ok, exists} = Gemini.model_exists?("gemini-2.0-flash")
+      {:ok, exists} = Gemini.model_exists?("gemini-2.0-flash-lite")
       assert exists == true
 
       {:ok, exists} = Gemini.model_exists?("non-existent-model-12345")

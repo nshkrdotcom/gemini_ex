@@ -186,8 +186,8 @@ defmodule Gemini.Telemetry do
 
   ## Examples
 
-      iex> Gemini.Telemetry.extract_model(model: "gemini-pro")
-      "gemini-pro"
+      iex> Gemini.Telemetry.extract_model(model: "gemini-2.0-flash-lite")
+      "gemini-2.0-flash-lite"
 
       iex> Gemini.Telemetry.extract_model([])
       Gemini.Config.get_model(:default)  # default model
@@ -220,13 +220,13 @@ defmodule Gemini.Telemetry do
 
   ## Examples
 
-      iex> metadata = Gemini.Telemetry.build_request_metadata("/api/generate", :post, model: "gemini-pro")
+      iex> metadata = Gemini.Telemetry.build_request_metadata("/api/generate", :post, model: "gemini-2.0-flash-lite")
       iex> metadata.url
       "/api/generate"
       iex> metadata.method
       :post
       iex> metadata.model
-      "gemini-pro"
+      "gemini-2.0-flash-lite"
   """
   @spec build_request_metadata(binary(), http_method(), keyword()) :: telemetry_metadata()
   def build_request_metadata(url, method, opts \\ []) do

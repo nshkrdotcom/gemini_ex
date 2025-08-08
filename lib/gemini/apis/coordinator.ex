@@ -239,7 +239,7 @@ defmodule Gemini.APIs.Coordinator do
   ## Examples
 
       {:ok, model} = Coordinator.get_model(Gemini.Config.get_model(:flash_2_0_lite))
-      {:ok, model} = Coordinator.get_model("gemini-1.5-pro", auth: :vertex_ai)
+      {:ok, model} = Coordinator.get_model("gemini-2.5-pro", auth: :vertex_ai)
   """
   @spec get_model(String.t(), Gemini.options()) :: api_result(map())
   def get_model(model_name, opts \\ []) do
@@ -274,7 +274,7 @@ defmodule Gemini.APIs.Coordinator do
   ## Examples
 
       {:ok, count} = Coordinator.count_tokens("Hello world")
-      {:ok, count} = Coordinator.count_tokens("Complex text", model: "gemini-1.5-pro", auth: :vertex_ai)
+      {:ok, count} = Coordinator.count_tokens("Complex text", model: "gemini-2.5-pro", auth: :vertex_ai)
   """
   @spec count_tokens(String.t() | GenerateContentRequest.t(), Gemini.options()) ::
           api_result(%{total_tokens: integer()})

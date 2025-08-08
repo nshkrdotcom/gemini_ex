@@ -8,7 +8,7 @@
 defmodule MultiAuthDemo do
   @moduledoc """
   Demonstrates the multi-authentication capabilities of the unified Gemini client.
-  
+
   This example shows how to use both Gemini API and Vertex AI authentication
   simultaneously, which is the key differentiator of this implementation.
   """
@@ -19,10 +19,10 @@ defmodule MultiAuthDemo do
 
     # Check available authentication methods
     check_available_auth_methods()
-    
+
     # Demonstrate concurrent usage
     demonstrate_concurrent_usage()
-    
+
     # Show configuration flexibility
     demonstrate_explicit_auth_selection()
 
@@ -35,7 +35,7 @@ defmodule MultiAuthDemo do
 
     gemini_available = not is_nil(System.get_env("GEMINI_API_KEY"))
     vertex_env_available = not is_nil(System.get_env("VERTEX_JSON_FILE")) and not is_nil(System.get_env("VERTEX_PROJECT_ID"))
-    
+
     # For demonstration purposes, we'll also show Vertex AI as "available" even with invalid credentials
     # to demonstrate the authentication failure
     vertex_demo_available = true
@@ -78,7 +78,7 @@ defmodule MultiAuthDemo do
 
     # Always add Vertex AI task to demonstrate authentication failure
     IO.puts("🔑 Starting Vertex AI task (with invalid credentials for demo)...")
-    
+
     # Save all current Vertex AI environment variables for restoration
     original_env = %{
       vertex_file: System.get_env("VERTEX_JSON_FILE"),
@@ -88,19 +88,19 @@ defmodule MultiAuthDemo do
       google_project: System.get_env("GOOGLE_CLOUD_PROJECT"),
       google_location: System.get_env("GOOGLE_CLOUD_LOCATION")
     }
-    
+
     # Clear ALL possible Vertex AI credential sources to force failure
     System.delete_env("VERTEX_JSON_FILE")
-    System.delete_env("VERTEX_PROJECT_ID") 
+    System.delete_env("VERTEX_PROJECT_ID")
     System.delete_env("VERTEX_SERVICE_ACCOUNT")
     System.delete_env("GOOGLE_APPLICATION_CREDENTIALS")
     System.delete_env("GOOGLE_CLOUD_PROJECT")
     System.delete_env("GOOGLE_CLOUD_LOCATION")
-    
+
     # Set invalid values to any that might have defaults
     System.put_env("VERTEX_PROJECT_ID", "invalid-demo-project")
     System.put_env("VERTEX_JSON_FILE", "/tmp/nonexistent_credentials.json")
-    
+
     vertex_task = Task.async(fn ->
       case Gemini.text("What's 3+3?", auth: :vertex_ai) do
         {:ok, text} -> {:vertex_ai, :success, text}
@@ -129,7 +129,7 @@ defmodule MultiAuthDemo do
       {auth_type, :error, error} ->
         IO.puts("❌ #{auth_type}: #{error}")
     end)
-    
+
     IO.puts("\n💡 Note: Vertex AI failure above demonstrates proper error handling for invalid credentials")
   end
 
@@ -140,13 +140,13 @@ defmodule MultiAuthDemo do
     # Show how to explicitly choose auth strategy per request
     operations = [
       {"List models", fn -> Gemini.list_models() end},
-      {"Get specific model", fn -> Gemini.get_model("gemini-2.0-flash") end},
+      {"Get specific model", fn -> Gemini.get_model("gemini-2.0-flash-lite") end},
       {"Count tokens", fn -> Gemini.count_tokens("Hello world") end}
     ]
 
     Enum.each(operations, fn {operation, func} ->
       IO.puts("🔧 #{operation}:")
-      
+
       case func.() do
         {:ok, _result} ->
           IO.puts("   ✅ Success with default authentication")

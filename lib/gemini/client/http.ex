@@ -242,7 +242,7 @@ defmodule Gemini.Client.HTTP do
 
       _ ->
         # fallback
-        "gemini-2.0-flash"
+        Config.default_model()
     end
   end
 

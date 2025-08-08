@@ -97,11 +97,11 @@ defmodule Gemini.Types.Request.GetModelRequest do
 
   ## Examples
 
-      iex> GetModelRequest.new("gemini-2.0-flash")
-      {:ok, %GetModelRequest{name: "models/gemini-2.0-flash"}}
+      iex> GetModelRequest.new("gemini-2.0-flash-lite")
+      {:ok, %GetModelRequest{name: "models/gemini-2.0-flash-lite"}}
 
-      iex> GetModelRequest.new("models/gemini-1.5-pro")
-      {:ok, %GetModelRequest{name: "models/gemini-1.5-pro"}}
+      iex> GetModelRequest.new("models/gemini-2.5-pro")
+      {:ok, %GetModelRequest{name: "models/gemini-2.5-pro"}}
 
       iex> GetModelRequest.new("")
       {:error, "Model name cannot be empty"}

@@ -259,7 +259,7 @@ Gemini.Tools.register(calc_declaration, &DemoTools.calculate/1)
 {:ok, response} = Gemini.generate_content_with_auto_tools(
   "What's the weather like in Tokyo? Also calculate 15 * 23.",
   tools: [weather_declaration, calc_declaration],
-  model: "gemini-1.5-flash",
+  model: "gemini-2.0-flash-lite",
   temperature: 0.1
 )
 ```
@@ -289,7 +289,7 @@ For real-time responses with tool calling:
 {:ok, stream_id} = Gemini.stream_generate_with_auto_tools(
   "Check the weather in London and calculate the tip for a $50 meal",
   tools: [weather_declaration, calc_declaration],
-  model: "gemini-1.5-flash"
+  model: "gemini-2.0-flash-lite"
 )
 
 # Subscribe to the stream
@@ -312,7 +312,7 @@ For advanced use cases requiring full control over the conversation loop, custom
 {:ok, response} = Gemini.generate_content(
   "What's the weather in Paris?",
   tools: [weather_declaration],
-  model: "gemini-1.5-flash"
+  model: "gemini-2.0-flash-lite"
 )
 
 # Step 2: Check for function calls in the response
@@ -336,7 +336,7 @@ case response.candidates do
       
       {:ok, final_response} = Gemini.generate_content(
         conversation_history,
-        model: "gemini-1.5-flash"
+        model: "gemini-2.0-flash-lite"
       )
       
       {:ok, text} = Gemini.extract_text(final_response)

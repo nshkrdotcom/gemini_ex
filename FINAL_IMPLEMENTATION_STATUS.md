@@ -81,7 +81,7 @@ Excluding tags: [:live_api, :skip]
 {:ok, response} = Gemini.generate_content_with_auto_tools(
   "What's the weather in San Francisco?",
   tools: [declaration],
-  model: "gemini-1.5-flash",
+  model: "gemini-2.0-flash-lite",
   turn_limit: 5
 )
 
@@ -95,7 +95,7 @@ Excluding tags: [:live_api, :skip]
 {:ok, stream_id} = Gemini.stream_generate_with_auto_tools(
   "What's the weather in Tokyo?",
   tools: [declaration],
-  model: "gemini-1.5-flash"
+  model: "gemini-2.0-flash-lite"
 )
 
 # Subscribe to receive only final text response

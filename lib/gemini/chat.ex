@@ -9,7 +9,7 @@ defmodule Gemini.Chat do
   ## Usage
 
       # Create a new chat session
-      chat = Gemini.Chat.new(model: "gemini-1.5-flash", temperature: 0.7)
+      chat = Gemini.Chat.new(model: "gemini-2.0-flash-lite", temperature: 0.7)
 
       # Add turns to the conversation
       chat = chat
@@ -52,7 +52,7 @@ defmodule Gemini.Chat do
   ## Examples
 
       chat = Gemini.Chat.new()
-      chat = Gemini.Chat.new(model: "gemini-1.5-pro", temperature: 0.3)
+      chat = Gemini.Chat.new(model: "gemini-2.5-pro", temperature: 0.3)
   """
   @spec new(keyword()) :: t()
   def new(opts \\ []) when is_list(opts) do

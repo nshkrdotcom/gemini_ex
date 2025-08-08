@@ -79,11 +79,11 @@ defmodule Gemini.Types.Response.Model do
 
   ## Examples
 
-      iex> Model.effective_base_id(%Model{base_model_id: "gemini-2.0-flash"})
-      "gemini-2.0-flash"
+      iex> Model.effective_base_id(%Model{base_model_id: "gemini-2.0-flash-lite"})
+      "gemini-2.0-flash-lite"
 
-      iex> Model.effective_base_id(%Model{name: "models/gemini-1.5-pro", base_model_id: nil})
-      "gemini-1.5-pro"
+      iex> Model.effective_base_id(%Model{name: "models/gemini-2.5-pro", base_model_id: nil})
+      "gemini-2.5-pro"
   """
   @spec effective_base_id(t()) :: String.t()
   def effective_base_id(%__MODULE__{base_model_id: base_id}) when is_binary(base_id) do
@@ -218,7 +218,7 @@ defmodule Gemini.Types.Response.Model do
 
   ## Examples
 
-      iex> Model.model_family(%Model{base_model_id: "gemini-2.0-flash"})
+      iex> Model.model_family(%Model{base_model_id: "gemini-2.0-flash-lite"})
       "gemini"
 
       iex> Model.model_family(%Model{base_model_id: "text-embedding-004"})

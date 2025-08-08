@@ -353,7 +353,7 @@ defmodule Gemini do
       {:ok, stream_id} = Gemini.stream_generate_with_auto_tools(
         "What's the weather in San Francisco?",
         tools: [declaration],
-        model: "gemini-1.5-flash"
+        model: "gemini-2.0-flash-lite"
       )
 
       # Subscribe to receive only the final text response
@@ -420,7 +420,7 @@ defmodule Gemini do
       {:ok, response} = Gemini.generate_content_with_auto_tools(
         "What's the weather in San Francisco?",
         tools: [declaration],
-        model: "gemini-1.5-flash"
+        model: "gemini-2.0-flash-lite"
       )
 
   ## Returns
@@ -528,15 +528,22 @@ defmodule Gemini do
       case candidate do
         %{content: %{parts: parts}} ->
           parts
-          |> Enum.filter(fn part -> Map.has_key?(part, :function_call) and part.function_call != nil end)
+          |> Enum.filter(fn part ->
+            Map.has_key?(part, :function_call) and part.function_call != nil
+          end)
           |> Enum.map(fn part ->
             # Convert raw function call data to ADM FunctionCall struct
             function_call_data = part.function_call
-            {:ok, function_call} = Altar.ADM.new_function_call(%{
-              name: function_call_data.name,
-              args: function_call_data.args || %{},
-              call_id: function_call_data.name <> "_" <> (:crypto.strong_rand_bytes(8) |> Base.encode16(case: :lower))
-            })
+
+            {:ok, function_call} =
+              Altar.ADM.new_function_call(%{
+                name: function_call_data.name,
+                args: function_call_data.args || %{},
+                call_id:
+                  function_call_data.name <>
+                    "_" <> (:crypto.strong_rand_bytes(8) |> Base.encode16(case: :lower))
+              })
+
             function_call
           end)
 

@@ -28,7 +28,7 @@ defmodule ToolCallingDemo do
 
     # Step 2: Create a chat session
     IO.puts("\n2. Creating a new chat session...")
-    chat = Chat.new(model: "gemini-1.5-flash", temperature: 0.1)
+    chat = Chat.new(model: "gemini-2.0-flash-lite", temperature: 0.1)
     IO.puts("   ✅ Chat session created")
 
     # Step 3: Add user message that should trigger tool calling

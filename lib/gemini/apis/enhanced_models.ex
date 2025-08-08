@@ -18,7 +18,7 @@ defmodule Gemini.APIs.Models do
       {:ok, model} = Models.get("gemini-2.0-flash")
 
       # Check if model exists
-      {:ok, true} = Models.exists?("gemini-pro")
+      {:ok, true} = Models.exists?("gemini-2.0-flash-lite")
 
       # Filter models by capabilities
       {:ok, streaming_models} = Models.supporting_method("streamGenerateContent")
@@ -95,7 +95,7 @@ defmodule Gemini.APIs.Models do
 
   ## Parameters
   - `model_name` - The model identifier, with or without "models/" prefix
-    Examples: "gemini-2.0-flash", "models/gemini-1.5-pro"
+    Examples: "gemini-2.0-flash-lite", "models/gemini-2.5-pro"
 
   ## Returns
   - `{:ok, Model.t()}` - Success with model details
@@ -104,10 +104,10 @@ defmodule Gemini.APIs.Models do
   ## Examples
 
       # Get model by base ID
-      {:ok, model} = Models.get("gemini-2.0-flash")
+      {:ok, model} = Models.get("gemini-2.0-flash-lite")
 
       # Get model by full resource name
-      {:ok, model} = Models.get("models/gemini-1.5-pro")
+      {:ok, model} = Models.get("models/gemini-2.5-pro")
 
       # Handle not found cases properly in your application code
 
@@ -166,7 +166,7 @@ defmodule Gemini.APIs.Models do
   ## Examples
 
       {:ok, names} = Models.list_names()
-      # => ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"]
+      # => ["gemini-2.0-flash-lite", "gemini-2.5-pro", "gemini-2.5-flash"]
 
       # Use with enum functions
       {:ok, names} = Models.list_names()
@@ -202,12 +202,12 @@ defmodule Gemini.APIs.Models do
 
   ## Examples
 
-      {:ok, true} = Models.exists?("gemini-2.0-flash")
+      {:ok, true} = Models.exists?("gemini-2.0-flash-lite")
       {:ok, false} = Models.exists?("nonexistent-model")
 
       # Use in conditional logic
-      case Models.exists?("gemini-pro") do
-        {:ok, true} -> generate_with_model("gemini-pro")
+      case Models.exists?("gemini-2.0-flash-lite") do
+        {:ok, true} -> generate_with_model("gemini-2.0-flash-lite")
         {:ok, false} -> use_fallback_model()
         {:error, _} -> handle_api_error()
       end

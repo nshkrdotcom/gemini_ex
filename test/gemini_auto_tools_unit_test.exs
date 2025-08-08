@@ -31,7 +31,7 @@ defmodule Gemini.AutoToolsUnitTest do
       # Test with valid options
       opts = [
         tools: [declaration],
-        model: "gemini-1.5-flash",
+        model: "gemini-2.0-flash-lite",
         temperature: 0.1,
         turn_limit: 5
       ]
@@ -59,7 +59,7 @@ defmodule Gemini.AutoToolsUnitTest do
 
       opts = [
         tools: [declaration],
-        model: "gemini-1.5-flash",
+        model: "gemini-2.0-flash-lite",
         turn_limit: 3
       ]
 
