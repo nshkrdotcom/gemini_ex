@@ -11,6 +11,7 @@ A comprehensive Elixir client for Google's Gemini AI API with dual authenticatio
 
 ## ✨ Features
 
+- **🤖 Automatic Tool Calling**: A seamless, Python-SDK-like experience that automates the entire multi-turn tool-calling loop
 - **🔐 Dual Authentication**: Seamless support for both Gemini API keys and Vertex AI OAuth/Service Accounts
 - **⚡ Advanced Streaming**: Production-grade Server-Sent Events streaming with real-time processing
 - **🛡️ Type Safety**: Complete type definitions with runtime validation
@@ -82,6 +83,39 @@ IO.puts(text)
 ])
 ```
 
+### Simple Tool Calling
+
+```elixir
+# Define a simple tool
+defmodule WeatherTool do
+  def get_weather(%{"location" => location}) do
+    %{location: location, temperature: 22, condition: "sunny"}
+  end
+end
+
+# Create and register the tool
+{:ok, weather_declaration} = Altar.ADM.new_function_declaration(%{
+  name: "get_weather",
+  description: "Gets weather for a location",
+  parameters: %{
+    type: "object",
+    properties: %{location: %{type: "string", description: "City name"}},
+    required: ["location"]
+  }
+})
+
+Gemini.Tools.register(weather_declaration, &WeatherTool.get_weather/1)
+
+# Use the tool automatically - the model will call it as needed
+{:ok, response} = Gemini.generate_content_with_auto_tools(
+  "What's the weather like in Tokyo?",
+  tools: [weather_declaration]
+)
+
+{:ok, text} = Gemini.extract_text(response)
+IO.puts(text) # "The weather in Tokyo is sunny with a temperature of 22°C."
+```
+
 ### Advanced Streaming
 
 ```elixir
@@ -147,6 +181,171 @@ config = %Gemini.Types.GenerationConfig{
 # Get conversation history
 history = Gemini.get_conversation_history(session)
 ```
+
+## 🛠️ Tool Calling (Function Calling)
+
+Tool calling enables the Gemini model to interact with external functions and APIs, making it possible to build powerful agents that can perform actions, retrieve real-time data, and integrate with your systems. This transforms the model from a text generator into an intelligent agent capable of complex workflows.
+
+### Automatic Execution (Recommended)
+
+The automatic tool calling system provides the easiest and most robust way to use tools. It handles the entire multi-turn conversation loop automatically, executing tool calls and managing the conversation state behind the scenes.
+
+#### Step 1: Define & Register Your Tools
+
+```elixir
+# Define your tool functions
+defmodule DemoTools do
+  def get_weather(%{"location" => location}) do
+    # Your weather API integration here
+    %{
+      location: location,
+      temperature: 22,
+      condition: "sunny",
+      humidity: 65
+    }
+  end
+
+  def calculate(%{"operation" => op, "a" => a, "b" => b}) do
+    result = case op do
+      "add" -> a + b
+      "multiply" -> a * b
+      "divide" when b != 0 -> a / b
+      _ -> {:error, "Invalid operation"}
+    end
+    
+    %{operation: op, result: result}
+  end
+end
+
+# Create function declarations
+{:ok, weather_declaration} = Altar.ADM.new_function_declaration(%{
+  name: "get_weather",
+  description: "Gets current weather information for a specified location",
+  parameters: %{
+    type: "object",
+    properties: %{
+      location: %{
+        type: "string",
+        description: "The location to get weather for (e.g., 'San Francisco')"
+      }
+    },
+    required: ["location"]
+  }
+})
+
+{:ok, calc_declaration} = Altar.ADM.new_function_declaration(%{
+  name: "calculate",
+  description: "Performs basic mathematical calculations",
+  parameters: %{
+    type: "object",
+    properties: %{
+      operation: %{type: "string", enum: ["add", "multiply", "divide"]},
+      a: %{type: "number", description: "First operand"},
+      b: %{type: "number", description: "Second operand"}
+    },
+    required: ["operation", "a", "b"]
+  }
+})
+
+# Register the tools
+Gemini.Tools.register(weather_declaration, &DemoTools.get_weather/1)
+Gemini.Tools.register(calc_declaration, &DemoTools.calculate/1)
+```
+
+#### Step 2: Call the Model
+
+```elixir
+# Single call with automatic tool execution
+{:ok, response} = Gemini.generate_content_with_auto_tools(
+  "What's the weather like in Tokyo? Also calculate 15 * 23.",
+  tools: [weather_declaration, calc_declaration],
+  model: "gemini-1.5-flash",
+  temperature: 0.1
+)
+```
+
+#### Step 3: Get the Final Result
+
+```elixir
+# Extract the final text response
+{:ok, text} = Gemini.extract_text(response)
+IO.puts(text)
+# Output: "The weather in Tokyo is sunny with 22°C and 65% humidity. 
+#          The calculation of 15 * 23 equals 345."
+```
+
+The model automatically:
+- Determines which tools to call based on your prompt
+- Executes the necessary function calls
+- Processes the results
+- Provides a natural language response incorporating all the data
+
+#### Streaming with Automatic Execution
+
+For real-time responses with tool calling:
+
+```elixir
+# Start streaming with automatic tool execution
+{:ok, stream_id} = Gemini.stream_generate_with_auto_tools(
+  "Check the weather in London and calculate the tip for a $50 meal",
+  tools: [weather_declaration, calc_declaration],
+  model: "gemini-1.5-flash"
+)
+
+# Subscribe to the stream
+:ok = Gemini.subscribe_stream(stream_id)
+
+# The subscriber will only receive the final text chunks
+# All tool execution happens automatically in the background
+receive do
+  {:stream_chunk, ^stream_id, chunk} -> IO.write(chunk)
+  {:stream_complete, ^stream_id} -> IO.puts("\n✅ Complete!")
+end
+```
+
+### Manual Execution (Advanced)
+
+For advanced use cases requiring full control over the conversation loop, custom state management, or detailed logging of tool executions:
+
+```elixir
+# Step 1: Generate content with tool declarations
+{:ok, response} = Gemini.generate_content(
+  "What's the weather in Paris?",
+  tools: [weather_declaration],
+  model: "gemini-1.5-flash"
+)
+
+# Step 2: Check for function calls in the response
+case response.candidates do
+  [%{content: %{parts: parts}}] ->
+    function_calls = Enum.filter(parts, &match?(%{function_call: _}, &1))
+    
+    if function_calls != [] do
+      # Step 3: Execute the function calls
+      {:ok, tool_results} = Gemini.Tools.execute_calls(function_calls)
+      
+      # Step 4: Create content from tool results
+      tool_content = Gemini.Types.Content.from_tool_results(tool_results)
+      
+      # Step 5: Continue the conversation with results
+      conversation_history = [
+        %{role: "user", parts: [%{text: "What's the weather in Paris?"}]},
+        response.candidates |> hd() |> Map.get(:content),
+        tool_content
+      ]
+      
+      {:ok, final_response} = Gemini.generate_content(
+        conversation_history,
+        model: "gemini-1.5-flash"
+      )
+      
+      {:ok, text} = Gemini.extract_text(final_response)
+      IO.puts(text)
+    end
+end
+```
+
+This manual approach gives you complete visibility and control over each step of the tool calling process, which can be valuable for debugging, logging, or implementing custom conversation management logic.
 
 ## 🎯 Examples
 
@@ -249,7 +448,59 @@ mix run examples/telemetry_showcase.exs
 
 ---
 
-#### 6. **`live_api_test.exs`** - API Testing and Validation
+#### 6. **`auto_tool_calling_demo.exs`** - Automatic Tool Execution (Recommended)
+**Demonstrates the powerful automatic tool calling system for building intelligent agents.**
+
+```bash
+mix run examples/auto_tool_calling_demo.exs
+```
+
+**Features demonstrated:**
+- Tool function definition and registration
+- Automatic multi-turn tool execution
+- Multiple tool types (weather, calculator, time)
+- Function declaration creation with JSON schemas
+- Streaming with automatic tool execution
+
+**Requirements:** `GEMINI_API_KEY` for live tool execution
+
+---
+
+#### 7. **`tool_calling_demo.exs`** - Manual Tool Execution
+**Shows manual control over the tool calling conversation loop for advanced use cases.**
+
+```bash
+mix run examples/tool_calling_demo.exs
+```
+
+**Features demonstrated:**
+- Manual tool execution workflow
+- Step-by-step conversation management
+- Custom tool result processing
+- Advanced debugging and logging capabilities
+
+**Requirements:** `GEMINI_API_KEY` for live tool execution
+
+---
+
+#### 8. **`manual_tool_calling_demo.exs`** - Advanced Manual Tool Control
+**Comprehensive manual tool calling patterns for complex agent workflows.**
+
+```bash
+mix run examples/manual_tool_calling_demo.exs
+```
+
+**Features demonstrated:**
+- Complex multi-step tool workflows
+- Custom conversation state management
+- Error handling in tool execution
+- Integration patterns for external APIs
+
+**Requirements:** `GEMINI_API_KEY` for live tool execution
+
+---
+
+#### 9. **`live_api_test.exs`** - API Testing and Validation
 **Comprehensive testing utility for validating both authentication methods.**
 
 ```bash
