@@ -16,27 +16,26 @@ defmodule Gemini.Config do
 
   # Model definitions
   @models %{
+    # Gemini 2.5 models
+    pro_2_5: "gemini-2.5-pro",
+    flash_2_5: "gemini-2.5-flash",
+    flash_2_5_lite: "gemini-2.5-flash-lite",
+    live_2_5_flash_preview: "gemini-live-2.5-flash-preview",
+    flash_2_5_preview_native_audio_dialog: "gemini-2.5-flash-preview-native-audio-dialog",
+    flash_2_5_exp_native_audio_thinking_dialog: "gemini-2.5-flash-exp-native-audio-thinking-dialog",
+    flash_2_5_preview_tts: "gemini-2.5-flash-preview-tts",
+    pro_2_5_preview_tts: "gemini-2.5-pro-preview-tts",
+
     # Gemini 2.0 models
     flash_2_0: "gemini-2.0-flash",
-    flash_2_0_001: "gemini-2.0-flash-001",
+    flash_2_0_preview_image_generation: "gemini-2.0-flash-preview-image-generation",
     flash_2_0_lite: "gemini-2.0-flash-lite",
-
-    # Gemini 1.5 models  
-    pro_1_5: "gemini-1.5-pro",
-    pro_1_5_001: "gemini-1.5-pro-001",
-    pro_1_5_002: "gemini-1.5-pro-002",
-    flash_1_5: "gemini-1.5-flash",
-    flash_1_5_001: "gemini-1.5-flash-001",
-    flash_1_5_002: "gemini-1.5-flash-002",
-    flash_8b_1_5: "gemini-1.5-flash-8b",
-
-    # Legacy models
-    pro: "gemini-pro",
+    flash_2_0_live_001: "gemini-2.0-flash-live-001",
 
     # Common aliases
     default: "gemini-2.0-flash-lite",
-    latest: "gemini-2.0-flash-lite",
-    stable: "gemini-1.5-pro"
+    latest: "gemini-2.5-pro",
+    stable: "gemini-2.5-pro"
   }
 
   @doc """
@@ -197,10 +196,10 @@ defmodule Gemini.Config do
 
       iex> Gemini.Config.get_model(:flash_2_0)
       "gemini-2.0-flash"
-      
+
       iex> Gemini.Config.get_model("gemini-1.5-pro")
       "gemini-1.5-pro"
-      
+
       iex> Gemini.Config.get_model(:default)
       "gemini-2.0-flash"
   """
@@ -238,7 +237,7 @@ defmodule Gemini.Config do
 
       iex> Gemini.Config.has_model?(:flash_2_0)
       true
-      
+
       iex> Gemini.Config.has_model?(:unknown)
       false
   """
