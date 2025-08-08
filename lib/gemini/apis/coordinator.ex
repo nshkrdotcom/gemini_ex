@@ -36,6 +36,7 @@ defmodule Gemini.APIs.Coordinator do
   alias Gemini.Types.Request.GenerateContentRequest
   alias Gemini.Types.Response.{GenerateContentResponse, ListModelsResponse}
   alias Gemini.Types.Content
+  alias Gemini.Types.ToolSerialization
 
   @type auth_strategy :: :gemini | :vertex_ai
   @type request_opts :: keyword()
@@ -397,6 +398,10 @@ defmodule Gemini.APIs.Coordinator do
         content
       end
 
+    # Inject tools and toolConfig if provided
+    final_content = maybe_put_tools(final_content, opts)
+    final_content = maybe_put_tool_config(final_content, opts)
+
     {:ok, final_content}
   end
 
@@ -428,6 +433,10 @@ defmodule Gemini.APIs.Coordinator do
         content
       end
 
+    # Inject tools and toolConfig if provided
+    final_content = maybe_put_tools(final_content, opts)
+    final_content = maybe_put_tool_config(final_content, opts)
+
     {:ok, final_content}
   end
 
@@ -451,6 +460,29 @@ defmodule Gemini.APIs.Coordinator do
   end
 
   defp format_part(part), do: part
+
+  # Tools serialization helpers
+  defp maybe_put_tools(map, opts) do
+    case Keyword.get(opts, :tools) do
+      tools when is_list(tools) and length(tools) > 0 ->
+        api_tools = ToolSerialization.to_api_tool_list(tools)
+        Map.put(map, :tools, api_tools)
+
+      _ ->
+        map
+    end
+  end
+
+  defp maybe_put_tool_config(map, opts) do
+    case Keyword.get(opts, :tool_config) do
+      %Altar.ADM.ToolConfig{} = tool_config ->
+        api_tool_config = ToolSerialization.to_api_tool_config(tool_config)
+        Map.put(map, :toolConfig, api_tool_config)
+
+      _ ->
+        map
+    end
+  end
 
   # Helper function to normalize model response keys
   defp normalize_model_response(response) when is_map(response) do
