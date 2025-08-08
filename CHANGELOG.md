@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2025-08-08
+
+### Added
+
+- **ALTAR Integration Documentation**: Added detailed documentation for the `ALTAR` protocol integration, explaining the architecture and benefits of the new type-safe, production-grade tool-calling foundation.
+
 ## [0.2.0] - 2025-08-07
 
 ### 🎉 Major Feature: Automatic Tool Calling
@@ -383,6 +389,7 @@ config :gemini_ex,
 - Minimal latency overhead
 - Concurrent request processing
 
+[0.2.0]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.2.0
 [0.1.1]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.1.1
 [0.1.0]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.1.0
 [0.0.3]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.0.3
