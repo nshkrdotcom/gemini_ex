@@ -19,7 +19,7 @@ A comprehensive Elixir client for Google's Gemini AI API with dual authenticatio
 - **💬 Chat Sessions**: Multi-turn conversation management with state persistence
 - **🎭 Multimodal**: Full support for text, image, audio, and video content
 - **⚙️ Complete Generation Config**: Full support for all 12 generation config options including structured output
-- **� Producltion Ready**: Robust error handling, retry logic, and performance optimizations
+- **🚀 Production Ready**: Robust error handling, retry logic, and performance optimizations
 - **🔧 Flexible Configuration**: Environment variables, application config, and per-request overrides
 
 ## 📦 Installation
@@ -298,7 +298,11 @@ For real-time responses with tool calling:
 # The subscriber will only receive the final text chunks
 # All tool execution happens automatically in the background
 receive do
-  {:stream_chunk, ^stream_id, chunk} -> IO.write(chunk)
+  {:stream_event, ^stream_id, event} -> 
+    case Gemini.extract_text(event) do
+      {:ok, text} -> IO.write(text)
+      _ -> :ok
+    end
   {:stream_complete, ^stream_id} -> IO.puts("\n✅ Complete!")
 end
 ```
