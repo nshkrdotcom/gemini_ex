@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **ALTAR Integration Documentation**: Added detailed documentation for the `ALTAR` protocol integration, explaining the architecture and benefits of the new type-safe, production-grade tool-calling foundation.
+- **ALTAR Version Update**: Bumped ALTAR dependency to v0.1.2.
 
 ## [0.2.0] - 2025-08-07
 
