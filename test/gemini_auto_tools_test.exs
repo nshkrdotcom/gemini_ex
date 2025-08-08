@@ -2,7 +2,7 @@ defmodule Gemini.AutoToolsTest do
   use ExUnit.Case, async: false
 
   alias Gemini
-  alias Gemini.{Chat, Tools}
+  alias Gemini.Tools
   alias Altar.ADM
 
   @moduletag :integration

@@ -442,7 +442,7 @@ defmodule Gemini.Streaming.ToolOrchestrator do
   defp convert_to_function_call(_), do: {:error, "Invalid function call format"}
 
   @spec handle_tool_execution_success(orchestrator_state(), [Altar.ADM.ToolResult.t()]) ::
-          {:noreply, orchestrator_state()}
+          {:noreply, orchestrator_state()} | {:stop, :normal, orchestrator_state()}
   defp handle_tool_execution_success(state, tool_results) do
     if state.turn_limit <= 0 do
       error = "Maximum tool-calling turns exceeded"
@@ -473,7 +473,7 @@ defmodule Gemini.Streaming.ToolOrchestrator do
   end
 
   @spec handle_tool_execution_error(orchestrator_state(), term()) ::
-          {:noreply, orchestrator_state()}
+          {:stop, :normal, orchestrator_state()}
   defp handle_tool_execution_error(state, reason) do
     error = "Tool execution failed: #{inspect(reason)}"
     send(state.subscriber_pid, {:stream_error, state.stream_id, error})
