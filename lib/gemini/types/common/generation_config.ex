@@ -19,6 +19,7 @@ defmodule Gemini.Types.GenerationConfig do
     field(:frequency_penalty, float() | nil, default: nil)
     field(:response_logprobs, boolean() | nil, default: nil)
     field(:logprobs, integer() | nil, default: nil)
+    field(:thinking_config, map() | nil, default: nil)
   end
 
   @doc """
@@ -105,5 +106,28 @@ defmodule Gemini.Types.GenerationConfig do
   """
   def stop_sequences(config \\ %__MODULE__{}, sequences) when is_list(sequences) do
     %{config | stop_sequences: sequences}
+  end
+
+  @doc """
+  Set thinking config with budget.
+
+  ## Parameters
+  - `config`: GenerationConfig struct (defaults to new config)
+  - `budget`: Thinking budget - positive integer for max tokens, -1 for dynamic, 0 to disable
+
+  ## Examples
+
+      # Enable thinking with 1024 token budget
+      config = GenerationConfig.thinking_budget(1024)
+
+      # Enable dynamic thinking (no budget limit)
+      config = GenerationConfig.thinking_budget(-1)
+
+      # Disable thinking
+      config = GenerationConfig.thinking_budget(0)
+  """
+  def thinking_budget(config \\ %__MODULE__{}, budget) when is_integer(budget) do
+    thinking_config = %{thinking_budget: budget}
+    %{config | thinking_config: thinking_config}
   end
 end

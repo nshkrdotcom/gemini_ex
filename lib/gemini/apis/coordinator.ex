@@ -387,6 +387,15 @@ defmodule Gemini.APIs.Coordinator do
           # Convert GenerationConfig struct directly to API format
           struct_to_api_map(generation_config)
 
+        generation_config when is_map(generation_config) ->
+          # Handle plain map generation config
+          generation_config
+          |> Enum.reduce(%{}, fn {key, value}, acc ->
+            camel_key = convert_to_camel_case(key)
+            Map.put(acc, camel_key, value)
+          end)
+          |> filter_nil_values()
+
         nil ->
           # Build from individual options for backward compatibility
           build_generation_config(opts)
@@ -421,6 +430,15 @@ defmodule Gemini.APIs.Coordinator do
         %Gemini.Types.GenerationConfig{} = generation_config ->
           # Convert GenerationConfig struct directly to API format
           struct_to_api_map(generation_config)
+
+        generation_config when is_map(generation_config) ->
+          # Handle plain map generation config
+          generation_config
+          |> Enum.reduce(%{}, fn {key, value}, acc ->
+            camel_key = convert_to_camel_case(key)
+            Map.put(acc, camel_key, value)
+          end)
+          |> filter_nil_values()
 
         nil ->
           # Build from individual options for backward compatibility
@@ -545,6 +563,10 @@ defmodule Gemini.APIs.Coordinator do
 
       {:logprobs, logprobs}, acc when is_integer(logprobs) ->
         Map.put(acc, :logprobs, logprobs)
+
+      # Thinking config support
+      {:thinking_config, thinking_config}, acc when is_map(thinking_config) ->
+        Map.put(acc, :thinkingConfig, thinking_config)
 
       # Ignore unknown options
       _, acc ->
