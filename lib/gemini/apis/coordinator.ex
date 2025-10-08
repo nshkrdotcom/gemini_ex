@@ -451,6 +451,13 @@ defmodule Gemini.APIs.Coordinator do
     Enum.map(contents, &normalize_single_content/1)
   end
 
+  # Test helper - expose normalization for testing
+  @doc false
+  def __test_normalize_content__(input), do: normalize_single_content(input)
+
+  @doc false
+  def __test_detect_mime__(data), do: detect_mime_type(data)
+
   # Already a Content struct - pass through
   defp normalize_single_content(%Content{} = content), do: content
 
