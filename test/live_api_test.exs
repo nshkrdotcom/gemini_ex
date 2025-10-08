@@ -245,32 +245,38 @@ defmodule LiveAPITest do
 
         # Test with default (dynamic thinking)
         IO.puts("\n  📊 Test 1: Default thinking (dynamic)")
-        {:ok, response_default} = Gemini.generate(
-          "Solve this step by step: What is 15 * 23?",
-          model: "gemini-2.5-flash"
-        )
+
+        {:ok, response_default} =
+          Gemini.generate(
+            "Solve this step by step: What is 15 * 23?",
+            model: "gemini-2.5-flash"
+          )
 
         thinking_tokens_default = response_default.usage_metadata[:thoughts_token_count]
         IO.puts("  Thinking tokens with default: #{inspect(thinking_tokens_default)}")
 
         # Test with thinking disabled
         IO.puts("\n  📊 Test 2: Thinking disabled (budget = 0)")
-        {:ok, response_disabled} = Gemini.generate(
-          "Solve this step by step: What is 15 * 23?",
-          model: "gemini-2.5-flash",
-          thinking_config: %{thinking_budget: 0}
-        )
+
+        {:ok, response_disabled} =
+          Gemini.generate(
+            "Solve this step by step: What is 15 * 23?",
+            model: "gemini-2.5-flash",
+            thinking_config: %{thinking_budget: 0}
+          )
 
         thinking_tokens_disabled = response_disabled.usage_metadata[:thoughts_token_count]
         IO.puts("  Thinking tokens with budget=0: #{inspect(thinking_tokens_disabled)}")
 
         # Test with limited thinking
         IO.puts("\n  📊 Test 3: Limited thinking (budget = 512)")
-        {:ok, response_limited} = Gemini.generate(
-          "Solve this step by step: What is 15 * 23?",
-          model: "gemini-2.5-flash",
-          thinking_config: %{thinking_budget: 512}
-        )
+
+        {:ok, response_limited} =
+          Gemini.generate(
+            "Solve this step by step: What is 15 * 23?",
+            model: "gemini-2.5-flash",
+            thinking_config: %{thinking_budget: 512}
+          )
 
         thinking_tokens_limited = response_limited.usage_metadata[:thoughts_token_count]
         IO.puts("  Thinking tokens with budget=512: #{inspect(thinking_tokens_limited)}")
@@ -309,11 +315,12 @@ defmodule LiveAPITest do
       if api_key do
         IO.puts("\n💭 Testing thought summaries (includeThoughts)")
 
-        {:ok, response} = Gemini.generate(
-          "Explain your reasoning for this: What is 2 + 2?",
-          model: "gemini-2.5-flash",
-          thinking_config: %{thinking_budget: 1024, include_thoughts: true}
-        )
+        {:ok, response} =
+          Gemini.generate(
+            "Explain your reasoning for this: What is 2 + 2?",
+            model: "gemini-2.5-flash",
+            thinking_config: %{thinking_budget: 1024, include_thoughts: true}
+          )
 
         IO.puts("  Response structure: #{inspect(Map.keys(response))}")
 

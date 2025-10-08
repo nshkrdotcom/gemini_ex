@@ -84,8 +84,7 @@ defmodule Gemini.Validation.ThinkingConfig do
   end
 
   defp validate_pro_budget(budget) do
-    {:error,
-     "Gemini 2.5 Pro thinking budget must be between 128 and 32,768, got: #{budget}"}
+    {:error, "Gemini 2.5 Pro thinking budget must be between 128 and 32,768, got: #{budget}"}
   end
 
   defp validate_flash_budget(budget) when budget >= 0 and budget <= 24_576 do
@@ -93,8 +92,7 @@ defmodule Gemini.Validation.ThinkingConfig do
   end
 
   defp validate_flash_budget(budget) do
-    {:error,
-     "Gemini 2.5 Flash thinking budget must be between 0 and 24,576, got: #{budget}"}
+    {:error, "Gemini 2.5 Flash thinking budget must be between 0 and 24,576, got: #{budget}"}
   end
 
   defp validate_flash_lite_budget(0), do: :ok

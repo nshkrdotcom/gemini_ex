@@ -83,7 +83,8 @@ defmodule Gemini.Types.GenerationConfigThinkingTest do
 
   describe "thinking_config/3" do
     test "creates complete config in one call" do
-      config = GenerationConfig.thinking_config(GenerationConfig.new(), 1024, include_thoughts: true)
+      config =
+        GenerationConfig.thinking_config(GenerationConfig.new(), 1024, include_thoughts: true)
 
       assert config.thinking_config.thinking_budget == 1024
       assert config.thinking_config.include_thoughts == true
