@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.svg" alt="Gemini Elixir Client Logo" width="200" height="200">
+</p>
+
 # Gemini Elixir Client
 
 [![CI](https://github.com/nshkrdotcom/gemini_ex/actions/workflows/elixir.yaml/badge.svg)](https://github.com/nshkrdotcom/gemini_ex/actions/workflows/elixir.yaml)
