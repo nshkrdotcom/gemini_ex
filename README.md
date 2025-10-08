@@ -17,8 +17,9 @@ A comprehensive Elixir client for Google's Gemini AI API with dual authenticatio
 - **🛡️ Type Safety**: Complete type definitions with runtime validation
 - **📊 Built-in Telemetry**: Comprehensive observability and metrics out of the box
 - **💬 Chat Sessions**: Multi-turn conversation management with state persistence
-- **🎭 Multimodal**: Full support for text, image, audio, and video content
-- **⚙️ Complete Generation Config**: Full support for all 12 generation config options including structured output
+- **🎭 Flexible Multimodal Input**: Intuitive formats for images/text with automatic MIME detection (NEW in v0.2.2!)
+- **💰 Thinking Budget Control**: Optimize costs by controlling thinking token usage (NEW in v0.2.2!)
+- **⚙️ Complete Generation Config**: Full support for all generation config options including structured output
 - **🚀 Production Ready**: Robust error handling, retry logic, and performance optimizations
 - **🔧 Flexible Configuration**: Environment variables, application config, and per-request overrides
 
@@ -687,17 +688,103 @@ All 12 generation config options are fully supported across all API entry points
 {:ok, token_count} = Gemini.count_tokens("Your text here", model: "gemini-2.0-flash-lite")
 ```
 
-### Multimodal Content
+### Multimodal Content (New in v0.2.2!)
+
+The library now accepts multiple intuitive input formats for images and text:
 
 ```elixir
-# Text with images
+# Anthropic-style format (flexible and intuitive)
 content = [
   %{type: "text", text: "What's in this image?"},
   %{type: "image", source: %{type: "base64", data: base64_image}}
 ]
 
 {:ok, response} = Gemini.generate(content)
+
+# Automatic MIME type detection from image data
+{:ok, image_data} = File.read("photo.png")
+content = [
+  %{type: "text", text: "Describe this photo"},
+  %{type: "image", source: %{type: "base64", data: Base.encode64(image_data)}}
+  # No mime_type needed - auto-detected as image/png!
+]
+
+# Or use the original Content struct format
+alias Gemini.Types.{Content, Part}
+
+content = [
+  Content.text("What is this?"),
+  Content.image("path/to/image.png")
+]
+
+{:ok, response} = Gemini.generate(content)
+
+# Mix and match formats in a single request
+content = [
+  "Describe this image:",                    # Simple string
+  %{type: "image", source: %{...}},          # Anthropic-style
+  %Content{role: "user", parts: [...]}       # Content struct
+]
 ```
+
+**Supported image formats:** PNG, JPEG, GIF, WebP (auto-detected from magic bytes)
+
+### Cost Optimization with Thinking Budgets (New in v0.2.2!)
+
+Gemini 2.5 series models use internal "thinking" for complex reasoning. Control thinking token usage to optimize costs:
+
+```elixir
+# Disable thinking for simple tasks (save costs)
+{:ok, response} = Gemini.generate(
+  "What is 2 + 2?",
+  model: "gemini-2.5-flash",
+  thinking_config: %{thinking_budget: 0}
+)
+# Result: No thinking tokens charged!
+
+# Set fixed budget (balance cost and quality)
+{:ok, response} = Gemini.generate(
+  "Write a Python function to sort a list",
+  model: "gemini-2.5-flash",
+  thinking_config: %{thinking_budget: 1024}
+)
+
+# Dynamic thinking (model decides - default behavior)
+{:ok, response} = Gemini.generate(
+  "Solve this complex problem...",
+  model: "gemini-2.5-flash",
+  thinking_config: %{thinking_budget: -1}
+)
+
+# Get thought summaries (see model's reasoning)
+{:ok, response} = Gemini.generate(
+  "Explain your reasoning step by step",
+  model: "gemini-2.5-flash",
+  thinking_config: %{
+    thinking_budget: 2048,
+    include_thoughts: true
+  }
+)
+
+# Using GenerationConfig struct
+alias Gemini.Types.GenerationConfig
+
+config = GenerationConfig.new()
+|> GenerationConfig.thinking_budget(1024)
+|> GenerationConfig.include_thoughts(true)
+|> GenerationConfig.temperature(0.7)
+
+{:ok, response} = Gemini.generate("prompt", generation_config: config)
+```
+
+**Budget ranges by model:**
+- **Gemini 2.5 Pro:** 128-32,768 (cannot disable)
+- **Gemini 2.5 Flash:** 0-24,576 (can disable with 0)
+- **Gemini 2.5 Flash Lite:** 0 or 512-24,576
+
+**Special values:**
+- `0`: Disable thinking entirely (Flash/Lite only)
+- `-1`: Dynamic thinking (model decides budget)
 
 ### Error Handling
 
