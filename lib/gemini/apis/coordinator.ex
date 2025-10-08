@@ -407,8 +407,11 @@ defmodule Gemini.APIs.Coordinator do
   end
 
   defp build_generate_request(contents, opts) when is_list(contents) do
-    # Build content request from Content structs
-    formatted_contents = Enum.map(contents, &format_content/1)
+    # Build content request from Content structs or normalize from flexible input
+    formatted_contents =
+      contents
+      |> normalize_content_list()
+      |> Enum.map(&format_content/1)
 
     content = %{
       contents: formatted_contents
@@ -442,6 +445,83 @@ defmodule Gemini.APIs.Coordinator do
   end
 
   defp build_generate_request(_, _), do: {:error, "Invalid input type"}
+
+  # Normalize flexible content input formats to Content structs
+  defp normalize_content_list(contents) when is_list(contents) do
+    Enum.map(contents, &normalize_single_content/1)
+  end
+
+  # Already a Content struct - pass through
+  defp normalize_single_content(%Content{} = content), do: content
+
+  # Map with explicit role and parts (Gemini SDK style)
+  defp normalize_single_content(%{role: role, parts: parts}) when is_list(parts) do
+    normalized_parts = Enum.map(parts, &normalize_part/1)
+    %Content{role: role || "user", parts: normalized_parts}
+  end
+
+  # Anthropic-style: list of mixed text/image maps with type field
+  defp normalize_single_content(%{type: "text", text: text}) do
+    %Content{role: "user", parts: [Gemini.Types.Part.text(text)]}
+  end
+
+  defp normalize_single_content(%{type: "image", source: %{type: "base64", data: data} = source}) do
+    # Extract MIME type or detect from data
+    mime_type = Map.get(source, :mime_type) || Map.get(source, "mime_type") || detect_mime_type(data)
+
+    %Content{
+      role: "user",
+      parts: [Gemini.Types.Part.inline_data(data, mime_type)]
+    }
+  end
+
+  # Simple string - convert to text content
+  defp normalize_single_content(text) when is_binary(text) do
+    %Content{role: "user", parts: [Gemini.Types.Part.text(text)]}
+  end
+
+  # Fallback for unrecognized format
+  defp normalize_single_content(other) do
+    raise ArgumentError, """
+    Invalid content format: #{inspect(other)}
+
+    Expected one of:
+    - Content struct: %Content{role: "user", parts: [...]}
+    - String: "text message"
+    - Map with role and parts: %{role: "user", parts: [...]}
+    - Map with type: %{type: "text", text: "..."}
+    - Map with image: %{type: "image", source: %{type: "base64", data: "..."}}
+    """
+  end
+
+  # Normalize part formats
+  defp normalize_part(%Gemini.Types.Part{} = part), do: part
+  defp normalize_part(%{text: text}) when is_binary(text), do: Gemini.Types.Part.text(text)
+
+  defp normalize_part(%{inline_data: %{mime_type: mime_type, data: data}}) do
+    Gemini.Types.Part.inline_data(data, mime_type)
+  end
+
+  defp normalize_part(text) when is_binary(text), do: Gemini.Types.Part.text(text)
+  defp normalize_part(part), do: part
+
+  # Detect MIME type from base64 data using magic bytes
+  defp detect_mime_type(base64_data) when is_binary(base64_data) do
+    # Decode first 12 bytes to check magic bytes
+    case Base.decode64(String.slice(base64_data, 0, 16)) do
+      {:ok, header} -> check_magic_bytes(header)
+      :error -> "image/jpeg"  # Default fallback
+    end
+  end
+
+  defp detect_mime_type(_), do: "image/jpeg"
+
+  # Check magic bytes to determine image format
+  defp check_magic_bytes(<<0x89, 0x50, 0x4E, 0x47, _::binary>>), do: "image/png"
+  defp check_magic_bytes(<<0xFF, 0xD8, 0xFF, _::binary>>), do: "image/jpeg"
+  defp check_magic_bytes(<<0x47, 0x49, 0x46, 0x38, _::binary>>), do: "image/gif"
+  defp check_magic_bytes(<<0x52, 0x49, 0x46, 0x46, _::binary>>), do: "image/webp"
+  defp check_magic_bytes(_), do: "image/jpeg"  # Default fallback
 
   # Helper function to format Content structs for API requests
   defp format_content(%Content{role: role, parts: parts}) do

@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - v0.2.2
+
+### Added
+- **Flexible multimodal content input** - Accept multiple intuitive input formats for images and text (Closes #11)
+  - Support Anthropic-style format: `%{type: "text", text: "..."}` and `%{type: "image", source: %{type: "base64", data: "..."}}`
+  - Support map format with explicit role and parts: `%{role: "user", parts: [...]}`
+  - Support simple string inputs: `"What is this?"`
+  - Support mixed formats in single request
+  - Automatic MIME type detection from image magic bytes (PNG, JPEG, GIF, WebP)
+  - Graceful fallback to explicit MIME type or JPEG default
+
+### Fixed
+- **Multimodal content handling** - Users can now pass images and text in natural, intuitive formats
+  - Previously: Only accepted specific `Content` structs, causing `FunctionClauseError`
+  - Now: Accepts flexible formats and automatically normalizes them
+  - Backward compatible: All existing code continues to work
+
+### Changed
+- Enhanced `Coordinator.generate_content/2` to accept flexible content formats
+- Added automatic content normalization layer
+
 ## [Unreleased]
 
 ## [0.2.1] - 2025-08-08
