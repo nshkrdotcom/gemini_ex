@@ -25,9 +25,9 @@ defmodule Gemini.APIs.CoordinatorMultimodalTest do
       result = normalize_test_input(input)
       assert %Content{role: "user", parts: [%Part{inline_data: blob}]} = result
       assert blob.mime_type == "image/png"
-      # Part.inline_data calls Blob.new which encodes the data again
-      # So "base64data" becomes Base.encode64("base64data")
-      assert blob.data == Base.encode64("base64data")
+      # FIXED: When type is "base64", data is treated as already encoded
+      # So "base64data" stays as "base64data" (no double-encoding)
+      assert blob.data == "base64data"
     end
 
     test "normalizes image with auto-detected PNG MIME type" do

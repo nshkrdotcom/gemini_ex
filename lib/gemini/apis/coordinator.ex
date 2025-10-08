@@ -477,9 +477,13 @@ defmodule Gemini.APIs.Coordinator do
     mime_type =
       Map.get(source, :mime_type) || Map.get(source, "mime_type") || detect_mime_type(data)
 
+    # When source type is "base64", treat data as already base64-encoded
+    # Don't call Part.inline_data which would encode it again (Issue #11 fix)
+    blob = %Gemini.Types.Blob{data: data, mime_type: mime_type}
+
     %Content{
       role: "user",
-      parts: [Gemini.Types.Part.inline_data(data, mime_type)]
+      parts: [%Gemini.Types.Part{inline_data: blob}]
     }
   end
 
@@ -507,7 +511,10 @@ defmodule Gemini.APIs.Coordinator do
   defp normalize_part(%{text: text}) when is_binary(text), do: Gemini.Types.Part.text(text)
 
   defp normalize_part(%{inline_data: %{mime_type: mime_type, data: data}}) do
-    Gemini.Types.Part.inline_data(data, mime_type)
+    # When inline_data is provided in map format, treat data as already base64-encoded
+    # (consistent with Anthropic-style format fix for Issue #11)
+    blob = %Gemini.Types.Blob{data: data, mime_type: mime_type}
+    %Gemini.Types.Part{inline_data: blob}
   end
 
   defp normalize_part(text) when is_binary(text), do: Gemini.Types.Part.text(text)

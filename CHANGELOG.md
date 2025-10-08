@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] - 2025-10-08
+
+### Fixed
+- **CRITICAL: Double-encoding bug in multimodal content** - Fixed confusing base64 encoding behavior (Issue #11 comment from @jaimeiniesta)
+  - **Problem**: When users passed `Base.encode64(image_data)` with `type: "base64"`, data was encoded AGAIN internally, causing double-encoding
+  - **Symptom**: Users had to pass raw (non-encoded) data despite specifying `type: "base64"`, which was confusing and counterintuitive
+  - **Root cause**: `Blob.new/2` always called `Base.encode64()`, even when data was already base64-encoded
+  - **Fix**: When `source: %{type: "base64", data: ...}` is specified, data is now treated as already base64-encoded
+  - **Impact**:
+    - ✅ Users can now pass `Base.encode64(data)` as expected (documentation examples now work correctly)
+    - ✅ API behavior matches user expectations: `type: "base64"` means data IS base64-encoded
+    - ✅ Applies to both Anthropic-style format (`%{type: "image", source: %{type: "base64", ...}}`) and Gemini SDK style (`%{inline_data: %{data: ..., mime_type: ...}}`)
+    - ⚠️  **Breaking change for workarounds**: If you were passing raw (non-encoded) data as a workaround, you must now pass properly base64-encoded data
+  - Special thanks to @jaimeiniesta for reporting this confusing behavior!
+
+### Changed
+- Enhanced `normalize_single_content/1` to preserve base64 data without re-encoding when `type: "base64"`
+- Enhanced `normalize_part/1` to preserve base64 data in `inline_data` maps
+- Updated tests to verify correct base64 handling
+- Added demonstration script: `examples/fixed_double_encoding_demo.exs`
+
 ## [0.2.2] - 2025-10-07
 
 ### Added
