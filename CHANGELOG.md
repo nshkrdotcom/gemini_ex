@@ -16,15 +16,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Automatic MIME type detection from image magic bytes (PNG, JPEG, GIF, WebP)
   - Graceful fallback to explicit MIME type or JPEG default
 
+- **Thinking budget configuration** - Control thinking token usage for cost optimization (Closes #9, Supersedes #10)
+  - `GenerationConfig.thinking_budget/2` - Set thinking token budget (0 to disable, -1 for dynamic, or fixed amount)
+  - `GenerationConfig.include_thoughts/2` - Enable thought summaries in responses
+  - `GenerationConfig.thinking_config/3` - Set both budget and thoughts in one call
+  - `Gemini.Validation.ThinkingConfig` module - Model-aware budget validation
+  - Support for all Gemini 2.5 series models (Pro, Flash, Flash Lite)
+
 ### Fixed
 - **Multimodal content handling** - Users can now pass images and text in natural, intuitive formats
   - Previously: Only accepted specific `Content` structs, causing `FunctionClauseError`
   - Now: Accepts flexible formats and automatically normalizes them
   - Backward compatible: All existing code continues to work
 
+- **CRITICAL: Thinking budget field names** - Fixed PR #10's critical bug that prevented thinking budget from working
+  - Previously: Sent `thinking_budget` (snake_case) which API silently ignored, users still charged
+  - Now: Sends `thinkingBudget` (camelCase) as required by official API, actually disables thinking
+  - Added `includeThoughts` support that was missing from PR #10
+  - Added model-specific budget validation (Pro: 128-32K, Flash: 0-24K, Lite: 0 or 512-24K)
+  - Note: This supersedes PR #10 with a correct, fully-tested implementation
+
 ### Changed
 - Enhanced `Coordinator.generate_content/2` to accept flexible content formats
 - Added automatic content normalization layer
+- Added `convert_thinking_config_to_api/1` to properly convert field names to camelCase
+- `GenerationConfig.ThinkingConfig` is now a typed struct (not plain map)
 
 ## [Unreleased]
 

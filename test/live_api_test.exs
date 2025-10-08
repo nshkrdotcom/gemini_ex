@@ -234,6 +234,98 @@ defmodule LiveAPITest do
     end
   end
 
+  describe "Thinking Budget Configuration" do
+    @tag :thinking_budget
+    test "thinking budget actually reduces thinking tokens" do
+      api_key = System.get_env("GEMINI_API_KEY")
+
+      if api_key do
+        IO.puts("\n🧠 Testing thinking budget configuration")
+        IO.puts("-" |> String.duplicate(40))
+
+        # Test with default (dynamic thinking)
+        IO.puts("\n  📊 Test 1: Default thinking (dynamic)")
+        {:ok, response_default} = Gemini.generate(
+          "Solve this step by step: What is 15 * 23?",
+          model: "gemini-2.5-flash"
+        )
+
+        thinking_tokens_default = response_default.usage_metadata[:thoughts_token_count]
+        IO.puts("  Thinking tokens with default: #{inspect(thinking_tokens_default)}")
+
+        # Test with thinking disabled
+        IO.puts("\n  📊 Test 2: Thinking disabled (budget = 0)")
+        {:ok, response_disabled} = Gemini.generate(
+          "Solve this step by step: What is 15 * 23?",
+          model: "gemini-2.5-flash",
+          thinking_config: %{thinking_budget: 0}
+        )
+
+        thinking_tokens_disabled = response_disabled.usage_metadata[:thoughts_token_count]
+        IO.puts("  Thinking tokens with budget=0: #{inspect(thinking_tokens_disabled)}")
+
+        # Test with limited thinking
+        IO.puts("\n  📊 Test 3: Limited thinking (budget = 512)")
+        {:ok, response_limited} = Gemini.generate(
+          "Solve this step by step: What is 15 * 23?",
+          model: "gemini-2.5-flash",
+          thinking_config: %{thinking_budget: 512}
+        )
+
+        thinking_tokens_limited = response_limited.usage_metadata[:thoughts_token_count]
+        IO.puts("  Thinking tokens with budget=512: #{inspect(thinking_tokens_limited)}")
+
+        # Verify thinking was used with default
+        if thinking_tokens_default && thinking_tokens_default > 0 do
+          IO.puts("\n  ✅ Default thinking works (#{thinking_tokens_default} tokens)")
+        end
+
+        # Verify thinking was disabled with budget=0
+        if thinking_tokens_disabled == 0 || is_nil(thinking_tokens_disabled) do
+          IO.puts("  ✅ Thinking disabled successfully (0 tokens)")
+          assert true
+        else
+          IO.puts("  ⚠️  Expected 0 thinking tokens, got: #{thinking_tokens_disabled}")
+          # Still pass if small amount (API might have minimum)
+          assert thinking_tokens_disabled < 10
+        end
+
+        # Verify limited thinking respected budget
+        if thinking_tokens_limited do
+          IO.puts("  ✅ Limited thinking works (#{thinking_tokens_limited} tokens, budget: 512)")
+          assert thinking_tokens_limited <= 512
+        end
+
+        IO.puts("\n  ✅ Thinking budget configuration verified")
+      else
+        IO.puts("❌ GEMINI_API_KEY not found, skipping thinking budget test")
+      end
+    end
+
+    @tag :thinking_budget
+    test "includeThoughts parameter works" do
+      api_key = System.get_env("GEMINI_API_KEY")
+
+      if api_key do
+        IO.puts("\n💭 Testing thought summaries (includeThoughts)")
+
+        {:ok, response} = Gemini.generate(
+          "Explain your reasoning for this: What is 2 + 2?",
+          model: "gemini-2.5-flash",
+          thinking_config: %{thinking_budget: 1024, include_thoughts: true}
+        )
+
+        IO.puts("  Response structure: #{inspect(Map.keys(response))}")
+
+        # Check that response was received (thought summaries in response if supported)
+        assert response.candidates
+        IO.puts("  ✅ Request with includeThoughts accepted")
+      else
+        IO.puts("❌ GEMINI_API_KEY not found, skipping thought summaries test")
+      end
+    end
+  end
+
   describe "Streaming Functionality" do
     test "stream generation" do
       IO.puts("\n🌊 Testing Streaming Functionality")

@@ -575,6 +575,43 @@ defmodule Gemini.APIs.Coordinator do
     end
   end
 
+  # Convert ThinkingConfig to API format with camelCase keys
+  @doc false
+  defp convert_thinking_config_to_api(%Gemini.Types.GenerationConfig.ThinkingConfig{} = config) do
+    %{}
+    |> maybe_put_if_not_nil("thinkingBudget", config.thinking_budget)
+    |> maybe_put_if_not_nil("includeThoughts", config.include_thoughts)
+  end
+
+  defp convert_thinking_config_to_api(config) when is_map(config) do
+    # Support plain maps for backward compatibility
+    config
+    |> Enum.reduce(%{}, fn
+      {:thinking_budget, budget}, acc when is_integer(budget) ->
+        Map.put(acc, "thinkingBudget", budget)
+
+      {:include_thoughts, include}, acc when is_boolean(include) ->
+        Map.put(acc, "includeThoughts", include)
+
+      # Support both snake_case and camelCase input
+      {"thinkingBudget", budget}, acc ->
+        Map.put(acc, "thinkingBudget", budget)
+
+      {"includeThoughts", include}, acc ->
+        Map.put(acc, "includeThoughts", include)
+
+      _, acc ->
+        acc
+    end)
+  end
+
+  defp convert_thinking_config_to_api(nil), do: %{}
+
+  # Helper to put value only if not nil
+  @doc false
+  defp maybe_put_if_not_nil(map, _key, nil), do: map
+  defp maybe_put_if_not_nil(map, key, value), do: Map.put(map, key, value)
+
   # Helper function to normalize model response keys
   defp normalize_model_response(response) when is_map(response) do
     response
@@ -635,6 +672,16 @@ defmodule Gemini.APIs.Coordinator do
 
       {:logprobs, logprobs}, acc when is_integer(logprobs) ->
         Map.put(acc, :logprobs, logprobs)
+
+      # Thinking config support - FIXED: Now converts field names properly
+      {:thinking_config, thinking_config}, acc when not is_nil(thinking_config) ->
+        api_format = convert_thinking_config_to_api(thinking_config)
+
+        if map_size(api_format) > 0 do
+          Map.put(acc, "thinkingConfig", api_format)
+        else
+          acc
+        end
 
       # Ignore unknown options
       _, acc ->
