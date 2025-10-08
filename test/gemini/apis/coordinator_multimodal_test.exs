@@ -12,7 +12,7 @@ defmodule Gemini.APIs.CoordinatorMultimodalTest do
 
       # This should not raise and should create proper Content
       assert %Content{role: "user", parts: [%Part{text: "Hello world"}]} =
-        normalize_test_input(input)
+               normalize_test_input(input)
     end
 
     test "normalizes Anthropic-style image map with explicit MIME type" do
@@ -157,6 +157,50 @@ defmodule Gemini.APIs.CoordinatorMultimodalTest do
       results = Enum.map(inputs, &normalize_test_input/1)
       assert length(results) == 3
       assert Enum.all?(results, &match?(%Content{}, &1))
+    end
+  end
+
+  describe "multiple images" do
+    test "normalizes multiple images in one request" do
+      png_data = Base.encode64(<<0x89, 0x50, 0x4E, 0x47>>)
+      jpeg_data = Base.encode64(<<0xFF, 0xD8, 0xFF>>)
+
+      inputs = [
+        %{type: "text", text: "Compare these:"},
+        %{type: "image", source: %{type: "base64", data: png_data, mime_type: "image/png"}},
+        %{type: "image", source: %{type: "base64", data: jpeg_data, mime_type: "image/jpeg"}}
+      ]
+
+      results = Enum.map(inputs, &normalize_test_input/1)
+      assert length(results) == 3
+
+      # Count parts with inline_data
+      image_count =
+        results
+        |> Enum.flat_map(& &1.parts)
+        |> Enum.count(&(&1.inline_data != nil))
+
+      assert image_count == 2
+    end
+
+    test "normalizes interleaved text and images" do
+      png_data = Base.encode64(<<0x89, 0x50, 0x4E, 0x47>>)
+
+      inputs = [
+        %{type: "text", text: "First image:"},
+        %{type: "image", source: %{type: "base64", data: png_data}},
+        %{type: "text", text: "Second image:"},
+        %{type: "image", source: %{type: "base64", data: png_data}}
+      ]
+
+      results = Enum.map(inputs, &normalize_test_input/1)
+      assert length(results) == 4
+
+      # Verify alternating pattern
+      assert Enum.at(results, 0).parts |> hd() |> Map.get(:text) == "First image:"
+      assert Enum.at(results, 1).parts |> hd() |> Map.get(:inline_data) != nil
+      assert Enum.at(results, 2).parts |> hd() |> Map.get(:text) == "Second image:"
+      assert Enum.at(results, 3).parts |> hd() |> Map.get(:inline_data) != nil
     end
   end
 

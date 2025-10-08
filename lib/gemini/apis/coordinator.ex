@@ -474,7 +474,8 @@ defmodule Gemini.APIs.Coordinator do
 
   defp normalize_single_content(%{type: "image", source: %{type: "base64", data: data} = source}) do
     # Extract MIME type or detect from data
-    mime_type = Map.get(source, :mime_type) || Map.get(source, "mime_type") || detect_mime_type(data)
+    mime_type =
+      Map.get(source, :mime_type) || Map.get(source, "mime_type") || detect_mime_type(data)
 
     %Content{
       role: "user",
@@ -517,7 +518,8 @@ defmodule Gemini.APIs.Coordinator do
     # Decode first 12 bytes to check magic bytes
     case Base.decode64(String.slice(base64_data, 0, 16)) do
       {:ok, header} -> check_magic_bytes(header)
-      :error -> "image/jpeg"  # Default fallback
+      # Default fallback
+      :error -> "image/jpeg"
     end
   end
 
@@ -528,7 +530,8 @@ defmodule Gemini.APIs.Coordinator do
   defp check_magic_bytes(<<0xFF, 0xD8, 0xFF, _::binary>>), do: "image/jpeg"
   defp check_magic_bytes(<<0x47, 0x49, 0x46, 0x38, _::binary>>), do: "image/gif"
   defp check_magic_bytes(<<0x52, 0x49, 0x46, 0x46, _::binary>>), do: "image/webp"
-  defp check_magic_bytes(_), do: "image/jpeg"  # Default fallback
+  # Default fallback
+  defp check_magic_bytes(_), do: "image/jpeg"
 
   # Helper function to format Content structs for API requests
   defp format_content(%Content{role: role, parts: parts}) do
