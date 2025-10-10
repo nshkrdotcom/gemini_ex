@@ -69,6 +69,8 @@ defmodule Gemini.MixProject do
       source_ref: "v#{@version}",
       source_url: @source_url,
       homepage_url: @source_url,
+      assets: %{"assets" => "assets"},
+      logo: "assets/logo.svg",
       extras: [
         "README.md",
         "ALTAR_INTEGRATION.md",
@@ -177,7 +179,7 @@ defmodule Gemini.MixProject do
       name: "gemini_ex",
       description: description(),
       files:
-        ~w(lib mix.exs README.md ALTAR_INTEGRATION.md ARCHITECTURE.md AUTHENTICATION_SYSTEM.md STREAMING.md STREAMING_ARCHITECTURE.md TELEMETRY_IMPLEMENTATION.md CHANGELOG.md LICENSE),
+        ~w(lib mix.exs README.md ALTAR_INTEGRATION.md ARCHITECTURE.md AUTHENTICATION_SYSTEM.md STREAMING.md STREAMING_ARCHITECTURE.md TELEMETRY_IMPLEMENTATION.md CHANGELOG.md LICENSE assets),
       licenses: ["MIT"],
       links: %{
         "GitHub" => @source_url,
