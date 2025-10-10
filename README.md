@@ -7,7 +7,7 @@
 [![CI](https://github.com/nshkrdotcom/gemini_ex/actions/workflows/elixir.yaml/badge.svg)](https://github.com/nshkrdotcom/gemini_ex/actions/workflows/elixir.yaml)
 [![Elixir](https://img.shields.io/badge/elixir-1.18.3-purple.svg)](https://elixir-lang.org)
 [![OTP](https://img.shields.io/badge/otp-27.3.3-blue.svg)](https://www.erlang.org)
-[![Hex.pm](https://img.shields.io/hexpm/v/gemini.svg)](https://hex.pm/packages/gemini_ex)
+[![Hex.pm](https://img.shields.io/hexpm/v/gemini_ex.svg)](https://hex.pm/packages/gemini_ex)
 [![Documentation](https://img.shields.io/badge/docs-hexdocs-purple.svg)](https://hexdocs.pm/gemini_ex)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/nshkrdotcom/gemini_ex/blob/main/LICENSE)
 
