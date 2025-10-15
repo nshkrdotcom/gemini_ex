@@ -58,6 +58,29 @@ This document outlines the plan to fully implement all features from the officia
 
 ## Gap Analysis - Features Needed
 
+### 🆕 **MAJOR DISCOVERY: Async Batch Embedding API**
+
+**Spec Reference:** GEMINI-API-07-EMBEDDINGS_20251014.md lines 129-442
+
+**Discovery:** The updated spec reveals a complete **async batch embedding API** (`models.asyncBatchEmbedContent`) that was not in the previous documentation. This is a production-scale feature for high-throughput embedding generation.
+
+**Current State:** ❌ **NOT IMPLEMENTED**
+
+**Key Features:**
+- Asynchronous batch job submission
+- Long-running operation (LRO) support
+- Batch state tracking (PENDING, PROCESSING, COMPLETED, FAILED)
+- Priority-based processing
+- File-based or inlined input/output
+- Comprehensive batch statistics
+- 50% cost savings vs. interactive API
+
+**New Priority:** **CRITICAL for production usage**
+
+This is now **Phase 4** in the implementation roadmap.
+
+---
+
 ### 1. ⚠️ **Embedding Normalization** (CRITICAL for quality)
 
 **Spec Reference:** Lines 126-147
@@ -372,7 +395,7 @@ end
 
 ## Implementation Roadmap
 
-### Phase 1: Critical Features (Priority: HIGH) - 10 hours
+### Phase 1: Critical Quality Features (Priority: HIGH) - 10 hours
 
 1. **Embedding Normalization** (2h)
    - Add `normalize/1` and `norm/1` to ContentEmbedding
@@ -425,14 +448,135 @@ end
 13. **Classification Example** (1.5h)
 14. **Clustering Visualization Example** (1.5h)
 
+### Phase 4: Async Batch Embedding API (Priority: CRITICAL for Production) - 16 hours
+
+**NEW REQUIREMENT from updated spec**
+
+#### Required Types (8 hours)
+
+15. **Batch Request Types** (2h)
+    - `EmbedContentBatch` - Batch job resource
+    - `InputEmbedContentConfig` - Input configuration
+    - `InlinedEmbedContentRequests` - Inline request batch
+    - `InlinedEmbedContentRequest` - Single inlined request
+
+16. **Batch Response Types** (2h)
+    - `EmbedContentBatchOutput` - Output configuration
+    - `InlinedEmbedContentResponses` - Inline response batch
+    - `InlinedEmbedContentResponse` - Single response with error handling
+    - `EmbedContentBatchStats` - Batch statistics
+
+17. **Batch State Management** (2h)
+    - `BatchState` enum (PENDING, PROCESSING, COMPLETED, FAILED, etc.)
+    - Operation polling utilities
+    - Progress tracking
+
+18. **LRO (Long-Running Operation) Support** (2h)
+    - Operation response handling
+    - Polling mechanism
+    - Status checking utilities
+
+#### API Implementation (4 hours)
+
+19. **Async Batch Coordinator Functions** (3h)
+    - `async_batch_embed_contents/2` - Submit batch job
+    - `get_batch_status/2` - Check batch status
+    - `get_batch_result/2` - Retrieve completed batch
+    - `cancel_batch/2` - Cancel pending/processing batch
+    - `list_batches/1` - List all batches
+
+20. **File Upload/Download Support** (1h)
+    - JSONL file formatting for batch input
+    - Response file download and parsing
+
+#### Examples & Documentation (4 hours)
+
+21. **Async Batch Example** (2h)
+    - Submit large batch job
+    - Poll for completion
+    - Retrieve and process results
+    - Error handling
+
+22. **Async Batch Documentation** (2h)
+    - API reference
+    - When to use async vs sync batch
+    - Cost comparison (50% savings)
+    - Best practices
+
+**Files to Create:**
+```
+lib/gemini/types/request/
+  - embed_content_batch.ex
+  - input_embed_content_config.ex
+  - inlined_embed_content_requests.ex
+  - inlined_embed_content_request.ex
+
+lib/gemini/types/response/
+  - embed_content_batch_output.ex
+  - embed_content_batch_stats.ex
+  - inlined_embed_content_responses.ex
+  - inlined_embed_content_response.ex
+  - batch_state.ex
+
+lib/gemini/apis/
+  - async_batch_coordinator.ex (or add to coordinator.ex)
+
+lib/gemini/utils/
+  - lro_poller.ex (Long-running operation utilities)
+
+examples/
+  - async_batch_embedding_demo.exs
+  - examples/ASYNC_BATCH_EMBEDDINGS.md
+```
+
+**Implementation Notes:**
+
+```elixir
+# Proposed API design for async batch embedding
+
+# Submit a batch job
+{:ok, operation} = Coordinator.async_batch_embed_contents(
+  texts,  # or file_name: "gs://bucket/inputs.jsonl"
+  model: "text-embedding-004",
+  display_name: "My Embedding Batch",
+  priority: 0,
+  task_type: :retrieval_document
+)
+
+# Poll for completion
+{:ok, batch} = Coordinator.await_batch(operation.name,
+  poll_interval: 5_000,  # 5 seconds
+  timeout: 600_000       # 10 minutes
+)
+
+# Or check status manually
+{:ok, batch} = Coordinator.get_batch_status(operation.name)
+
+case batch.state do
+  :completed ->
+    # Retrieve results
+    {:ok, embeddings} = Coordinator.get_batch_embeddings(batch)
+
+  :failed ->
+    Logger.error("Batch failed: #{inspect(batch.batch_stats)}")
+
+  :processing ->
+    # Still processing
+    stats = batch.batch_stats
+    progress = stats.successful_request_count / stats.request_count * 100
+    IO.puts("Progress: #{progress}%")
+end
+```
+
 ---
 
 ## Total Effort Estimate
 
-- **Phase 1 (Critical):** 10 hours
+- **Phase 1 (Critical Quality):** 10 hours
 - **Phase 2 (Documentation):** 8 hours
-- **Phase 3 (Examples):** 8 hours
-- **Total:** ~26 hours (~3-4 work days)
+- **Phase 3 (Advanced Examples):** 8 hours
+- **Phase 4 (Async Batch API):** 16 hours ⭐ **NEW**
+- **Total:** ~42 hours (~5-6 work days)
 
 ---
 
@@ -502,13 +646,60 @@ end
 
 ---
 
-## Appendix: Current vs. Spec Feature Matrix
+## Appendix A: Async Batch API Deep Dive
+
+### Why Async Batch Embedding Matters
+
+**Cost Savings:** 50% cheaper than interactive embedding API
+**Throughput:** Process millions of texts efficiently
+**Scale:** Production-grade batch processing
+**Priority:** Support for time-sensitive vs. background jobs
+
+### Key Differences: Sync vs. Async Batch
+
+| Feature | Interactive (`embedContent`) | Sync Batch (`batchEmbedContents`) | Async Batch (`asyncBatchEmbedContent`) |
+|---------|------------------------------|-----------------------------------|----------------------------------------|
+| **Latency** | Low (<1s) | Medium (seconds) | High (minutes to hours) |
+| **Size Limit** | 1 request | ~100 requests | Unlimited (millions) |
+| **Cost** | 100% | 100% | **50%** ⭐ |
+| **Use Case** | Real-time | Small batches | Large-scale indexing |
+| **API Type** | Synchronous | Synchronous | Long-running operation |
+| **Result** | Immediate | Immediate | Polling required |
+| **Priority** | N/A | N/A | Configurable |
+| **State Tracking** | N/A | N/A | Full batch lifecycle |
+
+### Async Batch Workflow
+
+```
+1. Submit Batch Job
+   ↓
+2. Receive Operation ID
+   ↓
+3. Poll for Status (PENDING → PROCESSING → COMPLETED)
+   ↓
+4. Retrieve Results (file or inline)
+   ↓
+5. Process Embeddings
+```
+
+### Implementation Priority
+
+**Phase 4 is CRITICAL because:**
+- Required for production-scale embedding generation
+- 50% cost savings is substantial for large workloads
+- Competitive parity with other embedding providers
+- Enables building production RAG systems at scale
+
+---
+
+## Appendix B: Current vs. Spec Feature Matrix
 
 | Feature | Spec Requirement | Current Status | Gap | Priority |
 |---------|-----------------|----------------|-----|----------|
 | **Core Operations** |
 | embedContent | Required | ✅ Implemented | None | - |
 | batchEmbedContents | Required | ✅ Implemented | None | - |
+| asyncBatchEmbedContent | **NEW in Spec** | ❌ Missing | Full implementation | **CRITICAL** |
 | **Task Types** |
 | All 8 task types | Required | ✅ Implemented | None | - |
 | **Dimensionality** |
@@ -536,6 +727,12 @@ end
 
 ---
 
-**Document Version:** 1.0
+**Document Version:** 2.0
 **Last Updated:** 2025-10-14
 **Status:** Planning Complete - Ready for Implementation
+
+**Major Update (v2.0):** Added Phase 4 - Async Batch Embedding API (16 hours)
+- Discovered complete async batch API in updated spec (GEMINI-API-07-EMBEDDINGS_20251014.md)
+- 50% cost savings for production workloads
+- Critical for production-scale RAG systems
+- Total project scope increased from 26h to 42h

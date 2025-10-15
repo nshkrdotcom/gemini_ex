@@ -6,10 +6,6 @@
 #
 # Run with: elixir examples/fixed_double_encoding_demo.exs
 
-Mix.install([
-  {:gemini_ex, path: "."}
-])
-
 defmodule DoubleEncodingFixDemo do
   @moduledoc """
   Demonstrates the FIX for the double-encoding bug reported by @jaimeiniesta in Issue #11.

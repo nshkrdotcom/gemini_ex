@@ -9,11 +9,6 @@
 # 3. Simulate the tool-calling conversation flow
 # 4. Execute tools manually and manage chat history
 
-Mix.install([
-  {:gemini_ex, path: "."},
-  {:altar, path: "./ALTAR"}
-])
-
 defmodule ToolCallingDemo do
   alias Gemini.{Chat, Tools}
   alias Altar.ADM

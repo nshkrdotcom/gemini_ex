@@ -4,10 +4,6 @@
 #
 # Run with: elixir examples/multimodal_fix_demo.exs
 
-Mix.install([
-  {:gemini_ex, path: "."}
-])
-
 defmodule MultimodalFixDemo do
   @moduledoc """
   Demonstrates the multimodal input flexibility fix that resolves Issue #11.
@@ -19,7 +15,10 @@ defmodule MultimodalFixDemo do
   alias Gemini.Types.{Content, Part}
 
   def run do
-    IO.puts("\n" <> IO.ANSI.cyan() <> "=== Multimodal Input Flexibility Demo ===" <> IO.ANSI.reset())
+    IO.puts(
+      "\n" <> IO.ANSI.cyan() <> "=== Multimodal Input Flexibility Demo ===" <> IO.ANSI.reset()
+    )
+
     IO.puts("Demonstrating the fix for Issue #11\n")
 
     demonstrate_original_failing_code()
@@ -27,7 +26,10 @@ defmodule MultimodalFixDemo do
     demonstrate_mime_detection()
     demonstrate_backward_compatibility()
 
-    IO.puts("\n" <> IO.ANSI.green() <> "✅ All demonstrations completed successfully!" <> IO.ANSI.reset())
+    IO.puts(
+      "\n" <> IO.ANSI.green() <> "✅ All demonstrations completed successfully!" <> IO.ANSI.reset()
+    )
+
     IO.puts("The fix allows flexible, intuitive input formats for multimodal content.\n")
   end
 
@@ -40,11 +42,15 @@ defmodule MultimodalFixDemo do
 
     # This is the EXACT code from the issue that previously failed
     content = [
-      %{type: "text", text: "Describe this image. If you can't see the image, just say you can't."},
+      %{
+        type: "text",
+        text: "Describe this image. If you can't see the image, just say you can't."
+      },
       %{type: "image", source: %{type: "base64", data: Base.encode64(image_data)}}
     ]
 
     IO.puts("   Code:")
+
     IO.puts("""
        content = [
          %{type: "text", text: "Describe this image..."},
@@ -54,7 +60,11 @@ defmodule MultimodalFixDemo do
 
     case Gemini.generate(content, model: "gemini-2.5-flash") do
       {:ok, _response} ->
-        IO.puts("   " <> IO.ANSI.green() <> "✅ SUCCESS" <> IO.ANSI.reset() <> " - No more FunctionClauseError!")
+        IO.puts(
+          "   " <>
+            IO.ANSI.green() <> "✅ SUCCESS" <> IO.ANSI.reset() <> " - No more FunctionClauseError!"
+        )
+
       {:error, error} ->
         IO.puts("   " <> IO.ANSI.green() <> "✅ Accepted input format" <> IO.ANSI.reset())
         IO.puts("   (API error is expected without valid API key: #{inspect(error.type)})")
@@ -70,7 +80,10 @@ defmodule MultimodalFixDemo do
     # Format 1: Anthropic-style
     format1 = [
       %{type: "text", text: "What is this?"},
-      %{type: "image", source: %{type: "base64", data: create_sample_image(), mime_type: "image/png"}}
+      %{
+        type: "image",
+        source: %{type: "base64", data: create_sample_image(), mime_type: "image/png"}
+      }
     ]
 
     IO.puts("   Format 1 - Anthropic-style:")
@@ -112,7 +125,8 @@ defmodule MultimodalFixDemo do
     png_data = Base.encode64(png_header <> :crypto.strong_rand_bytes(100))
 
     content_png = [
-      %{type: "image", source: %{type: "base64", data: png_data}}  # No mime_type specified!
+      # No mime_type specified!
+      %{type: "image", source: %{type: "base64", data: png_data}}
     ]
 
     IO.puts("   PNG image (auto-detected):")
@@ -123,7 +137,8 @@ defmodule MultimodalFixDemo do
     jpeg_data = Base.encode64(jpeg_header <> :crypto.strong_rand_bytes(100))
 
     content_jpeg = [
-      %{type: "image", source: %{type: "base64", data: jpeg_data}}  # No mime_type specified!
+      # No mime_type specified!
+      %{type: "image", source: %{type: "base64", data: jpeg_data}}
     ]
 
     IO.puts("\n   JPEG image (auto-detected):")
@@ -158,10 +173,19 @@ defmodule MultimodalFixDemo do
     case Gemini.generate(content, model: "gemini-2.5-flash") do
       {:ok, _response} ->
         IO.puts("   " <> IO.ANSI.green() <> "✅ Accepted" <> IO.ANSI.reset())
+
       {:error, %{type: :missing_api_key}} ->
-        IO.puts("   " <> IO.ANSI.green() <> "✅ Accepted" <> IO.ANSI.reset() <> " (needs API key to complete)")
+        IO.puts(
+          "   " <>
+            IO.ANSI.green() <> "✅ Accepted" <> IO.ANSI.reset() <> " (needs API key to complete)"
+        )
+
       {:error, error} ->
-        IO.puts("   " <> IO.ANSI.green() <> "✅ Accepted" <> IO.ANSI.reset() <> " (API error: #{inspect(error.type)})")
+        IO.puts(
+          "   " <>
+            IO.ANSI.green() <>
+            "✅ Accepted" <> IO.ANSI.reset() <> " (API error: #{inspect(error.type)})"
+        )
     end
   end
 

@@ -5,6 +5,143 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2025-10-14
+
+### 🎉 Major Feature: Complete Embedding Support with MRL
+
+This release adds comprehensive text embedding functionality with Matryoshka Representation Learning (MRL), enabling powerful semantic search, RAG systems, classification, and more.
+
+### Added
+
+#### 📊 Embedding API with Normalization & Distance Metrics
+- **`ContentEmbedding.normalize/1`**: L2 normalization to unit length (required for non-3072 dimensions per API spec)
+- **`ContentEmbedding.norm/1`**: Calculate L2 norm of embedding vectors
+- **`ContentEmbedding.euclidean_distance/2`**: Euclidean distance metric for similarity
+- **`ContentEmbedding.dot_product/2`**: Dot product similarity (equals cosine for normalized embeddings)
+- **Enhanced `cosine_similarity/2`**: Improved documentation with normalization requirements
+
+#### 🔬 Production-Ready Use Case Examples
+- **`examples/use_cases/mrl_normalization_demo.exs`**: Comprehensive MRL demonstration
+  - Quality vs storage tradeoffs across dimensions (128-3072)
+  - MTEB benchmark comparison table
+  - Normalization requirements and effects
+  - Distance metrics comparison (cosine, euclidean, dot product)
+  - Best practices for dimension selection
+
+- **`examples/use_cases/rag_demo.exs`**: Complete RAG pipeline implementation
+  - Build and index knowledge base with RETRIEVAL_DOCUMENT task type
+  - Embed queries with RETRIEVAL_QUERY task type
+  - Retrieve top-K relevant documents using semantic similarity
+  - Generate contextually-aware responses
+  - Side-by-side comparison with non-RAG baseline
+
+- **`examples/use_cases/search_reranking.exs`**: Semantic reranking for search
+  - E-commerce product search example
+  - Compare keyword vs semantic ranking
+  - Hybrid ranking strategy (keyword + semantic weighted)
+  - Handle synonyms and conceptual relevance
+
+- **`examples/use_cases/classification.exs`**: K-NN classification
+  - Few-shot learning with minimal training examples
+  - Customer support ticket categorization
+  - Confidence scoring and accuracy evaluation
+  - Dynamic category addition without retraining
+
+#### 📚 Enhanced Documentation
+- **Complete MRL documentation** in `examples/EMBEDDINGS.md`:
+  - Matryoshka Representation Learning explanation
+  - MTEB benchmark scores table (128d to 3072d)
+  - Normalization requirements and best practices
+  - Model comparison table (text-embedding-004 vs gemini-embedding-001)
+  - Critical normalization warnings
+  - Distance metrics usage guide
+
+- **README.md embeddings section**:
+  - Quick start guide for embeddings
+  - MRL concepts and dimension selection
+  - Task types for better quality
+  - Batch embedding examples
+  - Links to advanced use case examples
+
+#### 🧪 Comprehensive Test Coverage
+- **26 unit tests** for `ContentEmbedding` module:
+  - Normalization accuracy (L2 norm = 1.0)
+  - Distance metrics validation
+  - Edge cases and error handling
+  - Zero vector handling
+
+- **20 integration tests** for embedding coordinator:
+  - Single and batch embedding workflows
+  - Task type variations
+  - Output dimensionality control
+  - Error scenarios
+
+### Technical Implementation
+
+#### 🎯 Key Features
+- **MRL Support**: Flexible dimensions (128-3072) with minimal quality loss
+  - 768d: 67.99 MTEB (25% storage, -0.26% loss) - **RECOMMENDED**
+  - 1536d: 68.17 MTEB (50% storage, same as 3072d!)
+  - 3072d: 68.17 MTEB (100% storage, pre-normalized)
+
+- **Critical Normalization**: Only 3072-dimensional embeddings are pre-normalized by API
+  - All other dimensions MUST be normalized before computing similarity
+  - Cosine similarity focuses on direction (semantic meaning), not magnitude
+  - Non-normalized embeddings have varying magnitudes that distort calculations
+
+- **Production Quality**: 384 tests passing (100% success rate)
+- **Type Safety**: Complete `@spec` annotations for all new functions
+- **Code Quality**: Zero compilation warnings maintained
+
+#### 📈 Performance Characteristics
+- **Storage Efficiency**: 768d offers 75% storage savings with <0.3% quality loss
+- **Quality Benchmarks**: MTEB scores prove minimal degradation across dimensions
+- **Real-time Processing**: Efficient normalization and distance calculations
+
+### Changed
+
+- **Updated README.md**: Added embeddings section in features list and comprehensive usage guide
+- **Enhanced EMBEDDINGS.md**: Complete rewrite with MRL documentation and advanced examples
+- **Model Recommendations**: Updated to highlight `text-embedding-004` with MRL support
+
+### Migration Notes
+
+#### For New Users
+```elixir
+# Generate embedding with recommended 768 dimensions
+{:ok, response} = Gemini.embed_content(
+  "Your text",
+  model: "text-embedding-004",
+  output_dimensionality: 768
+)
+
+# IMPORTANT: Normalize before computing similarity!
+alias Gemini.Types.Response.ContentEmbedding
+
+normalized = ContentEmbedding.normalize(response.embedding)
+similarity = ContentEmbedding.cosine_similarity(normalized, other_normalized)
+```
+
+#### Dimension Selection Guide
+- **768d**: Best for most applications (storage/quality balance)
+- **1536d**: High quality at 50% storage (same MTEB as 3072d)
+- **3072d**: Maximum quality, pre-normalized (largest storage)
+- **512d or lower**: Extreme efficiency (>1% quality loss)
+
+### Future Roadmap
+
+**v0.4.0 (Planned)**: Async Batch Embedding API
+- Long-running operations (LRO) support
+- 50% cost savings vs interactive embedding
+- Batch state tracking and priority support
+
+### Related Documentation
+
+- **Comprehensive Guide**: `examples/EMBEDDINGS.md`
+- **MRL Demo**: `examples/use_cases/mrl_normalization_demo.exs`
+- **RAG Example**: `examples/use_cases/rag_demo.exs`
+- **API Specification**: `oldDocs/docs/spec/GEMINI-API-07-EMBEDDINGS_20251014.md`
+
 ## [0.2.3] - 2025-10-08
 
 ### Fixed
@@ -448,6 +585,10 @@ config :gemini_ex,
 - Minimal latency overhead
 - Concurrent request processing
 
+[0.3.0]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.3.0
+[0.2.3]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.2.3
+[0.2.2]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.2.2
+[0.2.1]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.2.1
 [0.2.0]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.2.0
 [0.1.1]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.1.1
 [0.1.0]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.1.0

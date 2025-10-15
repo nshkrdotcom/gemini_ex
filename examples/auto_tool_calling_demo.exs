@@ -3,11 +3,6 @@
 # Automatic Tool Calling Demo
 # This example demonstrates the automatic tool execution feature
 
-Mix.install([
-  {:gemini_ex, path: "."},
-  {:jason, "~> 1.4"}
-])
-
 alias Gemini
 alias Gemini.Tools
 alias Altar.ADM
@@ -35,14 +30,15 @@ defmodule DemoTools do
   end
 
   def calculate(%{"operation" => op, "a" => a, "b" => b}) do
-    result = case op do
-      "add" -> a + b
-      "subtract" -> a - b
-      "multiply" -> a * b
-      "divide" when b != 0 -> a / b
-      "divide" -> {:error, "Division by zero"}
-      _ -> {:error, "Unknown operation"}
-    end
+    result =
+      case op do
+        "add" -> a + b
+        "subtract" -> a - b
+        "multiply" -> a * b
+        "divide" when b != 0 -> a / b
+        "divide" -> {:error, "Division by zero"}
+        _ -> {:error, "Unknown operation"}
+      end
 
     %{
       operation: op,
@@ -57,67 +53,70 @@ end
 IO.puts("=== Registering Tools ===")
 
 # Weather tool
-{:ok, weather_declaration} = ADM.new_function_declaration(%{
-  name: "get_weather",
-  description: "Gets current weather information for a specified location",
-  parameters: %{
-    type: "object",
-    properties: %{
-      location: %{
-        type: "string",
-        description: "The location to get weather for (e.g., 'San Francisco', 'London')"
-      }
-    },
-    required: ["location"]
-  }
-})
+{:ok, weather_declaration} =
+  ADM.new_function_declaration(%{
+    name: "get_weather",
+    description: "Gets current weather information for a specified location",
+    parameters: %{
+      type: "object",
+      properties: %{
+        location: %{
+          type: "string",
+          description: "The location to get weather for (e.g., 'San Francisco', 'London')"
+        }
+      },
+      required: ["location"]
+    }
+  })
 
 :ok = Tools.register(weather_declaration, &DemoTools.get_weather/1)
 IO.puts("✅ Registered weather tool")
 
 # Time tool
-{:ok, time_declaration} = ADM.new_function_declaration(%{
-  name: "get_time",
-  description: "Gets current time for a specified timezone",
-  parameters: %{
-    type: "object",
-    properties: %{
-      timezone: %{
-        type: "string",
-        description: "The timezone to get time for (e.g., 'UTC', 'America/New_York')"
-      }
-    },
-    required: ["timezone"]
-  }
-})
+{:ok, time_declaration} =
+  ADM.new_function_declaration(%{
+    name: "get_time",
+    description: "Gets current time for a specified timezone",
+    parameters: %{
+      type: "object",
+      properties: %{
+        timezone: %{
+          type: "string",
+          description: "The timezone to get time for (e.g., 'UTC', 'America/New_York')"
+        }
+      },
+      required: ["timezone"]
+    }
+  })
 
 :ok = Tools.register(time_declaration, &DemoTools.get_time/1)
 IO.puts("✅ Registered time tool")
 
 # Calculator tool
-{:ok, calc_declaration} = ADM.new_function_declaration(%{
-  name: "calculate",
-  description: "Performs basic mathematical calculations",
-  parameters: %{
-    type: "object",
-    properties: %{
-      operation: %{
-        type: "string",
-        description: "The operation to perform",
-        enum: ["add", "subtract", "multiply", "divide"]
+{:ok, calc_declaration} =
+  ADM.new_function_declaration(%{
+    name: "calculate",
+    description: "Performs basic mathematical calculations",
+    parameters: %{
+      type: "object",
+      properties: %{
+        operation: %{
+          type: "string",
+          description: "The operation to perform",
+          enum: ["add", "subtract", "multiply", "divide"]
+        },
+        a: %{
+          type: "number",
+          description: "First operand"
+        },
+        b: %{
+          type: "number",
+          description: "Second operand"
+        }
       },
-      a: %{
-        type: "number",
-        description: "First operand"
-      },
-      b: %{
-        type: "number",
-        description: "Second operand"
-      }
-    },
-    required: ["operation", "a", "b"]
-  }
-})
+      required: ["operation", "a", "b"]
+    }
+  })
 
 :ok = Tools.register(calc_declaration, &DemoTools.calculate/1)
 IO.puts("✅ Registered calculator tool")

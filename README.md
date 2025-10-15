@@ -18,11 +18,12 @@ A comprehensive Elixir client for Google's Gemini AI API with dual authenticatio
 - **🤖 Automatic Tool Calling**: A seamless, Python-SDK-like experience that automates the entire multi-turn tool-calling loop
 - **🔐 Dual Authentication**: Seamless support for both Gemini API keys and Vertex AI OAuth/Service Accounts
 - **⚡ Advanced Streaming**: Production-grade Server-Sent Events streaming with real-time processing
+- **📊 Embeddings with MRL**: Text embeddings with Matryoshka Representation Learning, normalization, and distance metrics (NEW in v0.3.0!)
 - **🛡️ Type Safety**: Complete type definitions with runtime validation
-- **📊 Built-in Telemetry**: Comprehensive observability and metrics out of the box
+- **📈 Built-in Telemetry**: Comprehensive observability and metrics out of the box
 - **💬 Chat Sessions**: Multi-turn conversation management with state persistence
-- **🎭 Flexible Multimodal Input**: Intuitive formats for images/text with automatic MIME detection (NEW in v0.2.2!)
-- **💰 Thinking Budget Control**: Optimize costs by controlling thinking token usage (NEW in v0.2.2!)
+- **🎭 Flexible Multimodal Input**: Intuitive formats for images/text with automatic MIME detection
+- **💰 Thinking Budget Control**: Optimize costs by controlling thinking token usage
 - **⚙️ Complete Generation Config**: Full support for all generation config options including structured output
 - **🚀 Production Ready**: Robust error handling, retry logic, and performance optimizations
 - **🔧 Flexible Configuration**: Environment variables, application config, and per-request overrides
@@ -42,7 +43,7 @@ Add `gemini` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:gemini_ex, "~> 0.2.3"}
+    {:gemini_ex, "~> 0.3.0"}
   ]
 end
 ```
@@ -364,6 +365,140 @@ end
 
 This manual approach gives you complete visibility and control over each step of the tool calling process, which can be valuable for debugging, logging, or implementing custom conversation management logic.
 
+## 📊 Embeddings (New in v0.3.0!)
+
+Generate semantic embeddings for text to power RAG systems, semantic search, classification, and more.
+
+### Quick Start
+
+```elixir
+# Generate an embedding
+{:ok, response} = Gemini.embed_content("Hello, world!")
+values = response.embedding.values  # [0.123, -0.456, ...]
+
+# Compute similarity
+alias Gemini.Types.Response.ContentEmbedding
+
+{:ok, resp1} = Gemini.embed_content("The cat sat on the mat")
+{:ok, resp2} = Gemini.embed_content("A feline rested on the rug")
+
+# Normalize for accurate similarity (required for non-3072 dimensions)
+norm1 = ContentEmbedding.normalize(resp1.embedding)
+norm2 = ContentEmbedding.normalize(resp2.embedding)
+
+similarity = ContentEmbedding.cosine_similarity(norm1, norm2)
+# => 0.85 (high similarity)
+```
+
+### MRL (Matryoshka Representation Learning)
+
+The `text-embedding-004` model supports flexible dimensions (128-3072) with minimal quality loss:
+
+```elixir
+# 768 dimensions - RECOMMENDED (25% storage, 0.26% quality loss)
+{:ok, response} = Gemini.embed_content(
+  "Your text",
+  model: "text-embedding-004",
+  output_dimensionality: 768
+)
+
+# 1536 dimensions - High quality (50% storage, same MTEB score as 3072!)
+{:ok, response} = Gemini.embed_content(
+  "Your text",
+  output_dimensionality: 1536
+)
+```
+
+**MTEB Benchmark Scores:**
+- 3072d: 68.17 (100% storage, pre-normalized)
+- 1536d: 68.17 (50% storage, **same quality!**)
+- 768d: 67.99 (25% storage, -0.26% loss)
+- 512d: 67.55 (17% storage, -0.91% loss)
+
+### Task Types for Better Quality
+
+Optimize embeddings for your specific use case:
+
+```elixir
+# For knowledge base documents
+{:ok, doc_emb} = Gemini.embed_content(
+  document_text,
+  task_type: "RETRIEVAL_DOCUMENT",
+  title: "Document Title"  # Improves quality!
+)
+
+# For search queries
+{:ok, query_emb} = Gemini.embed_content(
+  user_query,
+  task_type: "RETRIEVAL_QUERY"
+)
+
+# For classification
+{:ok, emb} = Gemini.embed_content(
+  text,
+  task_type: "CLASSIFICATION"
+)
+```
+
+### Distance Metrics
+
+```elixir
+alias Gemini.Types.Response.ContentEmbedding
+
+# Cosine similarity (higher = more similar, -1 to 1)
+similarity = ContentEmbedding.cosine_similarity(emb1, emb2)
+
+# Euclidean distance (lower = more similar, 0 to ∞)
+distance = ContentEmbedding.euclidean_distance(emb1, emb2)
+
+# Dot product (equals cosine for normalized embeddings)
+dot = ContentEmbedding.dot_product(emb1, emb2)
+
+# L2 norm (should be ~1.0 after normalization)
+norm = ContentEmbedding.norm(embedding)
+```
+
+### Batch Embedding
+
+Efficient for multiple texts:
+
+```elixir
+texts = ["Text 1", "Text 2", "Text 3"]
+{:ok, response} = Gemini.batch_embed_contents(
+  "text-embedding-004",
+  texts,
+  task_type: "RETRIEVAL_DOCUMENT"
+)
+
+# Access embeddings
+embeddings = response.embeddings  # List of ContentEmbedding structs
+```
+
+### 🚀 Advanced Use Cases
+
+Complete production-ready examples in `examples/use_cases/`:
+
+- **`mrl_normalization_demo.exs`** - MRL concepts, MTEB scores, normalization, distance metrics
+- **`rag_demo.exs`** - Complete RAG pipeline with knowledge base indexing and retrieval
+- **`search_reranking.exs`** - Semantic reranking for improved search relevance
+- **`classification.exs`** - K-NN classification with few-shot learning
+
+See [examples/EMBEDDINGS.md](examples/EMBEDDINGS.md) for comprehensive documentation.
+
+### Critical: Normalization
+
+**IMPORTANT:** Only 3072-dimensional embeddings are pre-normalized. All other dimensions MUST be normalized before computing similarity:
+
+```elixir
+# WRONG - Produces incorrect similarity scores
+similarity = ContentEmbedding.cosine_similarity(emb1, emb2)
+
+# CORRECT - Normalize first for non-3072 dimensions
+norm1 = ContentEmbedding.normalize(emb1)
+norm2 = ContentEmbedding.normalize(emb2)
+similarity = ContentEmbedding.cosine_similarity(norm1, norm2)
+```
+
 ## 🎯 Examples
 
 The repository includes comprehensive examples demonstrating all library features. All examples are ready to run and include proper error handling.
@@ -521,7 +656,7 @@ mix run examples/manual_tool_calling_demo.exs
 **A comprehensive live test demonstrating real automatic tool execution with the Gemini API.**
 
 ```bash
-elixir examples/live_auto_tool_test.exs
+mix run examples/live_auto_tool_test.exs
 ```
 
 **Features demonstrated:**

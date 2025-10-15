@@ -3,11 +3,6 @@
 # Tool Calling Demo
 # This example demonstrates the deserialization and serialization of tool calling data
 
-Mix.install([
-  {:gemini_ex, path: "."},
-  {:jason, "~> 1.4"}
-])
-
 alias Gemini.Generate
 alias Gemini.Types.Content
 alias Altar.ADM.ToolResult
@@ -57,22 +52,24 @@ end
 IO.puts("\n=== Example 2: Creating Tool Results ===")
 
 # Example 2: Creating tool results for function responses
-{:ok, result1} = ToolResult.new(%{
-  call_id: "call_weather_123",
-  content: %{
-    "temperature" => 22,
-    "condition" => "sunny",
-    "humidity" => 65,
-    "location" => "San Francisco"
-  },
-  is_error: false
-})
+{:ok, result1} =
+  ToolResult.new(%{
+    call_id: "call_weather_123",
+    content: %{
+      "temperature" => 22,
+      "condition" => "sunny",
+      "humidity" => 65,
+      "location" => "San Francisco"
+    },
+    is_error: false
+  })
 
-{:ok, result2} = ToolResult.new(%{
-  call_id: "call_time_456",
-  content: "2024-01-15 14:30:00 PST",
-  is_error: false
-})
+{:ok, result2} =
+  ToolResult.new(%{
+    call_id: "call_time_456",
+    content: "2024-01-15 14:30:00 PST",
+    is_error: false
+  })
 
 tool_results = [result1, result2]
 

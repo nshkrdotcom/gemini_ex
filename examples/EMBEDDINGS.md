@@ -139,31 +139,144 @@ Cosine similarity ranges from -1 to 1:
 - **0.0** = Unrelated
 - **-1.0** = Opposite meaning
 
-### Dimension Reduction
+### Matryoshka Representation Learning (MRL) and Dimension Control
 
-For newer models, you can reduce embedding dimensionality:
+The `text-embedding-004` model uses **Matryoshka Representation Learning (MRL)**, a technique that creates high-dimensional embeddings where smaller prefixes are also useful. This allows flexible dimensionality with minimal quality loss.
+
+#### Understanding MRL
+
+MRL teaches the model to learn embeddings where the first N dimensions are independently useful. You can truncate embeddings to smaller sizes while maintaining most of the semantic information. This is different from traditional dimensionality reduction (like PCA) - MRL is built into the model's training.
+
+#### Choosing the Right Dimension
 
 ```elixir
+# 768 dimensions - RECOMMENDED for most applications
 {:ok, response} = Coordinator.embed_content(
   "Your text here",
   model: "text-embedding-004",
-  output_dimensionality: 256
+  output_dimensionality: 768
 )
+# • 25% storage of full embeddings
+# • Only 0.26% quality loss vs 3072
+# • Excellent balance of quality and efficiency
+
+# 1536 dimensions - High quality
+{:ok, response} = Coordinator.embed_content(
+  "Your text here",
+  model: "text-embedding-004",
+  output_dimensionality: 1536
+)
+# • 50% storage of full embeddings
+# • Same MTEB score as 3072 (68.17)
+
+# 3072 dimensions - Maximum quality (default)
+{:ok, response} = Coordinator.embed_content(
+  "Your text here",
+  model: "text-embedding-004"
+)
+# • Full embeddings (largest storage)
+# • Pre-normalized by API
+# • MTEB: 68.17
 ```
 
-**Note:** Not supported on older models like `gemini-embedding-001`.
+#### MTEB Benchmark Scores
+
+The following table shows MTEB (Massive Text Embedding Benchmark) scores for different dimensions:
+
+| Dimension | MTEB Score | Storage vs 3072 | Quality Loss |
+|-----------|------------|-----------------|--------------|
+| 3072      | 68.17      | 100%            | Baseline     |
+| 2048      | 68.16      | 67%             | -0.01%       |
+| 1536      | 68.17      | 50%             | Same         |
+| 768       | 67.99      | 25%             | -0.26%       |
+| 512       | 67.55      | 17%             | -0.91%       |
+| 256       | 66.19      | 8%              | -2.90%       |
+| 128       | 63.31      | 4%              | -7.12%       |
+
+**Key Insight:** Performance is not strictly tied to dimension size - 1536 dimensions achieve the same score as 3072!
+
+#### Critical: Normalization Requirements
+
+**IMPORTANT:** Only 3072-dimensional embeddings are pre-normalized by the API. All other dimensions MUST be normalized before computing similarity metrics.
+
+```elixir
+alias Gemini.Types.Response.ContentEmbedding
+
+# Embed with 768 dimensions
+{:ok, response} = Coordinator.embed_content(
+  "Your text",
+  output_dimensionality: 768
+)
+
+# MUST normalize for non-3072 dimensions
+normalized = ContentEmbedding.normalize(response.embedding)
+
+# Now safe to compute similarity
+similarity = ContentEmbedding.cosine_similarity(normalized, other_normalized)
+```
+
+**Why normalize?** Cosine similarity focuses on vector direction (semantic meaning), not magnitude. Non-normalized embeddings have varying magnitudes that distort similarity calculations.
+
+#### Normalization and Distance Metrics
+
+```elixir
+alias Gemini.Types.Response.ContentEmbedding
+
+# Normalize embeddings (required for non-3072 dimensions)
+normalized_emb1 = ContentEmbedding.normalize(embedding1)
+normalized_emb2 = ContentEmbedding.normalize(embedding2)
+
+# Cosine similarity (higher = more similar, range: -1 to 1)
+similarity = ContentEmbedding.cosine_similarity(normalized_emb1, normalized_emb2)
+
+# Euclidean distance (lower = more similar, range: 0 to ∞)
+distance = ContentEmbedding.euclidean_distance(normalized_emb1, normalized_emb2)
+
+# Dot product (higher = more similar, equals cosine for normalized)
+dot = ContentEmbedding.dot_product(normalized_emb1, normalized_emb2)
+
+# Check if normalized (L2 norm should be 1.0)
+norm = ContentEmbedding.norm(normalized_emb1)
+# => ~1.0
+```
+
+**Note:** For normalized embeddings, cosine similarity equals dot product!
+
+**Note:** MRL dimension control not supported on older models like `gemini-embedding-001` (fixed at 3072 dimensions).
 
 ## Available Models
 
-- **`text-embedding-004`** (recommended) - Latest model with best quality
-  - 768 dimensions by default
-  - Supports dimension reduction
-  - Supports all task types
+### Recommended Model
 
-- **`gemini-embedding-001`** - Earlier model
-  - 3072 dimensions (fixed)
-  - No dimension reduction support
+- **`text-embedding-004`** (Latest, Recommended)
+  - Default: 768 dimensions
+  - Supports MRL: 128-3072 dimensions
+  - Supports all task types
+  - MTEB Score: 67.99 (768d) to 68.17 (1536d/3072d)
+  - Requires normalization for non-3072 dimensions
+
+### Legacy Models
+
+- **`gemini-embedding-001`** (Legacy)
+  - Fixed: 3072 dimensions
+  - No MRL/dimension reduction support
   - Limited task type support
+  - Pre-normalized by API
+
+- **`gemini-embedding-exp-03-07`** (Experimental)
+  - **Deprecating: October 2025**
+  - Not recommended for new projects
+
+### Model Comparison
+
+| Feature | text-embedding-004 | gemini-embedding-001 |
+|---------|-------------------|---------------------|
+| Default Dimensions | 768 | 3072 (fixed) |
+| MRL Support | ✅ (128-3072) | ❌ |
+| Normalization Required | ✅ (non-3072) | ❌ (pre-normalized) |
+| Task Types | All | Limited |
+| MTEB Score | 67.99-68.17 | ~68.0 |
+| Status | Current | Legacy |
 
 ## Use Cases
 
@@ -281,7 +394,81 @@ end
 - [Text Embedding Models](https://ai.google.dev/models/gemini#text-embedding)
 - [Semantic Retrieval](https://ai.google.dev/docs/semantic_retrieval)
 
-## Examples
+## Advanced Use Case Examples
+
+The `use_cases/` directory contains complete, production-ready examples demonstrating real-world applications:
+
+### MRL and Normalization Demo
+**File:** `use_cases/mrl_normalization_demo.exs`
+
+Comprehensive demonstration of Matryoshka Representation Learning:
+- Quality vs storage tradeoffs across dimensions (128-3072)
+- MTEB benchmark comparison
+- Normalization requirements and effects
+- Distance metrics comparison (cosine, euclidean, dot product)
+- Best practices for dimension selection
+
+**Run:** `mix run examples/use_cases/mrl_normalization_demo.exs`
+
+### RAG (Retrieval-Augmented Generation) System
+**File:** `use_cases/rag_demo.exs`
+
+Complete RAG pipeline implementation:
+- Build and index knowledge base with RETRIEVAL_DOCUMENT task type
+- Embed queries with RETRIEVAL_QUERY task type
+- Retrieve top-K relevant documents using semantic similarity
+- Generate contextually-aware responses
+- Compare RAG vs non-RAG generation quality
+
+**Run:** `mix run examples/use_cases/rag_demo.exs`
+
+**Key Features:**
+- Document title optimization for better embeddings
+- Semantic similarity ranking
+- Context-aware generation
+- Side-by-side comparison with baseline
+
+### Search Reranking
+**File:** `use_cases/search_reranking.exs`
+
+Semantic reranking for improved search relevance:
+- Start with keyword-based search results
+- Rerank using semantic similarity
+- Compare keyword vs semantic ranking
+- Hybrid ranking strategy (keyword + semantic)
+- Handle synonyms and conceptual relevance
+
+**Run:** `mix run examples/use_cases/search_reranking.exs`
+
+**Key Features:**
+- E-commerce product search example
+- Visual ranking comparison
+- Hybrid scoring (0.3 × keyword + 0.7 × semantic)
+- Intent understanding beyond keywords
+
+### K-NN Classification
+**File:** `use_cases/classification.exs`
+
+Text classification using K-Nearest Neighbors with embeddings:
+- Few-shot learning with minimal training examples
+- Customer support ticket categorization
+- K-NN classification algorithm
+- Confidence scoring and accuracy evaluation
+- Dynamically add new categories without retraining
+
+**Run:** `mix run examples/use_cases/classification.exs`
+
+**Key Features:**
+- Multi-category classification (technical_support, billing, account, product_inquiry)
+- Accuracy evaluation and confidence analysis
+- Dynamic category addition demonstration
+- No model training required
+
+## Basic Examples
 
 - `simple_embedding.exs` - Basic embedding (curl equivalent)
 - `embedding_demo.exs` - Comprehensive feature demonstration
+
+## Async Batch Embedding API
+
+**Note:** Support for the Async Batch Embedding API (50% cost savings, long-running operations) is planned for v0.4.0. The current implementation supports synchronous batch operations via `batch_embed_contents/2`.

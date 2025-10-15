@@ -3,11 +3,6 @@
 # Simple Live Tool-Calling Test
 # A minimal test to verify automatic tool execution works
 
-Mix.install([
-  {:gemini_ex, path: "."},
-  {:altar, "~> 0.1.0"}
-])
-
 alias Gemini
 alias Gemini.Tools
 alias Altar.ADM
@@ -29,20 +24,22 @@ case System.get_env("GEMINI_API_KEY") do
   nil ->
     IO.puts("❌ GEMINI_API_KEY not set")
     System.halt(1)
+
   _key ->
     IO.puts("✅ API key found")
 end
 
 # Register simple tool
-{:ok, tool_declaration} = ADM.new_function_declaration(%{
-  name: "get_current_time",
-  description: "Gets the current UTC time and timestamp",
-  parameters: %{
-    type: "object",
-    properties: %{},
-    required: []
-  }
-})
+{:ok, tool_declaration} =
+  ADM.new_function_declaration(%{
+    name: "get_current_time",
+    description: "Gets the current UTC time and timestamp",
+    parameters: %{
+      type: "object",
+      properties: %{},
+      required: []
+    }
+  })
 
 :ok = Tools.register(tool_declaration, &SimpleTools.get_current_time/1)
 IO.puts("✅ Tool registered")
@@ -55,13 +52,14 @@ You MUST call the get_current_time function to answer this question.
 
 IO.puts("🚀 Testing automatic tool calling...")
 
-result = Gemini.generate_content_with_auto_tools(
-  prompt,
-  tools: [tool_declaration],
-  model: "gemini-2.0-flash-lite",
-  temperature: 0.1,
-  turn_limit: 3
-)
+result =
+  Gemini.generate_content_with_auto_tools(
+    prompt,
+    tools: [tool_declaration],
+    model: "gemini-2.0-flash-lite",
+    temperature: 0.1,
+    turn_limit: 3
+  )
 
 case result do
   {:ok, response} ->
@@ -69,9 +67,11 @@ case result do
       {:ok, text} ->
         IO.puts("\n🎉 SUCCESS!")
         IO.puts("Response: #{text}")
+
       {:error, error} ->
         IO.puts("❌ Text extraction failed: #{error}")
     end
+
   {:error, error} ->
     IO.puts("❌ Tool calling failed: #{inspect(error)}")
 end

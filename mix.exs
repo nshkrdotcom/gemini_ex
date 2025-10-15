@@ -1,7 +1,7 @@
 defmodule Gemini.MixProject do
   use Mix.Project
 
-  @version "0.2.3"
+  @version "0.3.0"
   @source_url "https://github.com/nshkrdotcom/gemini_ex"
 
   def project do
@@ -58,7 +58,7 @@ defmodule Gemini.MixProject do
   defp description do
     """
     Comprehensive Elixir client for Google's Gemini AI API with dual authentication,
-    streaming, type safety, and built-in telemetry for production applications.
+    embeddings with MRL, streaming, type safety, and built-in telemetry for production applications.
     """
   end
 
