@@ -80,12 +80,14 @@ defmodule Gemini.MixProject do
         "STREAMING_ARCHITECTURE.md",
         "TELEMETRY_IMPLEMENTATION.md",
         "AUTOMATIC_TOOL_EXECUTION.md",
+        "examples/EMBEDDINGS.md",
         "CHANGELOG.md"
       ],
       groups_for_extras: [
         Guides: ["README.md", "ALTAR_INTEGRATION.md"],
         Features: [
-          "AUTOMATIC_TOOL_EXECUTION.md"
+          "AUTOMATIC_TOOL_EXECUTION.md",
+          "examples/EMBEDDINGS.md"
         ],
         Architecture: [
           "ARCHITECTURE.md",
