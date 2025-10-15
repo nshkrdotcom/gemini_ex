@@ -5,6 +5,145 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2025-10-15
+
+### 🎉 Major Feature: Async Batch Embedding API (Phase 4)
+
+This release adds production-scale async batch embedding support with 50% cost savings compared to the interactive API. Process thousands to millions of embeddings asynchronously with Long-Running Operation (LRO) support, state tracking, and priority management.
+
+### Added
+
+#### 🚀 Async Batch Embedding API
+- **`async_batch_embed_contents/2`**: Submit large batches asynchronously for background processing
+  - 50% cost savings vs interactive embedding API
+  - Suitable for RAG system indexing, knowledge base building, and large-scale retrieval
+  - Returns immediately with batch ID for polling
+  - Support for inline requests with metadata tracking
+
+- **`get_batch_status/1`**: Poll batch job status with progress tracking
+  - Real-time progress metrics via `EmbedContentBatchStats`
+  - State transitions: PENDING → PROCESSING → COMPLETED/FAILED
+  - Track successful, failed, and pending request counts
+
+- **`get_batch_embeddings/1`**: Retrieve results from completed batch jobs
+  - Extract embeddings from inline responses
+  - Support for file-based output detection
+  - Automatic filtering of successful responses
+
+- **`await_batch_completion/2`**: Convenience polling with configurable intervals
+  - Automatic polling until completion or timeout
+  - Progress callback support for monitoring
+  - Configurable poll interval and timeout
+
+#### 📊 Complete Type System
+- **`BatchState`**: Job state enum (`:unspecified`, `:pending`, `:processing`, `:completed`, `:failed`, `:cancelled`)
+- **`EmbedContentBatchStats`**: Request tracking with progress metrics
+  - `progress_percentage/1`: Calculate completion percentage
+  - `success_rate/1` and `failure_rate/1`: Quality metrics
+  - `is_complete?/1`: Completion check
+
+- **Request Types**:
+  - `InlinedEmbedContentRequest`: Single request with metadata
+  - `InlinedEmbedContentRequests`: Container for multiple requests
+  - `InputEmbedContentConfig`: Union type for file vs inline input
+  - `EmbedContentBatch`: Complete batch job request with priority
+
+- **Response Types**:
+  - `InlinedEmbedContentResponse`: Single response with success/error
+  - `InlinedEmbedContentResponses`: Container with helper functions
+  - `EmbedContentBatchOutput`: Union type for file vs inline output
+  - `EmbedContentBatch`: Complete batch status with lifecycle tracking
+
+#### 🧪 Comprehensive Test Coverage
+- **41 new unit tests** for batch types (BatchState, BatchStats)
+- Full TDD approach with test-first implementation
+- **425 total tests passing** (up from 384 in v0.3.0)
+- Zero compilation warnings maintained
+
+### Technical Implementation
+
+#### 🎯 Production Features
+- **Long-Running Operations (LRO)**: Full async job lifecycle support
+- **Priority-based Processing**: Control batch execution order with priority field
+- **Progress Tracking**: Real-time stats on successful, failed, and pending requests
+- **Multi-auth Support**: Works with both Gemini API and Vertex AI
+- **Type Safety**: Complete `@spec` annotations for all new functions
+- **Error Handling**: Comprehensive error messages and recovery paths
+
+#### 📈 Performance & Cost
+- **50% cost savings**: Async batch API offers half the cost of interactive embedding
+- **Scalability**: Process millions of embeddings efficiently
+- **Production-ready**: Designed for large-scale RAG systems and knowledge bases
+- **Flexible polling**: Configurable intervals (default 5s) with timeout (default 10min)
+
+### Usage Examples
+
+```elixir
+# Submit async batch for background processing
+{:ok, batch} = Gemini.async_batch_embed_contents(
+  ["Text 1", "Text 2", "Text 3"],
+  display_name: "My Knowledge Base",
+  task_type: :retrieval_document,
+  output_dimensionality: 768
+)
+
+# Poll for status
+{:ok, updated_batch} = Gemini.get_batch_status(batch.name)
+
+# Check progress
+if updated_batch.batch_stats do
+  progress = updated_batch.batch_stats |> EmbedContentBatchStats.progress_percentage()
+  IO.puts("Progress: #{Float.round(progress, 1)}%")
+end
+
+# Wait for completion (convenience function)
+{:ok, completed_batch} = Gemini.await_batch_completion(
+  batch.name,
+  poll_interval: 10_000,  # 10 seconds
+  timeout: 1_800_000,     # 30 minutes
+  on_progress: fn b ->
+    progress = EmbedContentBatchStats.progress_percentage(b.batch_stats)
+    IO.puts("Progress: #{Float.round(progress, 1)}%")
+  end
+)
+
+# Retrieve embeddings
+{:ok, embeddings} = Gemini.get_batch_embeddings(completed_batch)
+IO.puts("Retrieved #{length(embeddings)} embeddings")
+```
+
+### Changed
+
+- **Enhanced `Coordinator` module**: Added async batch embedding functions alongside existing sync APIs
+- **Type system expansion**: New types in `Gemini.Types.Request` and `Gemini.Types.Response` namespaces
+
+### Migration Notes
+
+#### For v0.3.0 Users
+- All existing synchronous embedding APIs remain unchanged and fully compatible
+- New async batch API is additive - no breaking changes
+- Use async batch API for:
+  - Large-scale embedding generation (1000s-millions of texts)
+  - Background processing with 50% cost savings
+  - RAG system indexing and knowledge base building
+  - Non-time-critical embedding workflows
+
+- Continue using sync API (`embed_content/2`, `batch_embed_contents/2`) for:
+  - Real-time embedding needs
+  - Small batches (<100 texts)
+  - Interactive workflows requiring immediate results
+
+### Future Enhancements
+
+- File-based batch input/output support (GCS integration)
+- Batch cancellation and deletion APIs
+- Enhanced progress monitoring with estimated completion times
+
+### Related Documentation
+
+- **API Specification**: `oldDocs/docs/spec/GEMINI-API-07-EMBEDDINGS_20251014.md` (lines 129-442)
+- **Implementation Plan**: `EMBEDDING_IMPLEMENTATION_PLAN.md` (Phase 4 section)
+
 ## [0.3.0] - 2025-10-14
 
 ### 🎉 Major Feature: Complete Embedding Support with MRL

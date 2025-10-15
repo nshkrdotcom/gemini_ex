@@ -35,8 +35,11 @@ defmodule Gemini.APIs.Coordinator do
   alias Gemini.Streaming.UnifiedManager
   alias Gemini.Types.Request.GenerateContentRequest
   alias Gemini.Types.Request.{EmbedContentRequest, BatchEmbedContentsRequest}
+  alias Gemini.Types.Request.{InlinedEmbedContentRequest, InlinedEmbedContentRequests}
+  alias Gemini.Types.Request.{InputEmbedContentConfig, EmbedContentBatch}
   alias Gemini.Types.Response.{GenerateContentResponse, ListModelsResponse}
   alias Gemini.Types.Response.{EmbedContentResponse, BatchEmbedContentsResponse}
+  alias Gemini.Types.Response.{InlinedEmbedContentResponses, ContentEmbedding}
   alias Gemini.Types.Content
   alias Gemini.Types.ToolSerialization
 
@@ -313,7 +316,7 @@ defmodule Gemini.APIs.Coordinator do
   """
   @spec embed_content(String.t(), Gemini.options()) :: api_result(EmbedContentResponse.t())
   def embed_content(text, opts \\ []) when is_binary(text) do
-    model = Keyword.get(opts, :model, "text-embedding-004")
+    model = Keyword.get(opts, :model, "gemini-embedding-001")
     path = "models/#{model}:embedContent"
 
     request = EmbedContentRequest.new(text, opts)
@@ -363,7 +366,7 @@ defmodule Gemini.APIs.Coordinator do
   @spec batch_embed_contents([String.t()], Gemini.options()) ::
           api_result(BatchEmbedContentsResponse.t())
   def batch_embed_contents(texts, opts \\ []) when is_list(texts) do
-    model = Keyword.get(opts, :model, "text-embedding-004")
+    model = Keyword.get(opts, :model, "gemini-embedding-001")
     path = "models/#{model}:batchEmbedContents"
 
     request = BatchEmbedContentsRequest.new(texts, opts)
@@ -373,6 +376,277 @@ defmodule Gemini.APIs.Coordinator do
       {:ok, BatchEmbedContentsResponse.from_api_response(response)}
     else
       {:error, reason} -> {:error, reason}
+    end
+  end
+
+  # Async Batch Embedding API
+
+  @doc """
+  Submit an asynchronous batch embedding job for production-scale embedding generation.
+
+  Processes large batches of embeddings at 50% cost compared to interactive API.
+  Returns immediately with a batch ID for polling. Suitable for embedding thousands
+  to millions of texts for RAG systems, knowledge bases, and large-scale retrieval.
+
+  See `t:Gemini.options/0` for available options.
+
+  ## Parameters
+
+  - `texts_or_requests`: List of strings OR list of EmbedContentRequest structs
+  - `opts`: Options including model, display_name, priority, task_type, etc.
+
+  ## Options
+
+  - `:model`: Model to use (default: "text-embedding-004")
+  - `:display_name`: Human-readable batch name (required)
+  - `:priority`: Processing priority (default: 0, higher = more urgent)
+  - `:task_type`: Task type applied to all requests
+  - `:output_dimensionality`: Dimension for all embeddings
+  - `:auth`: Authentication strategy
+
+  ## Returns
+
+  - `{:ok, batch}` - EmbedContentBatch with `:name` for polling
+  - `{:error, reason}` - Failed to submit batch
+
+  ## Examples
+
+      # Simple batch
+      {:ok, batch} = Coordinator.async_batch_embed_contents(
+        ["Text 1", "Text 2", "Text 3"],
+        display_name: "My Knowledge Base",
+        task_type: :retrieval_document
+      )
+
+      # Poll for completion
+      {:ok, updated_batch} = Coordinator.get_batch_status(batch.name)
+
+      case updated_batch.state do
+        :completed ->
+          {:ok, embeddings} = Coordinator.get_batch_embeddings(updated_batch)
+          IO.puts("Retrieved \#{length(embeddings)} embeddings")
+        :processing ->
+          progress = updated_batch.batch_stats.successful_request_count
+          IO.puts("Progress: \#{progress} completed")
+        :failed ->
+          IO.puts("Batch failed")
+      end
+  """
+  @spec async_batch_embed_contents(
+          [String.t()] | [EmbedContentRequest.t()],
+          Gemini.options()
+        ) :: api_result(Gemini.Types.Response.EmbedContentBatch.t())
+  def async_batch_embed_contents(texts_or_requests, opts \\ [])
+
+  def async_batch_embed_contents(texts, opts) when is_list(texts) do
+    display_name =
+      Keyword.get(opts, :display_name) ||
+        raise ArgumentError, "display_name is required for async batch operations"
+
+    model = Keyword.get(opts, :model, "gemini-embedding-001")
+
+    # Build inlined requests from texts
+    inlined_requests =
+      Enum.map(texts, fn text ->
+        request = EmbedContentRequest.new(text, opts)
+        InlinedEmbedContentRequest.new(request)
+      end)
+
+    requests_container = InlinedEmbedContentRequests.new(inlined_requests)
+    input_config = InputEmbedContentConfig.new_from_requests(requests_container)
+
+    batch_request =
+      EmbedContentBatch.new(model, input_config,
+        display_name: display_name,
+        priority: Keyword.get(opts, :priority, 0)
+      )
+
+    # API endpoint: models/{model}:asyncBatchEmbedContent (singular, not plural)
+    path = "models/#{model}:asyncBatchEmbedContent"
+    request_body = EmbedContentBatch.to_api_map(batch_request)
+
+    with {:ok, response} <- HTTP.post(path, request_body, opts) do
+      {:ok, Gemini.Types.Response.EmbedContentBatch.from_api_response(response)}
+    else
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @doc """
+  Get the current status of an async batch embedding job.
+
+  Polls the batch status to check progress, completion, or failures.
+
+  See `t:Gemini.options/0` for available options.
+
+  ## Parameters
+
+  - `batch_name`: Batch identifier (format: "batches/{batchId}")
+  - `opts`: Optional auth and other options
+
+  ## Returns
+
+  - `{:ok, batch}` - Current batch status with stats
+  - `{:error, reason}` - Failed to retrieve status
+
+  ## Examples
+
+      {:ok, batch} = Coordinator.get_batch_status("batches/abc123")
+
+      IO.puts("State: \#{batch.state}")
+
+      if batch.batch_stats do
+        completed = batch.batch_stats.successful_request_count + batch.batch_stats.failed_request_count
+        total = batch.batch_stats.request_count
+        IO.puts("Progress: \#{completed}/\#{total}")
+      end
+  """
+  @spec get_batch_status(String.t(), Gemini.options()) ::
+          api_result(Gemini.Types.Response.EmbedContentBatch.t())
+  def get_batch_status(batch_name, opts \\ []) when is_binary(batch_name) do
+    path = batch_name
+
+    with {:ok, response} <- HTTP.get(path, opts) do
+      {:ok, Gemini.Types.Response.EmbedContentBatch.from_api_response(response)}
+    else
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @doc """
+  Retrieve embeddings from a completed batch job.
+
+  Only works for batches in `:completed` state with inline responses.
+  For file-based outputs, use file download APIs.
+
+  ## Parameters
+
+  - `batch`: Completed EmbedContentBatch
+
+  ## Returns
+
+  - `{:ok, embeddings}` - List of ContentEmbedding results
+  - `{:error, reason}` - Batch not complete or file-based
+
+  ## Examples
+
+      {:ok, batch} = Coordinator.get_batch_status("batches/abc123")
+
+      if batch.state == :completed do
+        {:ok, embeddings} = Coordinator.get_batch_embeddings(batch)
+        IO.puts("Retrieved \#{length(embeddings)} embeddings")
+      end
+  """
+  @spec get_batch_embeddings(Gemini.Types.Response.EmbedContentBatch.t()) ::
+          api_result([ContentEmbedding.t()])
+  def get_batch_embeddings(%Gemini.Types.Response.EmbedContentBatch{} = batch) do
+    cond do
+      batch.state != :completed ->
+        {:error, "Batch not yet completed (current state: #{batch.state})"}
+
+      is_nil(batch.output) ->
+        {:error, "No output available in batch"}
+
+      batch.output.responses_file ->
+        {:error, "Batch uses file-based output. Use file download APIs to retrieve results."}
+
+      batch.output.inlined_responses ->
+        embeddings =
+          batch.output.inlined_responses
+          |> InlinedEmbedContentResponses.successful_responses()
+          |> Enum.map(& &1.embedding)
+
+        {:ok, embeddings}
+
+      true ->
+        {:error, "Invalid batch output format"}
+    end
+  end
+
+  @doc """
+  Poll and wait for batch completion with configurable intervals.
+
+  Convenience function that polls get_batch_status until completion
+  or timeout. Useful for synchronous workflows or testing.
+
+  See `t:Gemini.options/0` for available options.
+
+  ## Options
+
+  - `:poll_interval`: Milliseconds between polls (default: 5000)
+  - `:timeout`: Max wait time in milliseconds (default: 600000 = 10 min)
+  - `:on_progress`: Callback function called on each poll with batch
+
+  ## Returns
+
+  - `{:ok, batch}` - Completed batch (succeeded or failed)
+  - `{:error, :timeout}` - Timed out waiting for completion
+  - `{:error, reason}` - Failed to poll status
+
+  ## Examples
+
+      {:ok, batch} = Coordinator.async_batch_embed_contents(texts,
+        display_name: "Batch 1"
+      )
+
+      {:ok, completed_batch} = Coordinator.await_batch_completion(
+        batch.name,
+        poll_interval: 10_000,  # 10 seconds
+        timeout: 1_800_000,     # 30 minutes
+        on_progress: fn b ->
+          if b.batch_stats do
+            progress = (b.batch_stats.successful_request_count || 0) / b.batch_stats.request_count * 100
+            IO.puts("Progress: \#{Float.round(progress, 1)}%")
+          end
+        end
+      )
+  """
+  @spec await_batch_completion(String.t(), keyword()) ::
+          api_result(Gemini.Types.Response.EmbedContentBatch.t())
+  def await_batch_completion(batch_name, opts \\ []) when is_binary(batch_name) do
+    poll_interval = Keyword.get(opts, :poll_interval, 5_000)
+    timeout = Keyword.get(opts, :timeout, 600_000)
+    on_progress = Keyword.get(opts, :on_progress)
+    auth_opts = Keyword.take(opts, [:auth])
+
+    start_time = System.monotonic_time(:millisecond)
+
+    poll_until_complete(batch_name, auth_opts, poll_interval, timeout, start_time, on_progress)
+  end
+
+  # Private helper for polling
+  defp poll_until_complete(batch_name, auth_opts, poll_interval, timeout, start_time, on_progress) do
+    case get_batch_status(batch_name, auth_opts) do
+      {:ok, batch} ->
+        # Call progress callback if provided
+        if on_progress, do: on_progress.(batch)
+
+        # Check if complete
+        if Gemini.Types.Response.EmbedContentBatch.is_complete?(batch) do
+          {:ok, batch}
+        else
+          # Check timeout
+          elapsed = System.monotonic_time(:millisecond) - start_time
+
+          if elapsed >= timeout do
+            {:error, :timeout}
+          else
+            # Wait and poll again
+            Process.sleep(poll_interval)
+
+            poll_until_complete(
+              batch_name,
+              auth_opts,
+              poll_interval,
+              timeout,
+              start_time,
+              on_progress
+            )
+          end
+        end
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 

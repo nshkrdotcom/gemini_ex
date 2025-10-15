@@ -564,6 +564,104 @@ defmodule Gemini do
     end
   end
 
+  # Embedding API
+
+  @doc """
+  Generate an embedding for the given text content.
+
+  See `t:Gemini.options/0` for available options.
+
+  ## Examples
+
+      {:ok, response} = Gemini.embed_content("What is AI?")
+      {:ok, values} = EmbedContentResponse.get_values(response)
+  """
+  @spec embed_content(String.t(), options()) :: {:ok, map()} | {:error, Error.t()}
+  def embed_content(text, opts \\ []) do
+    Coordinator.embed_content(text, opts)
+  end
+
+  @doc """
+  Generate embeddings for multiple texts in a single batch request.
+
+  See `t:Gemini.options/0` for available options.
+
+  ## Examples
+
+      {:ok, response} = Gemini.batch_embed_contents([
+        "What is AI?",
+        "How does ML work?"
+      ])
+  """
+  @spec batch_embed_contents([String.t()], options()) :: {:ok, map()} | {:error, Error.t()}
+  def batch_embed_contents(texts, opts \\ []) do
+    Coordinator.batch_embed_contents(texts, opts)
+  end
+
+  @doc """
+  Submit an asynchronous batch embedding job for production-scale generation.
+
+  Processes large batches with 50% cost savings compared to interactive API.
+
+  See `t:Gemini.options/0` for available options.
+
+  ## Examples
+
+      {:ok, batch} = Gemini.async_batch_embed_contents(
+        ["Text 1", "Text 2", "Text 3"],
+        display_name: "My Batch",
+        task_type: :retrieval_document
+      )
+  """
+  @spec async_batch_embed_contents([String.t()], options()) :: {:ok, map()} | {:error, Error.t()}
+  def async_batch_embed_contents(texts, opts \\ []) do
+    Coordinator.async_batch_embed_contents(texts, opts)
+  end
+
+  @doc """
+  Get the current status of an async batch embedding job.
+
+  ## Examples
+
+      {:ok, batch} = Gemini.get_batch_status("batches/abc123")
+      IO.puts("State: \#{batch.state}")
+  """
+  @spec get_batch_status(String.t(), options()) :: {:ok, map()} | {:error, Error.t()}
+  def get_batch_status(batch_name, opts \\ []) do
+    Coordinator.get_batch_status(batch_name, opts)
+  end
+
+  @doc """
+  Retrieve embeddings from a completed batch job.
+
+  ## Examples
+
+      {:ok, batch} = Gemini.get_batch_status(batch_id)
+      if batch.state == :completed do
+        {:ok, embeddings} = Gemini.get_batch_embeddings(batch)
+      end
+  """
+  @spec get_batch_embeddings(map()) :: {:ok, [map()]} | {:error, String.t()}
+  def get_batch_embeddings(batch) do
+    Coordinator.get_batch_embeddings(batch)
+  end
+
+  @doc """
+  Poll and wait for batch completion with configurable intervals.
+
+  ## Examples
+
+      {:ok, completed} = Gemini.await_batch_completion(
+        batch.name,
+        poll_interval: 10_000,
+        timeout: 600_000
+      )
+  """
+  @spec await_batch_completion(String.t(), options()) :: {:ok, map()} | {:error, term()}
+  def await_batch_completion(batch_name, opts \\ []) do
+    Coordinator.await_batch_completion(batch_name, opts)
+  end
+
   @doc """
   Generate content with streaming response (synchronous collection).
 

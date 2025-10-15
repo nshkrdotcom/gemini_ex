@@ -11,7 +11,7 @@ defmodule Gemini.APIs.CoordinatorEmbeddingTest do
       request = EmbedContentRequest.new(text)
 
       assert %EmbedContentRequest{} = request
-      assert request.model == "models/text-embedding-004"
+      assert request.model == "models/gemini-embedding-001"
       assert %Gemini.Types.Content{} = request.content
     end
 

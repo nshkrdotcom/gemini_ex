@@ -84,7 +84,7 @@ defmodule Gemini.Types.Request.EmbedContentRequest do
   """
   @spec new(String.t(), keyword()) :: t()
   def new(text, opts \\ []) when is_binary(text) do
-    model = Keyword.get(opts, :model, "text-embedding-004")
+    model = Keyword.get(opts, :model, "gemini-embedding-001")
 
     content = %Content{
       role: "user",

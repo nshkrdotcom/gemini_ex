@@ -18,12 +18,13 @@ A comprehensive Elixir client for Google's Gemini AI API with dual authenticatio
 - **🤖 Automatic Tool Calling**: A seamless, Python-SDK-like experience that automates the entire multi-turn tool-calling loop
 - **🔐 Dual Authentication**: Seamless support for both Gemini API keys and Vertex AI OAuth/Service Accounts
 - **⚡ Advanced Streaming**: Production-grade Server-Sent Events streaming with real-time processing
-- **📊 Embeddings with MRL**: Text embeddings with Matryoshka Representation Learning, normalization, and distance metrics (NEW in v0.3.0!)
+- **📊 Embeddings with MRL**: Text embeddings with Matryoshka Representation Learning, normalization, and distance metrics (v0.3.0)
+- **💰 Async Batch Embeddings**: Production-scale embedding generation with 50% cost savings (NEW in v0.3.1!)
 - **🛡️ Type Safety**: Complete type definitions with runtime validation
 - **📈 Built-in Telemetry**: Comprehensive observability and metrics out of the box
 - **💬 Chat Sessions**: Multi-turn conversation management with state persistence
 - **🎭 Flexible Multimodal Input**: Intuitive formats for images/text with automatic MIME detection
-- **💰 Thinking Budget Control**: Optimize costs by controlling thinking token usage
+- **💸 Thinking Budget Control**: Optimize costs by controlling thinking token usage
 - **⚙️ Complete Generation Config**: Full support for all generation config options including structured output
 - **🚀 Production Ready**: Robust error handling, retry logic, and performance optimizations
 - **🔧 Flexible Configuration**: Environment variables, application config, and per-request overrides
@@ -43,7 +44,7 @@ Add `gemini` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:gemini_ex, "~> 0.3.0"}
+    {:gemini_ex, "~> 0.3.1"}
   ]
 end
 ```
@@ -498,6 +499,48 @@ norm1 = ContentEmbedding.normalize(emb1)
 norm2 = ContentEmbedding.normalize(emb2)
 similarity = ContentEmbedding.cosine_similarity(norm1, norm2)
 ```
+
+### Async Batch Embedding (New in v0.3.1!)
+
+For production-scale embedding generation with **50% cost savings**:
+
+```elixir
+# Submit large batch asynchronously
+{:ok, batch} = Gemini.async_batch_embed_contents(
+  texts,
+  display_name: "Knowledge Base Index",
+  task_type: :retrieval_document,
+  output_dimensionality: 768
+)
+
+# Poll for completion with progress tracking
+{:ok, completed_batch} = Gemini.await_batch_completion(
+  batch.name,
+  poll_interval: 10_000,  # 10 seconds
+  timeout: 30 * 60 * 1000,  # 30 minutes
+  on_progress: fn b ->
+    progress = b.batch_stats.successful_request_count / b.batch_stats.request_count * 100
+    IO.puts("Progress: #{Float.round(progress, 1)}%")
+  end
+)
+
+# Retrieve embeddings
+{:ok, embeddings} = Gemini.get_batch_embeddings(completed_batch)
+```
+
+**When to use:**
+- Large-scale indexing (1000s-millions of documents)
+- RAG system setup and knowledge base building
+- Non-urgent embedding generation
+- Cost-sensitive workflows (50% savings!)
+
+**Live Examples:**
+```bash
+mix run examples/async_batch_embedding_demo.exs
+mix run examples/async_batch_production_demo.exs
+```
+
+See [examples/ASYNC_BATCH_EMBEDDINGS.md](examples/ASYNC_BATCH_EMBEDDINGS.md) for complete guide.
 
 ## 🎯 Examples
 
