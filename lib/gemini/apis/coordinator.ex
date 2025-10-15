@@ -34,7 +34,9 @@ defmodule Gemini.APIs.Coordinator do
   alias Gemini.Client.HTTP
   alias Gemini.Streaming.UnifiedManager
   alias Gemini.Types.Request.GenerateContentRequest
+  alias Gemini.Types.Request.{EmbedContentRequest, BatchEmbedContentsRequest}
   alias Gemini.Types.Response.{GenerateContentResponse, ListModelsResponse}
+  alias Gemini.Types.Response.{EmbedContentResponse, BatchEmbedContentsResponse}
   alias Gemini.Types.Content
   alias Gemini.Types.ToolSerialization
 
@@ -253,6 +255,124 @@ defmodule Gemini.APIs.Coordinator do
 
       {:error, reason} ->
         {:error, reason}
+    end
+  end
+
+  # Embedding API
+
+  @doc """
+  Generate an embedding for the given text content.
+
+  Uses the Gemini embedding models to convert text into a numerical vector
+  representation that can be used for similarity comparison, clustering,
+  and retrieval tasks.
+
+  See `t:Gemini.options/0` for available options.
+
+  ## Parameters
+
+  - `text`: String content to embed
+  - `opts`: Options including model, auth strategy, and embedding-specific parameters
+
+  ## Options
+
+  - `:model`: Embedding model to use (default: "text-embedding-004")
+  - `:auth`: Authentication strategy (`:gemini` or `:vertex_ai`)
+  - `:task_type`: Optional task type for optimized embeddings
+    - `:retrieval_query` - Text is a search query
+    - `:retrieval_document` - Text is a document being searched
+    - `:semantic_similarity` - For semantic similarity tasks
+    - `:classification` - For classification tasks
+    - `:clustering` - For clustering tasks
+    - `:question_answering` - For Q&A tasks
+    - `:fact_verification` - For fact verification
+    - `:code_retrieval_query` - For code retrieval
+  - `:title`: Optional title (only for `:retrieval_document` task type)
+  - `:output_dimensionality`: Optional dimension reduction for newer models
+
+  ## Examples
+
+      # Simple embedding
+      {:ok, response} = Coordinator.embed_content("What is the meaning of life?")
+      {:ok, values} = EmbedContentResponse.get_values(response)
+
+      # With task type for retrieval
+      {:ok, response} = Coordinator.embed_content(
+        "This is a document about AI",
+        task_type: :retrieval_document,
+        title: "AI Overview"
+      )
+
+      # With specific model and dimensionality
+      {:ok, response} = Coordinator.embed_content(
+        "Query text",
+        model: "text-embedding-004",
+        task_type: :retrieval_query,
+        output_dimensionality: 256
+      )
+  """
+  @spec embed_content(String.t(), Gemini.options()) :: api_result(EmbedContentResponse.t())
+  def embed_content(text, opts \\ []) when is_binary(text) do
+    model = Keyword.get(opts, :model, "text-embedding-004")
+    path = "models/#{model}:embedContent"
+
+    request = EmbedContentRequest.new(text, opts)
+    request_body = EmbedContentRequest.to_api_map(request)
+
+    with {:ok, response} <- HTTP.post(path, request_body, opts) do
+      {:ok, EmbedContentResponse.from_api_response(response)}
+    else
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @doc """
+  Generate embeddings for multiple text inputs in a single batch request.
+
+  More efficient than individual requests when embedding multiple texts.
+
+  See `t:Gemini.options/0` for available options.
+
+  ## Parameters
+
+  - `texts`: List of text strings to embed
+  - `opts`: Options including model, auth strategy, and embedding-specific parameters
+
+  ## Options
+
+  Same as `embed_content/2`, applied to all texts in the batch.
+
+  ## Examples
+
+      # Batch embedding
+      {:ok, response} = Coordinator.batch_embed_contents([
+        "What is AI?",
+        "How does machine learning work?",
+        "Explain neural networks"
+      ])
+
+      {:ok, all_values} = BatchEmbedContentsResponse.get_all_values(response)
+
+      # With task type
+      {:ok, response} = Coordinator.batch_embed_contents(
+        ["Doc 1 content", "Doc 2 content", "Doc 3 content"],
+        task_type: :retrieval_document,
+        output_dimensionality: 256
+      )
+  """
+  @spec batch_embed_contents([String.t()], Gemini.options()) ::
+          api_result(BatchEmbedContentsResponse.t())
+  def batch_embed_contents(texts, opts \\ []) when is_list(texts) do
+    model = Keyword.get(opts, :model, "text-embedding-004")
+    path = "models/#{model}:batchEmbedContents"
+
+    request = BatchEmbedContentsRequest.new(texts, opts)
+    request_body = BatchEmbedContentsRequest.to_api_map(request)
+
+    with {:ok, response} <- HTTP.post(path, request_body, opts) do
+      {:ok, BatchEmbedContentsResponse.from_api_response(response)}
+    else
+      {:error, reason} -> {:error, reason}
     end
   end
 
