@@ -81,13 +81,15 @@ defmodule Gemini.MixProject do
         "TELEMETRY_IMPLEMENTATION.md",
         "AUTOMATIC_TOOL_EXECUTION.md",
         "examples/EMBEDDINGS.md",
+        "examples/ASYNC_BATCH_EMBEDDINGS.md",
         "CHANGELOG.md"
       ],
       groups_for_extras: [
         Guides: ["README.md", "ALTAR_INTEGRATION.md"],
         Features: [
           "AUTOMATIC_TOOL_EXECUTION.md",
-          "examples/EMBEDDINGS.md"
+          "examples/EMBEDDINGS.md",
+          "examples/ASYNC_BATCH_EMBEDDINGS.md"
         ],
         Architecture: [
           "ARCHITECTURE.md",
@@ -186,7 +188,7 @@ defmodule Gemini.MixProject do
       links: %{
         "GitHub" => @source_url,
         "Online documentation" => "https://hexdocs.pm/gemini_ex",
-        "ALTAR Integration Story" => "https://hexdocs.pm/gemini_ex/ALTAR_INTEGRATION.html",
+        "ALTAR Integration Story" => "https://hexdocs.pm/gemini_ex/altar_integration.html",
         "Changelog" => "#{@source_url}/blob/main/CHANGELOG.md"
       },
       maintainers: ["nshkrdotcom"],
