@@ -42,7 +42,16 @@ defmodule BasicExample do
         {:ok, data} = Jason.decode(text)
 
         IO.puts("✅ Answer: #{data["answer"]}")
-        IO.puts("   Confidence: #{Float.round(data["confidence"], 2)}")
+
+        # Handle both integer and float confidence values
+        confidence = data["confidence"]
+        confidence_str = if is_float(confidence) do
+          Float.round(confidence, 2)
+        else
+          confidence
+        end
+
+        IO.puts("   Confidence: #{confidence_str}")
 
       {:error, error} ->
         IO.puts("❌ Error: #{inspect(error)}")
