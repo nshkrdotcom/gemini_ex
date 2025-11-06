@@ -219,4 +219,66 @@ defmodule Gemini.Types.GenerationConfig do
 
     %{config | thinking_config: thinking_config}
   end
+
+  @doc """
+  Set temperature for response generation.
+
+  Controls randomness in the output. Higher values (e.g., 0.9) make output more random,
+  while lower values (e.g., 0.1) make it more focused and deterministic.
+
+  ## Parameters
+  - `config`: GenerationConfig struct (defaults to new config)
+  - `temp`: Temperature value (typically 0.0 to 1.0)
+
+  ## Examples
+
+      # Low temperature for focused output
+      config = GenerationConfig.temperature(0.2)
+
+      # High temperature for creative output
+      config = GenerationConfig.temperature(0.9)
+
+      # Chain with other options
+      config =
+        GenerationConfig.new()
+        |> GenerationConfig.temperature(0.7)
+        |> GenerationConfig.max_tokens(1000)
+  """
+  @spec temperature(t(), float()) :: t()
+  def temperature(config \\ %__MODULE__{}, temp) when is_float(temp) or is_integer(temp) do
+    %{config | temperature: temp / 1}
+  end
+
+  @doc """
+  Set property ordering for Gemini 2.0 models.
+
+  Explicitly defines the order in which properties appear in the generated JSON.
+  Required for Gemini 2.0 Flash and Gemini 2.0 Flash-Lite when using structured outputs.
+  Not needed for Gemini 2.5+ models (they preserve schema key order automatically).
+
+  ## Parameters
+  - `config`: GenerationConfig struct (defaults to new config)
+  - `ordering`: List of property names in desired order
+
+  ## Examples
+
+      # For Gemini 2.0 models
+      config = GenerationConfig.property_ordering(["name", "age", "email"])
+
+      # Chain with other options
+      config =
+        GenerationConfig.new()
+        |> GenerationConfig.json_response()
+        |> GenerationConfig.property_ordering(["firstName", "lastName"])
+
+  ## Model Compatibility
+
+  - **Gemini 2.5+**: Optional (implicit ordering from schema keys)
+  - **Gemini 2.0**: Required when using structured outputs
+
+  """
+  @spec property_ordering(t(), [String.t()]) :: t()
+  def property_ordering(config \\ %__MODULE__{}, ordering) when is_list(ordering) do
+    %{config | property_ordering: ordering}
+  end
 end
