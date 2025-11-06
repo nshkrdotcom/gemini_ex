@@ -82,6 +82,7 @@ defmodule Gemini.MixProject do
         "AUTOMATIC_TOOL_EXECUTION.md",
         "examples/EMBEDDINGS.md",
         "examples/ASYNC_BATCH_EMBEDDINGS.md",
+        "docs/guides/structured_outputs.md",
         "CHANGELOG.md"
       ],
       groups_for_extras: [
@@ -89,7 +90,8 @@ defmodule Gemini.MixProject do
         Features: [
           "AUTOMATIC_TOOL_EXECUTION.md",
           "examples/EMBEDDINGS.md",
-          "examples/ASYNC_BATCH_EMBEDDINGS.md"
+          "examples/ASYNC_BATCH_EMBEDDINGS.md",
+          "docs/guides/structured_outputs.md"
         ],
         Architecture: [
           "ARCHITECTURE.md",
