@@ -1,12 +1,17 @@
 # Standalone Structured Outputs Example
 # This version uses Mix.install and can be run from anywhere
-# Run with: elixir structured_outputs_standalone.exs
 #
-# Note: Change the gemini_ex dependency to use the published version:
-# {:gemini_ex, "~> 0.4.0"}
+# IMPORTANT: This example requires gemini_ex v0.4.0 or later!
+# The structured_json/2 function is NEW in v0.4.0.
+#
+# To run during development (from the examples directory):
+#   elixir structured_outputs_standalone.exs
+#
+# After v0.4.0 is published to Hex.pm, change the dependency to:
+#   {:gemini_ex, "~> 0.4.0"}
 
 Mix.install([
-  {:gemini_ex, "~> 0.3.1"},  # Update to 0.4.0 when published
+  {:gemini_ex, path: ".."},  # Change to "~> 0.4.0" after publishing
   {:jason, "~> 1.4"}
 ])
 
