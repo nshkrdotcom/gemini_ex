@@ -123,6 +123,9 @@ defmodule Gemini.APIs.CoordinatorGenerationConfigTest do
         {:logprobs, logprobs}, acc when is_integer(logprobs) ->
           Map.put(acc, :logprobs, logprobs)
 
+        {:property_ordering, ordering}, acc when is_list(ordering) and ordering != [] ->
+          Map.put(acc, :propertyOrdering, ordering)
+
         # Ignore unknown options
         _, acc ->
           acc
@@ -1918,6 +1921,62 @@ defmodule Gemini.APIs.CoordinatorGenerationConfigTest do
       assert generation_config["responseLogprobs"] == true
       assert generation_config["logprobs"] == 10
       assert generation_config["maxOutputTokens"] == 100
+    end
+  end
+
+  describe "property_ordering field handling" do
+    test "property_ordering individual option converts to camelCase" do
+      {:ok, request} =
+        build_test_request("test prompt",
+          property_ordering: ["firstName", "lastName", "age"]
+        )
+
+      generation_config = request[:generationConfig]
+      assert generation_config[:propertyOrdering] == ["firstName", "lastName", "age"]
+    end
+
+    test "property_ordering in struct converts to camelCase" do
+      config =
+        GenerationConfig.new(
+          property_ordering: ["name", "age"],
+          temperature: 0.7
+        )
+
+      {:ok, request} = build_test_request("test", generation_config: config)
+
+      generation_config = request[:generationConfig]
+      assert generation_config["propertyOrdering"] == ["name", "age"]
+      assert generation_config["temperature"] == 0.7
+    end
+
+    test "empty property_ordering is filtered out" do
+      config = GenerationConfig.new(property_ordering: [])
+      {:ok, request} = build_test_request("test", generation_config: config)
+
+      generation_config = request[:generationConfig]
+
+      # If generation_config exists, it should not have propertyOrdering
+      if generation_config do
+        refute Map.has_key?(generation_config, "propertyOrdering")
+      end
+    end
+  end
+
+  describe "structured_json helper integration" do
+    test "produces correct API request" do
+      schema = %{
+        "type" => "object",
+        "properties" => %{
+          "answer" => %{"type" => "string"}
+        }
+      }
+
+      config = GenerationConfig.structured_json(schema)
+      {:ok, request} = build_test_request("test", generation_config: config)
+
+      gen_config = request[:generationConfig]
+      assert gen_config["responseMimeType"] == "application/json"
+      assert gen_config["responseSchema"] == schema
     end
   end
 end

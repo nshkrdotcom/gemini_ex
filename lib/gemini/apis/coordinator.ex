@@ -1074,6 +1074,10 @@ defmodule Gemini.APIs.Coordinator do
       {:logprobs, logprobs}, acc when is_integer(logprobs) ->
         Map.put(acc, :logprobs, logprobs)
 
+      # Property ordering for Gemini 2.0 models (structured outputs)
+      {:property_ordering, ordering}, acc when is_list(ordering) and ordering != [] ->
+        Map.put(acc, :propertyOrdering, ordering)
+
       # Thinking config support - FIXED: Now converts field names properly
       {:thinking_config, thinking_config}, acc when not is_nil(thinking_config) ->
         api_format = convert_thinking_config_to_api(thinking_config)
