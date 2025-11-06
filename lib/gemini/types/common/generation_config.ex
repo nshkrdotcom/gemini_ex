@@ -281,4 +281,70 @@ defmodule Gemini.Types.GenerationConfig do
   def property_ordering(config \\ %__MODULE__{}, ordering) when is_list(ordering) do
     %{config | property_ordering: ordering}
   end
+
+  @doc """
+  Configure structured JSON output with schema.
+
+  Convenience helper that sets both response MIME type and schema in one call.
+  This is the recommended way to set up structured outputs.
+
+  ## Parameters
+  - `config`: GenerationConfig struct (defaults to new config)
+  - `schema`: JSON Schema map defining the output structure
+
+  ## Examples
+
+      # Basic structured output
+      config = GenerationConfig.structured_json(%{
+        "type" => "object",
+        "properties" => %{
+          "answer" => %{"type" => "string"},
+          "confidence" => %{"type" => "number"}
+        }
+      })
+
+      # With property ordering for Gemini 2.0
+      config =
+        GenerationConfig.structured_json(%{
+          "type" => "object",
+          "properties" => %{
+            "name" => %{"type" => "string"},
+            "age" => %{"type" => "integer"}
+          }
+        })
+        |> GenerationConfig.property_ordering(["name", "age"])
+
+      # Complex schema with new keywords
+      config = GenerationConfig.structured_json(%{
+        "type" => "object",
+        "properties" => %{
+          "score" => %{
+            "type" => "number",
+            "minimum" => 0,
+            "maximum" => 100
+          }
+        }
+      })
+
+  ## Supported JSON Schema Keywords
+
+  - Basic types: string, number, integer, boolean, object, array
+  - Object: properties, required, additionalProperties
+  - Array: items, prefixItems, minItems, maxItems
+  - String: enum, format, pattern
+  - Number: minimum, maximum, enum
+  - Union types: anyOf
+  - References: $ref
+  - Nullable: type: ["string", "null"]
+
+  See `docs/guides/structured_outputs.md` for comprehensive examples.
+
+  """
+  @spec structured_json(t(), map()) :: t()
+  def structured_json(config \\ %__MODULE__{}, schema) when is_map(schema) do
+    %{config |
+      response_mime_type: "application/json",
+      response_schema: schema
+    }
+  end
 end

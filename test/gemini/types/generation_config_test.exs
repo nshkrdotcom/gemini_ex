@@ -47,4 +47,80 @@ defmodule Gemini.Types.GenerationConfigTest do
       assert config.temperature == 0.7
     end
   end
+
+  describe "structured_json/2 helper" do
+    test "sets both response_mime_type and response_schema" do
+      schema = %{"type" => "object", "properties" => %{}}
+      config = GenerationConfig.structured_json(schema)
+
+      assert config.response_mime_type == "application/json"
+      assert config.response_schema == schema
+    end
+
+    test "works with nil config (default)" do
+      schema = %{"type" => "string"}
+      config = GenerationConfig.structured_json(schema)
+
+      assert config.response_mime_type == "application/json"
+      assert config.response_schema == schema
+    end
+
+    test "preserves other fields" do
+      schema = %{"type" => "object"}
+
+      config =
+        GenerationConfig.new(
+          temperature: 0.5,
+          max_output_tokens: 100
+        )
+        |> GenerationConfig.structured_json(schema)
+
+      assert config.temperature == 0.5
+      assert config.max_output_tokens == 100
+      assert config.response_mime_type == "application/json"
+      assert config.response_schema == schema
+    end
+
+    test "chains with property_ordering" do
+      schema = %{
+        "type" => "object",
+        "properties" => %{
+          "name" => %{"type" => "string"},
+          "age" => %{"type" => "integer"}
+        }
+      }
+
+      config =
+        GenerationConfig.structured_json(schema)
+        |> GenerationConfig.property_ordering(["name", "age"])
+
+      assert config.response_mime_type == "application/json"
+      assert config.response_schema == schema
+      assert config.property_ordering == ["name", "age"]
+    end
+  end
+
+  describe "JSON encoding" do
+    test "encodes property_ordering correctly" do
+      config =
+        GenerationConfig.new(
+          property_ordering: ["a", "b", "c"],
+          temperature: 0.7
+        )
+
+      {:ok, encoded} = Jason.encode(config)
+      {:ok, decoded} = Jason.decode(encoded)
+
+      assert decoded["property_ordering"] == ["a", "b", "c"]
+      assert decoded["temperature"] == 0.7
+    end
+
+    test "filters nil property_ordering" do
+      config = GenerationConfig.new(property_ordering: nil)
+      {:ok, encoded} = Jason.encode(config)
+      {:ok, decoded} = Jason.decode(encoded)
+
+      assert decoded["property_ordering"] == nil
+    end
+  end
 end
