@@ -180,6 +180,54 @@ config = %Gemini.Types.GenerationConfig{
 ])
 ```
 
+### Structured JSON Outputs
+
+Generate responses that guarantee adherence to a specific JSON Schema:
+
+```elixir
+# Define your schema
+schema = %{
+  "type" => "object",
+  "properties" => %{
+    "answer" => %{"type" => "string"},
+    "confidence" => %{
+      "type" => "number",
+      "minimum" => 0.0,
+      "maximum" => 1.0
+    }
+  }
+}
+
+# Use the convenient helper
+config = Gemini.Types.GenerationConfig.structured_json(schema)
+
+{:ok, response} = Gemini.generate(
+  "What is the capital of France?",
+  model: "gemini-2.5-flash",
+  generation_config: config
+)
+
+{:ok, text} = Gemini.extract_text(response)
+{:ok, data} = Jason.decode(text)
+# => %{"answer" => "Paris", "confidence" => 0.99}
+```
+
+**New Features (November 2025):**
+- `anyOf` for union types
+- `$ref` for recursive schemas
+- `minimum`/`maximum` for numeric constraints
+- `prefixItems` for tuple-like arrays
+
+For Gemini 2.0 models, add explicit property ordering:
+
+```elixir
+config =
+  GenerationConfig.structured_json(schema)
+  |> GenerationConfig.property_ordering(["answer", "confidence"])
+```
+
+See [Structured Outputs Guide](docs/guides/structured_outputs.md) for details.
+
 ### Multi-turn Conversations
 
 ```elixir

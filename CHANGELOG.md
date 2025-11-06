@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2025-11-06
+
+### Added
+
+- **Structured Outputs Enhancement** - Full support for Gemini API November 2025 updates
+  - `property_ordering` field in `GenerationConfig` for Gemini 2.0 model support
+  - `structured_json/2` convenience helper for structured output setup
+  - `property_ordering/2` helper for explicit property ordering
+  - `temperature/2` helper for setting temperature values
+  - Support for new JSON Schema keywords:
+    - `anyOf` - Union types and conditional structures
+    - `$ref` - Recursive schema definitions
+    - `minimum`/`maximum` - Numeric value constraints
+    - `additionalProperties` - Control over extra properties
+    - `type: "null"` - Nullable field definitions
+    - `prefixItems` - Tuple-like array structures
+  - Comprehensive integration tests for structured outputs
+  - Working examples demonstrating all new features
+
+### Improved
+
+- Enhanced documentation for structured outputs use cases
+- Better code examples in README and API reference
+- Expanded test coverage for generation config options
+
+### Notes
+
+- Gemini 2.5+ models preserve schema key order automatically
+- Gemini 2.0 models require explicit `property_ordering` field
+- All changes are backward compatible - no breaking changes
+
+---
+
 ## [0.3.1] - 2025-10-15
 
 ### 🎉 Major Feature: Async Batch Embedding API (Phase 4)
