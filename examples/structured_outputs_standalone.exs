@@ -1,5 +1,14 @@
-# Structured Outputs Basic Example
-# Run with: mix run examples/structured_outputs_basic.exs
+# Standalone Structured Outputs Example
+# This version uses Mix.install and can be run from anywhere
+# Run with: elixir structured_outputs_standalone.exs
+#
+# Note: Change the gemini_ex dependency to use the published version:
+# {:gemini_ex, "~> 0.4.0"}
+
+Mix.install([
+  {:gemini_ex, "~> 0.3.1"},  # Update to 0.4.0 when published
+  {:jason, "~> 1.4"}
+])
 
 defmodule BasicExample do
   alias Gemini.Types.GenerationConfig
