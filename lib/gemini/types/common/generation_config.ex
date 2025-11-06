@@ -35,6 +35,7 @@ defmodule Gemini.Types.GenerationConfig do
     field(:response_logprobs, boolean() | nil, default: nil)
     field(:logprobs, integer() | nil, default: nil)
     field(:thinking_config, ThinkingConfig.t() | nil, default: nil)
+    field(:property_ordering, [String.t()] | nil, default: nil)
   end
 
   @doc """
