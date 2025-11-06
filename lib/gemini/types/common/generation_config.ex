@@ -342,9 +342,6 @@ defmodule Gemini.Types.GenerationConfig do
   """
   @spec structured_json(t(), map()) :: t()
   def structured_json(config \\ %__MODULE__{}, schema) when is_map(schema) do
-    %{config |
-      response_mime_type: "application/json",
-      response_schema: schema
-    }
+    %{config | response_mime_type: "application/json", response_schema: schema}
   end
 end
