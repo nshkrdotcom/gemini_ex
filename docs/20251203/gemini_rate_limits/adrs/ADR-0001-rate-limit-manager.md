@@ -1,6 +1,6 @@
 # ADR 0001: Gemini rate-limit manager in gemini_ex
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2025-12-04
 
 ## Context
@@ -14,6 +14,10 @@
 - Before sending, consult `retry_until`; if in the future, block/queue until then (or return a structured rate-limit error when `non_blocking: true` is set).
 - After responses, record usage to refine the local budget model.
 - Store state in ETS/Agent keyed by `{model, location, metric}` for lightweight, shared visibility across processes.
+- Enabled by default (breaking change vs prior “fire and pray”); provide `disable_rate_limiter: true` opt-out and document in README/CHANGELOG/migration notes.
+- Concurrency defaults are conservative (e.g., 4 per model) but configurable; `nil`/0 disables concurrency gating.
+- Optional adaptive mode: start low, raise concurrency until 429 is observed, then back off; cap with a configured ceiling. Provide simple profiles (`:dev | :prod | :custom`) to seed defaults.
+- Scope: rate limiter wraps request submission only; once a stream/response is open, it does not interfere.
 
 ## Consequences
 - Requests will be paced automatically; callers see fewer 429s and cleaner error messaging.

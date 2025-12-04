@@ -1,6 +1,6 @@
 # ADR 0002: Retries and backoff for Gemini calls
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2025-12-04
 
 ## Context
@@ -13,6 +13,8 @@
   - On transient network/5xx, use exponential backoff with jitter (configurable attempts).
   - On non-retriable 4xx (except 429), fail fast.
 - Cap retries (configurable `max_attempts`) and return structured error `{:error, {:rate_limited, retry_at, details}}` or `{:error, {:transient_failure, attempts, last_reason}}` when exhausted.
+- Coordinate with the rate limiter to avoid stacked/double retries; 429 handling lives in the rate-limit layer, transient network/5xx in the generic retry layer.
+- Per-call override: `non_blocking: true` returns immediately with structured rate-limit info instead of sleeping.
 
 ## Consequences
 - Sections/jobs become resilient to temporary quota spikes and flaky transports.

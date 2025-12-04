@@ -1,6 +1,6 @@
 # ADR 0004: Telemetry, configuration, and surfacing rate-limit state
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2025-12-04
 
 ## Context
@@ -18,6 +18,7 @@
   - `base_backoff_ms` and `jitter`
   - `non_blocking` (return early vs. wait)
   - `logging` toggles (debug vs. quiet)
+  - `adaptive_concurrency`/ceiling and `profile: :dev | :prod | :custom`
 - Return structured errors to callers (`{:error, {:rate_limited, retry_at, details}}`) instead of ad-hoc strings.
 
 ## Consequences

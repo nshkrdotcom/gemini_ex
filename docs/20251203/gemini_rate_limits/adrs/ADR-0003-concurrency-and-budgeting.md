@@ -1,6 +1,6 @@
 # ADR 0003: Concurrency gating and token budgeting
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2025-12-04
 
 ## Context
@@ -8,7 +8,9 @@
 - Gemini exposes no “remaining” header, so we must infer safe pacing from recent usage and 429 signals.
 
 ## Decision
-- Introduce per-model concurrency permits (configurable, small defaults like 2–4) in gemini_ex to throttle bursts.
+- Introduce per-model concurrency permits (configurable, small defaults like 2–4) in gemini_ex to throttle bursts; allow `nil`/0 to disable. Ship enabled by default; document in migration notes.
+- Optional adaptive mode: start low, increase concurrency until a 429 is observed, then back off; cap via a configured ceiling.
+- Profiles: support `:dev | :prod | :custom` presets for defaults; custom overrides always win.
 - Maintain lightweight token budgets using:
   - Estimated tokens from prompt size preflight (to decide if we should wait when near a known retry window).
   - Actual `usage` returned by Gemini to update rolling windows.
