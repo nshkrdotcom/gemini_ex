@@ -1,7 +1,7 @@
 defmodule Gemini.RateLimiterTest do
   use ExUnit.Case, async: true
 
-  alias Gemini.RateLimiter
+  alias Gemini.{Error, RateLimiter}
   alias Gemini.RateLimiter.{Config, State, ConcurrencyGate, RetryManager, Manager}
 
   @moduletag :rate_limiter
@@ -243,6 +243,16 @@ defmodule Gemini.RateLimiterTest do
       assert RetryManager.classify_response({:error, %{http_status: 404}}) == :permanent
       assert RetryManager.classify_response({:error, %{type: :network_error}}) == :transient
       assert RetryManager.classify_response({:error, :timeout}) == :transient
+    end
+
+    test "propagates 429 http_status from API errors" do
+      error =
+        Error.api_error(429, %{"message" => "rate limited"}, %{
+          "error" => %{"message" => "rate limited"}
+        })
+
+      assert error.http_status == 429
+      assert RetryManager.classify_response({:error, error}) == :rate_limited
     end
 
     test "calculates backoff with jitter" do

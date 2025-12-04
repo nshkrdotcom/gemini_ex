@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.2] - 2025-12-03
+
+### Fixed
+
+- Fixed a regression where 429 responses lost their `http_status`, causing the rate limiter to misclassify them as permanent errors. API errors now preserve status and RetryInfo details so automatic backoff/RetryInfo delays are honored by default.
+
 ## [0.5.1] - 2025-12-03
 
 ### Added
@@ -961,6 +967,7 @@ config :gemini_ex,
 - Minimal latency overhead
 - Concurrent request processing
 
+[0.5.2]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.5.2
 [0.5.1]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.5.1
 [0.5.0]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.5.0
 [0.4.0]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.4.0

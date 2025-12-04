@@ -324,26 +324,35 @@ defmodule Gemini.Client.HTTP do
   end
 
   defp handle_response({:ok, %Req.Response{status: status, body: body}}) do
-    error_info =
+    {error_info, error_details} =
       case body do
-        %{"error" => error} ->
-          error
+        %{"error" => error} = decoded ->
+          {error, decoded}
 
         json_string when is_binary(json_string) ->
           case Jason.decode(json_string) do
-            {:ok, %{"error" => error}} -> error
-            _ -> %{"message" => "HTTP #{status}"}
+            {:ok, %{"error" => error} = decoded} -> {error, decoded}
+            {:ok, decoded} when is_map(decoded) -> {decoded, %{"error" => decoded}}
+            _ -> build_default_error(status)
           end
 
+        decoded when is_map(decoded) ->
+          {decoded, %{"error" => decoded}}
+
         _ ->
-          %{"message" => "HTTP #{status}"}
+          build_default_error(status)
       end
 
-    {:error, Error.api_error(status, error_info)}
+    {:error, Error.api_error(status, error_info, error_details)}
   end
 
   defp handle_response({:error, reason}) do
     {:error, Error.network_error(reason)}
+  end
+
+  defp build_default_error(status) do
+    message = %{"message" => "HTTP #{status}"}
+    {message, %{"error" => message}}
   end
 
   # Parse Server-Sent Events format

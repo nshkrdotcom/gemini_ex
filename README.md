@@ -13,46 +13,46 @@
 
 A comprehensive Elixir client for Google's Gemini AI API with dual authentication support, advanced streaming capabilities, type safety, and built-in telemetry.
 
-## ✨ Features
+## Features
 
-- **🤖 Automatic Tool Calling**: A seamless, Python-SDK-like experience that automates the entire multi-turn tool-calling loop
-- **🔐 Dual Authentication**: Seamless support for both Gemini API keys and Vertex AI OAuth/Service Accounts
-- **⚡ Advanced Streaming**: Production-grade Server-Sent Events streaming with real-time processing
-- **🚦 Automatic Rate Limiting**: Built-in rate limit handling with retries, concurrency gating, and adaptive backoff (NEW in v0.5.0!)
-- **📊 Embeddings with MRL**: Text embeddings with Matryoshka Representation Learning, normalization, and distance metrics
-- **💰 Async Batch Embeddings**: Production-scale embedding generation with 50% cost savings
-- **🛡️ Type Safety**: Complete type definitions with runtime validation
-- **📈 Built-in Telemetry**: Comprehensive observability and metrics out of the box
-- **💬 Chat Sessions**: Multi-turn conversation management with state persistence
-- **🎭 Flexible Multimodal Input**: Intuitive formats for images/text with automatic MIME detection
-- **💸 Thinking Budget Control**: Optimize costs by controlling thinking token usage
-- **🧠 Gemini 3 Support**: `thinking_level`, image generation, media resolution, thought signatures (NEW in v0.5.1!)
-- **📦 Context Caching**: Cache large contexts for faster, cheaper repeated queries (NEW in v0.5.1!)
-- **⚙️ Complete Generation Config**: Full support for all generation config options including structured output
-- **🚀 Production Ready**: Robust error handling, retry logic, and performance optimizations
-- **🔧 Flexible Configuration**: Environment variables, application config, and per-request overrides
+- **Automatic Tool Calling**: A seamless, Python-SDK-like experience that automates the entire multi-turn tool-calling loop
+- **Dual Authentication**: Seamless support for both Gemini API keys and Vertex AI OAuth/Service Accounts
+- **Advanced Streaming**: Production-grade Server-Sent Events streaming with real-time processing
+- **Automatic Rate Limiting**: Built-in rate limit handling with retries, concurrency gating, and adaptive backoff (NEW in v0.5.x!)
+- **Embeddings with MRL**: Text embeddings with Matryoshka Representation Learning, normalization, and distance metrics
+- **Async Batch Embeddings**: Production-scale embedding generation with 50% cost savings
+- **Type Safety**: Complete type definitions with runtime validation
+- **Built-in Telemetry**: Comprehensive observability and metrics out of the box
+- **Chat Sessions**: Multi-turn conversation management with state persistence
+- **Flexible Multimodal Input**: Intuitive formats for images/text with automatic MIME detection
+- **Thinking Budget Control**: Optimize costs by controlling thinking token usage
+- **Gemini 3 Support**: `thinking_level`, image generation, media resolution, thought signatures (NEW in v0.5.x!)
+- **Context Caching**: Cache large contexts once and reuse by ID (NEW in v0.5.x!)
+- **Complete Generation Config**: Full support for all generation config options including structured output
+- **Production Ready**: Robust error handling, retry logic, and performance optimizations
+- **Flexible Configuration**: Environment variables, application config, and per-request overrides
 
-## 🔗 ALTAR Integration: The Path to Production
+## ALTAR Integration: The Path to Production
 
 `gemini_ex` is the first project to integrate with the **ALTAR Productivity Platform**, a system designed to bridge the gap between local AI development and enterprise-grade production deployment.
 
 We've adopted ALTAR's `LATER` protocol to provide a best-in-class local tool-calling experience. This is the first step in a long-term vision to offer a seamless "promotion path" for your AI tools, from local testing to a secure, scalable, and governed production environment via ALTAR's `GRID` protocol.
 
-**[➡️ Learn the full story behind our integration in `ALTAR_INTEGRATION.md`](ALTAR_INTEGRATION.md)**
+**[Learn the full story behind our integration in `ALTAR_INTEGRATION.md`](ALTAR_INTEGRATION.md)**
 
-## 📦 Installation
+## Installation
 
 Add `gemini` to your list of dependencies in `mix.exs`:
 
 ```elixir
 def deps do
   [
-    {:gemini_ex, "~> 0.5.1"}
+    {:gemini_ex, "~> 0.5.2"}
   ]
 end
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Basic Configuration
 
@@ -140,8 +140,8 @@ IO.puts(text) # "The weather in Tokyo is sunny with a temperature of 22°C."
 # Start a streaming session
 {:ok, stream_id} = Gemini.stream_generate("Write a long story about AI", [
   on_chunk: fn chunk -> IO.write(chunk) end,
-  on_complete: fn -> IO.puts("\n✅ Stream complete!") end,
-  on_error: fn error -> IO.puts("❌ Error: #{inspect(error)}") end
+  on_complete: fn -> IO.puts("\nStream complete!") end,
+  on_error: fn error -> IO.puts("Error: #{inspect(error)}") end
 ])
 
 # Stream management
@@ -231,6 +231,24 @@ config =
 
 See [Structured Outputs Guide](docs/guides/structured_outputs.md) for details.
 
+## Context Caching (New in v0.5.x!)
+
+Cache large prompts/contexts once and reuse the cache ID to avoid resending bytes:
+
+```elixir
+# Create a cache from your content
+{:ok, cache} = Gemini.APIs.ContextCache.create("long document or conversation history")
+
+# Use cached content by name (e.g., "cachedContents/123")
+{:ok, response} =
+  Gemini.generate("Summarize the cached content",
+    cached_content: cache.name,
+    model: "gemini-2.5-flash"
+  )
+```
+
+You can list, get, update TTL, and delete caches via `Gemini.APIs.ContextCache.*` helpers.
+
 ### Multi-turn Conversations
 
 ```elixir
@@ -248,7 +266,7 @@ See [Structured Outputs Guide](docs/guides/structured_outputs.md) for details.
 history = Gemini.get_conversation_history(session)
 ```
 
-## 🛠️ Tool Calling (Function Calling)
+## Tool Calling (Function Calling)
 
 Tool calling enables the Gemini model to interact with external functions and APIs, making it possible to build powerful agents that can perform actions, retrieve real-time data, and integrate with your systems. This transforms the model from a text generator into an intelligent agent capable of complex workflows.
 
@@ -417,7 +435,7 @@ end
 
 This manual approach gives you complete visibility and control over each step of the tool calling process, which can be valuable for debugging, logging, or implementing custom conversation management logic.
 
-## 📊 Embeddings (New in v0.3.0!)
+## Embeddings (New in v0.3.0!)
 
 Generate semantic embeddings for text to power RAG systems, semantic search, classification, and more.
 
@@ -526,7 +544,7 @@ texts = ["Text 1", "Text 2", "Text 3"]
 embeddings = response.embeddings  # List of ContentEmbedding structs
 ```
 
-### 🚀 Advanced Use Cases
+### Advanced Use Cases
 
 Complete production-ready examples in `examples/use_cases/`:
 
@@ -593,7 +611,7 @@ mix run examples/async_batch_production_demo.exs
 
 See [examples/ASYNC_BATCH_EMBEDDINGS.md](examples/ASYNC_BATCH_EMBEDDINGS.md) for complete guide.
 
-## 🎯 Examples
+## Examples
 
 The repository includes comprehensive examples demonstrating all library features. All examples are ready to run and include proper error handling.
 
@@ -746,7 +764,7 @@ mix run examples/manual_tool_calling_demo.exs
 
 ---
 
-#### 9. **`live_auto_tool_test.exs`** - Live End-to-End Tool Calling Test ⚡ **LIVE EXAMPLE**
+#### 9. **`live_auto_tool_test.exs`** - Live End-to-End Tool Calling Test **LIVE EXAMPLE**
 **A comprehensive live test demonstrating real automatic tool execution with the Gemini API.**
 
 ```bash
@@ -762,17 +780,17 @@ mix run examples/live_auto_tool_test.exs
 - **Professional output formatting** with step-by-step progress indicators
 
 **What makes this special:**
-- ✅ **Actually calls the Gemini API** - not a mock or simulation
-- ✅ **Executes real Elixir code** - introspects modules like `Enum`, `String`, `GenServer`
-- ✅ **Demonstrates the complete pipeline** - tool registration → API call → tool execution → response synthesis
-- ✅ **Self-contained** - runs independently with just an API key
-- ✅ **Comprehensive logging** - shows exactly what's happening at each step
+- **Actually calls the Gemini API** - not a mock or simulation
+- **Executes real Elixir code** - introspects modules like `Enum`, `String`, `GenServer`
+- **Demonstrates the complete pipeline** - tool registration -> API call -> tool execution -> response synthesis
+- **Self-contained** - runs independently with just an API key
+- **Comprehensive logging** - shows exactly what's happening at each step
 
 **Requirements:** `GEMINI_API_KEY` environment variable (this is a live API test)
 
 **Example output:**
 ```
-🎉 SUCCESS! Final Response from Gemini:
+SUCCESS! Final Response from Gemini:
 The `Enum` module in Elixir is a powerful tool for working with collections...
 Based on the information retrieved using `get_elixir_module_info`, here's a breakdown:
 1. Main Purpose: Provides consistent iteration over enumerables (lists, maps, ranges)
@@ -801,11 +819,11 @@ mix run examples/live_api_test.exs
 ### Example Output
 
 Each example provides detailed output with:
-- ✅ Success indicators for working features
-- ❌ Error messages with clear explanations
-- 📊 Performance metrics and timing information
-- 🔧 Configuration details and detected settings
-- 📡 Live telemetry events (in telemetry showcase)
+- Success indicators for working features
+- Error messages with clear explanations
+- Performance metrics and timing information
+- Configuration details and detected settings
+- Live telemetry events (in telemetry showcase)
 
 ### Setting Up Authentication
 
@@ -828,7 +846,7 @@ The examples follow a consistent pattern:
 - **Error-resilient**: Graceful handling of missing credentials
 - **Informative output**: Detailed logging of operations and results
 
-## 🔐 Authentication
+## Authentication
 
 ### Gemini API Key (Recommended for Development)
 
@@ -861,14 +879,14 @@ config :gemini_ex, :auth,
   }
 ```
 
-## 📚 Documentation
+## Documentation
 
 - **[API Reference](https://hexdocs.pm/gemini_ex)** - Complete function documentation
 - **[Architecture Guide](https://hexdocs.pm/gemini_ex/architecture.html)** - System design and components
 - **[Authentication System](https://hexdocs.pm/gemini_ex/authentication_system.html)** - Detailed auth configuration
 - **[Examples](https://github.com/nshkrdotcom/gemini_ex/tree/main/examples)** - Working code examples
 
-## 🏗️ Architecture
+## Architecture
 
 The library features a modular, layered architecture:
 
@@ -878,7 +896,7 @@ The library features a modular, layered architecture:
 - **HTTP Layer**: Dual client system for standard and streaming requests
 - **Type Layer**: Comprehensive schemas with runtime validation
 
-## 🔧 Advanced Usage
+## Advanced Usage
 
 ### Complete Generation Configuration Support
 
@@ -967,6 +985,25 @@ content = [
 
 **Supported image formats:** PNG, JPEG, GIF, WebP (auto-detected from magic bytes)
 
+### Image Generation (Gemini 3)
+
+Generate images with aspect ratio and resolution control:
+
+```elixir
+config = Gemini.Types.GenerationConfig.image_config(
+  aspect_ratio: "16:9",
+  image_size: "4K"
+)
+
+{:ok, response} =
+  Gemini.generate("A sunrise over the mountains",
+    model: "gemini-3-pro-image-preview",
+    generation_config: config
+  )
+
+images = Gemini.Types.Response.Image.extract_base64(response)
+```
+
 ### Cost Optimization with Thinking Budgets (New in v0.2.2!)
 
 Gemini 2.5 series models use internal "thinking" for complex reasoning. Control thinking token usage to optimize costs:
@@ -1024,106 +1061,28 @@ config = GenerationConfig.new()
 - `0`: Disable thinking entirely (Flash/Lite only)
 - `-1`: Dynamic thinking (model decides budget)
 
-### Gemini 3 Features (New in v0.5.1!)
+## Rate Limiting and Retries (Default ON)
 
-Gemini 3 introduces new capabilities with simplified thinking control and advanced features:
+- Concurrency gating per model (default 4)
+- Retries on 429 using server `RetryInfo.retryDelay`; falls back to 60s if missing
+- Retries on 5xx/network with exponential backoff (`base_backoff_ms * 2^(attempt-1)` ± jitter)
+- Adaptive concurrency option reacts to 429s
 
-```elixir
-alias Gemini.Types.GenerationConfig
-
-# Thinking Level (Gemini 3) - simpler than thinking_budget
-config = GenerationConfig.thinking_level(:low)   # Fast responses
-config = GenerationConfig.thinking_level(:high)  # Deep reasoning (default)
-
-{:ok, response} = Gemini.generate(
-  "Explain quantum entanglement",
-  model: "gemini-3-pro-preview",
-  generation_config: config
-)
-
-# Image Generation with gemini-3-pro-image-preview
-config = GenerationConfig.image_config(aspect_ratio: "16:9", image_size: "4K")
-
-{:ok, response} = Gemini.generate(
-  "Generate an image of a sunset over mountains",
-  model: "gemini-3-pro-image-preview",
-  generation_config: config
-)
-
-# Media Resolution Control for vision tasks
-alias Gemini.Types.Part
-
-# High resolution for detailed image analysis (1120 tokens)
-part = Part.inline_data_with_resolution(image_data, "image/jpeg", :high)
-
-# Low resolution for faster processing (280 tokens)
-part = Part.inline_data_with_resolution(image_data, "image/jpeg", :low)
-```
-
-**Note:** You cannot mix `thinking_level` (Gemini 3) and `thinking_budget` (Gemini 2.5) in the same request.
-
-### Context Caching (New in v0.5.1!)
-
-Cache large contexts (documents, codebases) for improved performance and reduced costs:
+Configure in `config :gemini_ex, :rate_limiter`:
 
 ```elixir
-alias Gemini.APIs.ContextCache
-alias Gemini.Types.Content
-
-# Create a cached context (minimum 4096 tokens required)
-large_document = File.read!("large_codebase.txt")
-contents = [Content.text(large_document, "user")]
-
-{:ok, cache} = ContextCache.create(contents,
-  display_name: "My Codebase",
-  model: "gemini-2.0-flash",
-  ttl: 3600  # 1 hour
-)
-
-# Use cached context in multiple requests (faster, cheaper)
-{:ok, response1} = Gemini.generate(
-  "Find all TODO comments in the codebase",
-  model: "gemini-2.0-flash",
-  cached_content: cache.name
-)
-
-{:ok, response2} = Gemini.generate(
-  "Identify potential security issues",
-  model: "gemini-2.0-flash",
-  cached_content: cache.name
-)
-
-# Manage caches
-{:ok, caches} = ContextCache.list()
-{:ok, cache} = ContextCache.get(cache.name)
-:ok = ContextCache.update(cache.name, ttl: 7200)  # Extend TTL
-:ok = ContextCache.delete(cache.name)  # Clean up
+config :gemini_ex, :rate_limiter,
+  max_concurrency_per_model: 4,
+  max_attempts: 3,
+  base_backoff_ms: 1000,
+  jitter_factor: 0.25,
+  adaptive_concurrency: false,
+  adaptive_ceiling: 8
 ```
 
-### Thought Signatures (Gemini 3)
-
-Gemini 3 returns thought signatures that maintain reasoning context across turns. The SDK handles this automatically:
-
-```elixir
-alias Gemini.Chat
-
-# Create a chat session
-chat = Chat.new(model: "gemini-3-pro-preview")
-
-# First turn
-chat = Chat.add_turn(chat, "user", "What is machine learning?")
-{:ok, response} = Gemini.generate(chat.history, chat.opts)
-
-# Add model response - automatically extracts and stores thought signatures
-chat = Chat.add_model_response(chat, response)
-
-# Next turn - signatures are automatically echoed for context preservation
-chat = Chat.add_turn(chat, "user", "Can you give me an example?")
-{:ok, response2} = Gemini.generate(chat.history, chat.opts)
-
-# You can also manually extract signatures if needed
-signatures = Gemini.extract_thought_signatures(response)
-```
+Per-call overrides:
+- `disable_rate_limiter: true` — bypass all gating/retry
+- `non_blocking: true` — return immediately on 429 with `{:error, {:rate_limited, retry_at, details}}`
 
 ### Error Handling
 
@@ -1147,7 +1106,7 @@ case Gemini.generate("Hello world") do
 end
 ```
 
-## 🧪 Testing
+## Testing
 
 ```bash
 # Run all tests
@@ -1160,7 +1119,7 @@ mix test --cover
 GEMINI_API_KEY="your_key" mix test --only integration
 ```
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)
@@ -1168,11 +1127,11 @@ GEMINI_API_KEY="your_key" mix test --only integration
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](https://github.com/nshkrdotcom/gemini_ex/blob/main/LICENSE) file for details.
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - Google AI team for the Gemini API
 - Elixir community for excellent tooling and libraries

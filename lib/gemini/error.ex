@@ -50,7 +50,17 @@ defmodule Gemini.Error do
   Create an API error from Gemini response.
   """
   def api_error(reason, message, details \\ %{}) do
-    new(:api_error, message, api_reason: reason, details: details)
+    http_status =
+      case reason do
+        status when is_integer(status) -> status
+        _ -> nil
+      end
+
+    new(:api_error, message,
+      api_reason: reason,
+      http_status: http_status,
+      details: details
+    )
   end
 
   @doc """
