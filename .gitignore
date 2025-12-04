@@ -28,6 +28,6 @@ ex_llm/
 *.tar
 
 repomix*.xml
-
+/python-genai/
 
 /ALTAR/
