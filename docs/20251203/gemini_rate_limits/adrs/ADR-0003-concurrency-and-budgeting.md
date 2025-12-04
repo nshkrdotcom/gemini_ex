@@ -15,6 +15,11 @@
   - Estimated tokens from prompt size preflight (to decide if we should wait when near a known retry window).
   - Actual `usage` returned by Gemini to update rolling windows.
 - When a request would violate a live retry window, enqueue or return a structured “retry_at” response.
+- Testing strategy:
+  - Concurrency gate: set max_concurrency=1, fire N parallel requests at fake server; assert serialized hits (with Supertester harness, no sleeps).
+  - Adaptive: configure fake to switch to 429 after K hits; assert gate backs off, then raises when 200 resumes.
+  - Token budgeting: feed fake `usage` data; assert preflight blocks when budget exceeded.
+  - Verify defaults ON; opt-outs (nil/0 concurrency) skip gating.
 
 ## Consequences
 - Reduces simultaneous token spikes, cutting 429 frequency.

@@ -20,6 +20,10 @@
   - `logging` toggles (debug vs. quiet)
   - `adaptive_concurrency`/ceiling and `profile: :dev | :prod | :custom`
 - Return structured errors to callers (`{:error, {:rate_limited, retry_at, details}}`) instead of ad-hoc strings.
+- Testing strategy:
+  - Assert telemetry events fire for request start/stop/error and rate_limit wait/error against the fake server.
+  - Verify structured errors include retry_at/details; ensure defaults are ON and opt-outs bypass.
+  - Keep tests fully async/isolated using Supertester; no sleeps.
 
 ## Consequences
 - Observability is standardized; ops can alert on telemetry instead of scraping logs.

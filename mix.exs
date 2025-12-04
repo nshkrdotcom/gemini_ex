@@ -51,7 +51,8 @@ defmodule Gemini.MixProject do
       {:credo, "~> 1.7.12", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4.5", only: [:dev], runtime: false},
       {:mox, "~> 1.0", only: :test},
-      {:meck, "~> 0.9", only: :test}
+      {:meck, "~> 0.9", only: :test},
+      {:supertester, "~> 0.3.1", only: :test}
     ]
   end
 

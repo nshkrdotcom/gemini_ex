@@ -15,6 +15,10 @@
 - Cap retries (configurable `max_attempts`) and return structured error `{:error, {:rate_limited, retry_at, details}}` or `{:error, {:transient_failure, attempts, last_reason}}` when exhausted.
 - Coordinate with the rate limiter to avoid stacked/double retries; 429 handling lives in the rate-limit layer, transient network/5xx in the generic retry layer.
 - Per-call override: `non_blocking: true` returns immediately with structured rate-limit info instead of sleeping.
+- Testing strategy:
+  - Fake server returns 429 with RetryInfo; assert backoff honors server delay, structured error on exhaustion, telemetry emitted.
+  - Fake server returns 5xx/transport errors; assert exponential backoff with jitter (bounded attempts) and no double-retry with rate limiter.
+  - Ensure default is ON in tests; verify opt-outs still bypass.
 
 ## Consequences
 - Sections/jobs become resilient to temporary quota spikes and flaky transports.

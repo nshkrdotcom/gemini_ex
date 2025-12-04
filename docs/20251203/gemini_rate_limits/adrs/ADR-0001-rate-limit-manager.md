@@ -18,6 +18,13 @@
 - Concurrency defaults are conservative (e.g., 4 per model) but configurable; `nil`/0 disables concurrency gating.
 - Optional adaptive mode: start low, raise concurrency until 429 is observed, then back off; cap with a configured ceiling. Provide simple profiles (`:dev | :prod | :custom`) to seed defaults.
 - Scope: rate limiter wraps request submission only; once a stream/response is open, it does not interfere.
+- Testing strategy (Supertester-first, no sleeps):
+  - Use a local fake Gemini endpoint (Bypass/Plug) that can emit 200, 429 with RetryInfo body, and 5xx.
+  - Assert retry_until state updates, gating behavior, structured errors, and telemetry events.
+  - Concurrency/adaptive: set max_concurrency=1 in tests, fire N requests, assert serialized hits; for adaptive, have fake flip to 429 after K hits and back to 200 to verify backoff/raise.
+  - Token budgeting: stub usage in responses, assert preflight blocks when over budget.
+  - non_blocking: ensure requests return immediately with {:rate_limited, retry_at} when gating is active.
+  - Keep all tests isolated/async via Supertester; no Process.sleep.
 
 ## Consequences
 - Requests will be paced automatically; callers see fewer 429s and cleaner error messaging.
