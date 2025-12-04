@@ -135,7 +135,7 @@ With this implementation, the Foundation library's `Foundation.Integrations.Gemi
   %Foundation.Event{
     type: :gemini_request_start, 
     data: %{
-      model: "gemini-2.0-flash-lite", 
+      model: "gemini-flash-lite-latest", 
       function: :generate_content,
       contents_type: :text,
       url: "https://generativelanguage.googleapis.com/...",
@@ -147,7 +147,7 @@ With this implementation, the Foundation library's `Foundation.Integrations.Gemi
     data: %{
       duration: 1250,
       status: 200,
-      model: "gemini-2.0-flash-lite"
+      model: "gemini-flash-lite-latest"
     }
   }
 ]

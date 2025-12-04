@@ -81,13 +81,13 @@ defmodule Gemini.Streaming.UnifiedManager do
 
       # New API with Gemini auth
       {:ok, stream_id} = UnifiedManager.start_stream(
-        Gemini.Config.get_model(:flash_2_0_lite),
+        Gemini.Config.get_model(:flash_lite_latest),
         %{contents: [%{parts: [%{text: "Hello"}]}]},
         auth: :gemini
       )
 
       # Legacy API for ManagerV2 compatibility
-      {:ok, stream_id} = UnifiedManager.start_stream("Hello", [model: Gemini.Config.get_model(:flash_2_0_lite)], self())
+      {:ok, stream_id} = UnifiedManager.start_stream("Hello", [model: Gemini.Config.get_model(:flash_lite_latest)], self())
   """
   def start_stream(model, request_body, opts \\ [])
 

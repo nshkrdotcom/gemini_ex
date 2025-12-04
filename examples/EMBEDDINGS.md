@@ -36,7 +36,7 @@ This demo shows:
 ### Basic Embedding
 
 ```elixir
-# Simple embedding with default model (text-embedding-004)
+# Simple embedding with default model (gemini-embedding-001)
 {:ok, response} = Coordinator.embed_content("Your text here")
 
 # With specific model
@@ -141,7 +141,7 @@ Cosine similarity ranges from -1 to 1:
 
 ### Matryoshka Representation Learning (MRL) and Dimension Control
 
-The `text-embedding-004` model uses **Matryoshka Representation Learning (MRL)**, a technique that creates high-dimensional embeddings where smaller prefixes are also useful. This allows flexible dimensionality with minimal quality loss.
+The `gemini-embedding-001` model uses **Matryoshka Representation Learning (MRL)**, a technique that creates high-dimensional embeddings where smaller prefixes are also useful. This allows flexible dimensionality with minimal quality loss.
 
 #### Understanding MRL
 
@@ -153,7 +153,7 @@ MRL teaches the model to learn embeddings where the first N dimensions are indep
 # 768 dimensions - RECOMMENDED for most applications
 {:ok, response} = Coordinator.embed_content(
   "Your text here",
-  model: "text-embedding-004",
+  model: "gemini-embedding-001",
   output_dimensionality: 768
 )
 # • 25% storage of full embeddings
@@ -163,7 +163,7 @@ MRL teaches the model to learn embeddings where the first N dimensions are indep
 # 1536 dimensions - High quality
 {:ok, response} = Coordinator.embed_content(
   "Your text here",
-  model: "text-embedding-004",
+  model: "gemini-embedding-001",
   output_dimensionality: 1536
 )
 # • 50% storage of full embeddings
@@ -172,7 +172,7 @@ MRL teaches the model to learn embeddings where the first N dimensions are indep
 # 3072 dimensions - Maximum quality (default)
 {:ok, response} = Coordinator.embed_content(
   "Your text here",
-  model: "text-embedding-004"
+  model: "gemini-embedding-001"
 )
 # • Full embeddings (largest storage)
 # • Pre-normalized by API
@@ -248,7 +248,7 @@ norm = ContentEmbedding.norm(normalized_emb1)
 
 ### Recommended Model
 
-- **`text-embedding-004`** (Latest, Recommended)
+- **`gemini-embedding-001`** (Latest, Recommended)
   - Default: 768 dimensions
   - Supports MRL: 128-3072 dimensions
   - Supports all task types
@@ -269,7 +269,7 @@ norm = ContentEmbedding.norm(normalized_emb1)
 
 ### Model Comparison
 
-| Feature | text-embedding-004 | gemini-embedding-001 |
+| Feature | gemini-embedding-001 | gemini-embedding-001 |
 |---------|-------------------|---------------------|
 | Default Dimensions | 768 | 3072 (fixed) |
 | MRL Support | ✅ (128-3072) | ❌ |

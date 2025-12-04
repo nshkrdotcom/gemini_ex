@@ -8,7 +8,7 @@ defmodule Gemini.Types.Request.EmbedContentRequest do
 
   ## Fields
 
-  - `model`: The embedding model to use (e.g., "text-embedding-004", "gemini-embedding-001")
+  - `model`: The embedding model to use (e.g., "gemini-embedding-001", "gemini-embedding-exp-03-07")
   - `content`: The content to embed (only text parts will be processed)
   - `task_type`: Optional task type for optimized embeddings
   - `title`: Optional title for retrieval documents
@@ -18,7 +18,7 @@ defmodule Gemini.Types.Request.EmbedContentRequest do
 
       # Simple embedding request
       %EmbedContentRequest{
-        model: "models/text-embedding-004",
+        model: "models/gemini-embedding-001",
         content: %Content{
           parts: [%Part{text: "What is the meaning of life?"}]
         }
@@ -26,7 +26,7 @@ defmodule Gemini.Types.Request.EmbedContentRequest do
 
       # With task type and dimensionality
       %EmbedContentRequest{
-        model: "models/text-embedding-004",
+        model: "models/gemini-embedding-001",
         content: %Content{
           parts: [%Part{text: "Document text here"}]
         },
@@ -67,7 +67,7 @@ defmodule Gemini.Types.Request.EmbedContentRequest do
 
   - `text`: The text to embed
   - `opts`: Optional keyword list of options
-    - `:model`: Model to use (default: "text-embedding-004")
+    - `:model`: Model to use (default: "gemini-embedding-001")
     - `:task_type`: Task type for optimized embeddings
     - `:title`: Title for retrieval documents
     - `:output_dimensionality`: Dimension reduction

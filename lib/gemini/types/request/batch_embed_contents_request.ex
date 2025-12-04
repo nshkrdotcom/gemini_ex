@@ -14,11 +14,11 @@ defmodule Gemini.Types.Request.BatchEmbedContentsRequest do
       %BatchEmbedContentsRequest{
         requests: [
           %EmbedContentRequest{
-            model: "models/text-embedding-004",
+            model: "models/gemini-embedding-001",
             content: %Content{parts: [%Part{text: "First text"}]}
           },
           %EmbedContentRequest{
-            model: "models/text-embedding-004",
+            model: "models/gemini-embedding-001",
             content: %Content{parts: [%Part{text: "Second text"}]}
           }
         ]
@@ -41,7 +41,7 @@ defmodule Gemini.Types.Request.BatchEmbedContentsRequest do
 
   - `texts`: List of text strings to embed
   - `opts`: Optional keyword list of options to apply to all requests
-    - `:model`: Model to use (default: "text-embedding-004")
+    - `:model`: Model to use (default: "gemini-embedding-001")
     - `:task_type`: Task type for optimized embeddings
     - `:output_dimensionality`: Dimension reduction
 

@@ -7,7 +7,7 @@ defmodule Gemini.Types.Request.EmbedContentBatch do
 
   ## Fields
 
-  - `model`: Model to use (e.g., "models/text-embedding-004")
+  - `model`: Model to use (e.g., "models/gemini-embedding-001")
   - `name`: Output only - assigned by API (format: "batches/{batchId}")
   - `display_name`: Human-readable batch name (required)
   - `input_config`: Input configuration (file or inline requests)
@@ -17,14 +17,14 @@ defmodule Gemini.Types.Request.EmbedContentBatch do
 
       # Create batch with inline requests
       EmbedContentBatch.new(
-        "models/text-embedding-004",
+        "models/gemini-embedding-001",
         input_config,
         display_name: "Knowledge Base Embeddings"
       )
 
       # With priority
       EmbedContentBatch.new(
-        "models/text-embedding-004",
+        "models/gemini-embedding-001",
         input_config,
         display_name: "Urgent Batch",
         priority: 10
@@ -49,7 +49,7 @@ defmodule Gemini.Types.Request.EmbedContentBatch do
 
   ## Parameters
 
-  - `model`: Model to use (e.g., "text-embedding-004" or full path)
+  - `model`: Model to use (e.g., "gemini-embedding-001" or full path)
   - `input_config`: Input configuration (file or inline)
   - `opts`: Optional keyword list
     - `:display_name`: Human-readable name (required)
@@ -59,7 +59,7 @@ defmodule Gemini.Types.Request.EmbedContentBatch do
   ## Examples
 
       EmbedContentBatch.new(
-        "text-embedding-004",
+        "gemini-embedding-001",
         input_config,
         display_name: "My Batch"
       )

@@ -23,7 +23,7 @@ defmodule Gemini.Types.Response.EmbedContentBatch do
   ## Examples
 
       %EmbedContentBatch{
-        model: "models/text-embedding-004",
+        model: "models/gemini-embedding-001",
         name: "batches/abc123def456",
         display_name: "Knowledge Base Embeddings",
         state: :processing,
@@ -85,7 +85,7 @@ defmodule Gemini.Types.Response.EmbedContentBatch do
   ## Examples
 
       EmbedContentBatch.from_api_response(%{
-        "model" => "models/text-embedding-004",
+        "model" => "models/gemini-embedding-001",
         "name" => "batches/abc123",
         "displayName" => "My Batch",
         "state" => "PROCESSING",

@@ -79,8 +79,8 @@ defmodule Gemini.Types.Response.Model do
 
   ## Examples
 
-      iex> Model.effective_base_id(%Model{base_model_id: "gemini-2.0-flash-lite"})
-      "gemini-2.0-flash-lite"
+      iex> Model.effective_base_id(%Model{base_model_id: "gemini-flash-lite-latest"})
+      "gemini-flash-lite-latest"
 
       iex> Model.effective_base_id(%Model{name: "models/gemini-2.5-pro", base_model_id: nil})
       "gemini-2.5-pro"
@@ -218,18 +218,25 @@ defmodule Gemini.Types.Response.Model do
 
   ## Examples
 
-      iex> Model.model_family(%Model{base_model_id: "gemini-2.0-flash-lite"})
+      iex> Model.model_family(%Model{base_model_id: "gemini-flash-lite-latest"})
       "gemini"
 
-      iex> Model.model_family(%Model{base_model_id: "text-embedding-004"})
-      "text"
+      iex> Model.model_family(%Model{base_model_id: "gemini-embedding-001"})
+      "gemini-embedding"
   """
   @spec model_family(t()) :: String.t()
   def model_family(%__MODULE__{} = model) do
-    model
-    |> effective_base_id()
-    |> String.split("-", parts: 2)
-    |> hd()
+    base_id = effective_base_id(model)
+
+    cond do
+      String.starts_with?(base_id, "gemini-embedding") ->
+        "gemini-embedding"
+
+      true ->
+        base_id
+        |> String.split("-", parts: 2)
+        |> hd()
+    end
   end
 
   @doc """

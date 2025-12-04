@@ -97,8 +97,8 @@ defmodule Gemini.Types.Request.GetModelRequest do
 
   ## Examples
 
-      iex> GetModelRequest.new("gemini-2.0-flash-lite")
-      {:ok, %GetModelRequest{name: "models/gemini-2.0-flash-lite"}}
+      iex> GetModelRequest.new("gemini-flash-lite-latest")
+      {:ok, %GetModelRequest{name: "models/gemini-flash-lite-latest"}}
 
       iex> GetModelRequest.new("models/gemini-2.5-pro")
       {:ok, %GetModelRequest{name: "models/gemini-2.5-pro"}}

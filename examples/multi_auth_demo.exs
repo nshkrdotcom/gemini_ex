@@ -34,14 +34,21 @@ defmodule MultiAuthDemo do
     IO.puts("-" <> String.duplicate("-", 40))
 
     gemini_available = not is_nil(System.get_env("GEMINI_API_KEY"))
-    vertex_env_available = not is_nil(System.get_env("VERTEX_JSON_FILE")) and not is_nil(System.get_env("VERTEX_PROJECT_ID"))
+
+    vertex_env_available =
+      not is_nil(System.get_env("VERTEX_JSON_FILE")) and
+        not is_nil(System.get_env("VERTEX_PROJECT_ID"))
 
     # For demonstration purposes, we'll also show Vertex AI as "available" even with invalid credentials
     # to demonstrate the authentication failure
     vertex_demo_available = true
 
     IO.puts("Gemini API: #{if gemini_available, do: "✅ Available", else: "❌ Not configured"}")
-    IO.puts("Vertex AI (env): #{if vertex_env_available, do: "✅ Available", else: "❌ Not configured"}")
+
+    IO.puts(
+      "Vertex AI (env): #{if vertex_env_available, do: "✅ Available", else: "❌ Not configured"}"
+    )
+
     IO.puts("Vertex AI (demo): ✅ Will test with invalid credentials to show auth failure")
 
     if not gemini_available do
@@ -62,19 +69,23 @@ defmodule MultiAuthDemo do
     tasks = []
 
     # Add Gemini API task if available
-    tasks = if gemini_available do
-      IO.puts("🔑 Starting Gemini API task...")
-      task = Task.async(fn ->
-        case Gemini.text("What's 2+2?", auth: :gemini) do
-          {:ok, text} -> {:gemini, :success, text}
-          {:error, error} -> {:gemini, :error, format_error(error)}
-        end
-      end)
-      [task | tasks]
-    else
-      IO.puts("⚠️  Skipping Gemini API task (no API key)")
-      tasks
-    end
+    tasks =
+      if gemini_available do
+        IO.puts("🔑 Starting Gemini API task...")
+
+        task =
+          Task.async(fn ->
+            case Gemini.text("What's 2+2?", auth: :gemini) do
+              {:ok, text} -> {:gemini, :success, text}
+              {:error, error} -> {:gemini, :error, format_error(error)}
+            end
+          end)
+
+        [task | tasks]
+      else
+        IO.puts("⚠️  Skipping Gemini API task (no API key)")
+        tasks
+      end
 
     # Always add Vertex AI task to demonstrate authentication failure
     IO.puts("🔑 Starting Vertex AI task (with invalid credentials for demo)...")
@@ -101,12 +112,14 @@ defmodule MultiAuthDemo do
     System.put_env("VERTEX_PROJECT_ID", "invalid-demo-project")
     System.put_env("VERTEX_JSON_FILE", "/tmp/nonexistent_credentials.json")
 
-    vertex_task = Task.async(fn ->
-      case Gemini.text("What's 3+3?", auth: :vertex_ai) do
-        {:ok, text} -> {:vertex_ai, :success, text}
-        {:error, error} -> {:vertex_ai, :error, format_error(error)}
-      end
-    end)
+    vertex_task =
+      Task.async(fn ->
+        case Gemini.text("What's 3+3?", auth: :vertex_ai) do
+          {:ok, text} -> {:vertex_ai, :success, text}
+          {:error, error} -> {:vertex_ai, :error, format_error(error)}
+        end
+      end)
+
     tasks = [vertex_task | tasks]
 
     # Wait for all tasks to complete
@@ -123,14 +136,18 @@ defmodule MultiAuthDemo do
 
     # Display results
     IO.puts("\n📊 Results:")
+
     Enum.each(results, fn
       {auth_type, :success, text} ->
         IO.puts("✅ #{auth_type}: #{String.slice(text, 0, 100)}")
+
       {auth_type, :error, error} ->
         IO.puts("❌ #{auth_type}: #{error}")
     end)
 
-    IO.puts("\n💡 Note: Vertex AI failure above demonstrates proper error handling for invalid credentials")
+    IO.puts(
+      "\n💡 Note: Vertex AI failure above demonstrates proper error handling for invalid credentials"
+    )
   end
 
   defp demonstrate_explicit_auth_selection do
@@ -140,7 +157,7 @@ defmodule MultiAuthDemo do
     # Show how to explicitly choose auth strategy per request
     operations = [
       {"List models", fn -> Gemini.list_models() end},
-      {"Get specific model", fn -> Gemini.get_model("gemini-2.0-flash-lite") end},
+      {"Get specific model", fn -> Gemini.get_model("gemini-flash-lite-latest") end},
       {"Count tokens", fn -> Gemini.count_tokens("Hello world") end}
     ]
 
@@ -150,6 +167,7 @@ defmodule MultiAuthDemo do
       case func.() do
         {:ok, _result} ->
           IO.puts("   ✅ Success with default authentication")
+
         {:error, error} ->
           IO.puts("   ❌ Error: #{format_error(error)}")
       end

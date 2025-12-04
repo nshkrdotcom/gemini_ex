@@ -1,7 +1,7 @@
 defmodule Gemini.MixProject do
   use Mix.Project
 
-  @version "0.4.0"
+  @version "0.5.0"
   @source_url "https://github.com/nshkrdotcom/gemini_ex"
 
   def project do
@@ -9,6 +9,7 @@ defmodule Gemini.MixProject do
       app: :gemini_ex,
       version: @version,
       elixir: "~> 1.14",
+      elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       docs: docs(),
@@ -26,6 +27,9 @@ defmodule Gemini.MixProject do
       ]
     ]
   end
+
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_), do: ["lib"]
 
   def application do
     [
@@ -52,7 +56,8 @@ defmodule Gemini.MixProject do
       {:dialyxir, "~> 1.4.5", only: [:dev], runtime: false},
       {:mox, "~> 1.0", only: :test},
       {:meck, "~> 0.9", only: :test},
-      {:supertester, "~> 0.3.1", only: :test}
+      {:supertester, "~> 0.3.1", only: :test},
+      {:bypass, "~> 2.1", only: :test}
     ]
   end
 
@@ -84,6 +89,7 @@ defmodule Gemini.MixProject do
         "examples/EMBEDDINGS.md",
         "examples/ASYNC_BATCH_EMBEDDINGS.md",
         "docs/guides/structured_outputs.md",
+        "docs/guides/rate_limiting.md",
         "CHANGELOG.md"
       ],
       groups_for_extras: [
@@ -92,7 +98,8 @@ defmodule Gemini.MixProject do
           "AUTOMATIC_TOOL_EXECUTION.md",
           "examples/EMBEDDINGS.md",
           "examples/ASYNC_BATCH_EMBEDDINGS.md",
-          "docs/guides/structured_outputs.md"
+          "docs/guides/structured_outputs.md",
+          "docs/guides/rate_limiting.md"
         ],
         Architecture: [
           "ARCHITECTURE.md",

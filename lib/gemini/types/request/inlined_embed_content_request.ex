@@ -15,7 +15,7 @@ defmodule Gemini.Types.Request.InlinedEmbedContentRequest do
       # Simple inlined request
       %InlinedEmbedContentRequest{
         request: %EmbedContentRequest{
-          model: "models/text-embedding-004",
+          model: "models/gemini-embedding-001",
           content: %Content{parts: [%Part{text: "Hello world"}]}
         }
       }

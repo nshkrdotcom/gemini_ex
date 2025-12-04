@@ -17,6 +17,7 @@ defmodule GeminiDemo do
     first_two = String.slice(key, 0, 2)
     "#{first_two}***"
   end
+
   defp mask_api_key(_key), do: "***"
 
   def run do
@@ -46,10 +47,12 @@ defmodule GeminiDemo do
     section("Model Information")
 
     IO.puts("Listing available models...")
+
     case Gemini.list_models() do
       {:ok, response} ->
         models = Map.get(response, "models", [])
         IO.puts("Found #{length(models)} models:")
+
         models
         |> Enum.take(3)
         |> Enum.each(fn model ->
@@ -67,7 +70,8 @@ defmodule GeminiDemo do
     end
 
     IO.puts("\nChecking specific model...")
-    case Gemini.get_model(Gemini.Config.get_model(:flash_2_0_lite)) do
+
+    case Gemini.get_model(Gemini.Config.get_model(:flash_lite_latest)) do
       {:ok, model} ->
         display_name = Map.get(model, "displayName", "Unknown")
         description = Map.get(model, "description", "No description")
@@ -110,7 +114,9 @@ defmodule GeminiDemo do
     IO.puts("🎨 Creative mode (high temperature):")
     config = GenerationConfig.creative(max_output_tokens: 100)
 
-    case Gemini.text("Write a creative opening line for a sci-fi novel", generation_config: config) do
+    case Gemini.text("Write a creative opening line for a sci-fi novel",
+           generation_config: config
+         ) do
       {:ok, text} ->
         IO.puts("🤖 #{text}")
 
@@ -144,23 +150,33 @@ defmodule GeminiDemo do
           {:ok, text} ->
             IO.puts("🧑 User: Hi! I'm learning about Elixir. Can you help?")
             IO.puts("🤖 Assistant: #{text}")
-            
+
             # Follow-up message
-            case Gemini.send_message(chat, "What's the difference between processes and threads in Elixir?") do
+            case Gemini.send_message(
+                   chat,
+                   "What's the difference between processes and threads in Elixir?"
+                 ) do
               {:ok, response, _chat} ->
                 case Gemini.extract_text(response) do
                   {:ok, text} ->
-                    IO.puts("\n🧑 User: What's the difference between processes and threads in Elixir?")
+                    IO.puts(
+                      "\n🧑 User: What's the difference between processes and threads in Elixir?"
+                    )
+
                     IO.puts("🤖 Assistant: #{text}")
+
                   {:error, error} ->
                     IO.puts("❌ Error extracting text: #{format_error(error)}")
                 end
+
               {:error, error} ->
                 IO.puts("❌ Error in follow-up message: #{format_error(error)}")
             end
+
           {:error, error} ->
             IO.puts("❌ Error extracting text: #{format_error(error)}")
         end
+
       {:error, error} ->
         IO.puts("❌ Error sending message: #{format_error(error)}")
     end
@@ -179,7 +195,11 @@ defmodule GeminiDemo do
       case Gemini.count_tokens(text) do
         {:ok, count} ->
           total_tokens = Map.get(count, "totalTokens", 0)
-          IO.puts("📝 Text: \"#{String.slice(text, 0, 50)}#{if String.length(text) > 50, do: "...", else: ""}\"")
+
+          IO.puts(
+            "📝 Text: \"#{String.slice(text, 0, 50)}#{if String.length(text) > 50, do: "...", else: ""}\""
+          )
+
           IO.puts("🔢 Tokens: #{total_tokens}")
 
         {:error, error} ->

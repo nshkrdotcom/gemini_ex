@@ -66,7 +66,7 @@ defmodule Gemini.APIs.Coordinator do
       # With specific model and auth
       {:ok, response} = Coordinator.generate_content(
         "Explain quantum computing",
-        model: Gemini.Config.get_model(:flash_2_0_lite),
+        model: Gemini.Config.get_model(:flash_lite_latest),
         auth: :vertex_ai,
         temperature: 0.7
       )
@@ -128,7 +128,7 @@ defmodule Gemini.APIs.Coordinator do
       # With specific configuration
       {:ok, stream_id} = Coordinator.stream_generate_content(
         "Explain machine learning",
-        model: Gemini.Config.get_model(:flash_2_0_lite),
+        model: Gemini.Config.get_model(:flash_lite_latest),
         auth: :gemini,
         temperature: 0.8,
         max_output_tokens: 1000
@@ -243,7 +243,7 @@ defmodule Gemini.APIs.Coordinator do
 
   ## Examples
 
-      {:ok, model} = Coordinator.get_model(Gemini.Config.get_model(:flash_2_0_lite))
+      {:ok, model} = Coordinator.get_model(Gemini.Config.get_model(:flash_lite_latest))
       {:ok, model} = Coordinator.get_model("gemini-2.5-pro", auth: :vertex_ai)
   """
   @spec get_model(String.t(), Gemini.options()) :: api_result(map())
@@ -279,7 +279,7 @@ defmodule Gemini.APIs.Coordinator do
 
   ## Options
 
-  - `:model`: Embedding model to use (default: "text-embedding-004")
+  - `:model`: Embedding model to use (default: "gemini-embedding-001")
   - `:auth`: Authentication strategy (`:gemini` or `:vertex_ai`)
   - `:task_type`: Optional task type for optimized embeddings
     - `:retrieval_query` - Text is a search query
@@ -309,7 +309,7 @@ defmodule Gemini.APIs.Coordinator do
       # With specific model and dimensionality
       {:ok, response} = Coordinator.embed_content(
         "Query text",
-        model: "text-embedding-004",
+        model: "gemini-embedding-001",
         task_type: :retrieval_query,
         output_dimensionality: 256
       )
@@ -397,7 +397,7 @@ defmodule Gemini.APIs.Coordinator do
 
   ## Options
 
-  - `:model`: Model to use (default: "text-embedding-004")
+  - `:model`: Model to use (default: "gemini-embedding-001")
   - `:display_name`: Human-readable batch name (required)
   - `:priority`: Processing priority (default: 0, higher = more urgent)
   - `:task_type`: Task type applied to all requests

@@ -48,7 +48,7 @@ defmodule Gemini.ConfigTest do
 
       assert config.auth_type == :gemini
       assert config.api_key == nil
-      assert config.model == "gemini-2.0-flash-lite"
+      assert config.model == "gemini-flash-lite-latest"
     end
 
     test "detects gemini auth type when GEMINI_API_KEY is set" do
@@ -115,11 +115,11 @@ defmodule Gemini.ConfigTest do
     test "allows overriding specific fields while keeping detection" do
       System.put_env("GEMINI_API_KEY", "test-key")
 
-      config = Config.get(model: "gemini-2.0-flash-lite")
+      config = Config.get(model: "gemini-flash-lite-latest")
 
       assert config.auth_type == :gemini
       assert config.api_key == "test-key"
-      assert config.model == "gemini-2.0-flash-lite"
+      assert config.model == "gemini-flash-lite-latest"
 
       # Cleanup
       System.delete_env("GEMINI_API_KEY")
@@ -128,7 +128,7 @@ defmodule Gemini.ConfigTest do
 
   describe "default_model/0" do
     test "returns default model" do
-      assert Config.default_model() == "gemini-2.0-flash-lite"
+      assert Config.default_model() == "gemini-flash-lite-latest"
     end
   end
 

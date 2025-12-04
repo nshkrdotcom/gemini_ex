@@ -242,27 +242,27 @@ defmodule Gemini.Auth.VertexStrategyTest do
 
   describe "build_path/3" do
     test "builds correct path for Vertex AI model endpoint" do
-      model = "gemini-2.0-flash-lite"
+      model = "gemini-flash-lite-latest"
       endpoint = "generateContent"
       config = %{project_id: "test-project", location: "us-central1"}
 
       path = VertexStrategy.build_path(model, endpoint, config)
 
       expected =
-        "projects/test-project/locations/us-central1/publishers/google/models/gemini-2.0-flash-lite:generateContent"
+        "projects/test-project/locations/us-central1/publishers/google/models/gemini-flash-lite-latest:generateContent"
 
       assert path == expected
     end
 
     test "strips 'models/' prefix from model name" do
-      model = "models/gemini-2.0-flash-lite"
+      model = "models/gemini-flash-lite-latest"
       endpoint = "generateContent"
       config = %{project_id: "test-project", location: "us-central1"}
 
       path = VertexStrategy.build_path(model, endpoint, config)
 
       expected =
-        "projects/test-project/locations/us-central1/publishers/google/models/gemini-2.0-flash-lite:generateContent"
+        "projects/test-project/locations/us-central1/publishers/google/models/gemini-flash-lite-latest:generateContent"
 
       assert path == expected
     end

@@ -12,10 +12,13 @@ defmodule Gemini.Config do
           credentials: map()
         }
 
-  @default_model "gemini-2.0-flash-lite"
+  @default_model "gemini-flash-lite-latest"
 
   # Model definitions
   @models %{
+    # Gemini 3 models
+    pro_3_preview: "gemini-3-pro-preview",
+
     # Gemini 2.5 models
     pro_2_5: "gemini-2.5-pro",
     flash_2_5: "gemini-2.5-flash",
@@ -34,8 +37,9 @@ defmodule Gemini.Config do
     flash_2_0_live_001: "gemini-2.0-flash-live-001",
 
     # Common aliases
-    default: "gemini-2.0-flash-lite",
-    latest: "gemini-2.5-pro",
+    flash_lite_latest: "gemini-flash-lite-latest",
+    default: "gemini-flash-lite-latest",
+    latest: "gemini-3-pro-preview",
     stable: "gemini-2.5-pro"
   }
 
@@ -202,7 +206,7 @@ defmodule Gemini.Config do
       "gemini-1.5-pro"
 
       iex> Gemini.Config.get_model(:default)
-      "gemini-2.0-flash"
+      "gemini-flash-lite-latest"
   """
   @spec get_model(atom() | String.t()) :: String.t()
   def get_model(model_key) when is_atom(model_key) do

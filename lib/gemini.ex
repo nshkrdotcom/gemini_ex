@@ -56,7 +56,7 @@ defmodule Gemini do
 
   # With options
   {:ok, response} = Gemini.generate("Explain quantum computing", [
-    model: Gemini.Config.get_model(:flash_2_0_lite),
+    model: Gemini.Config.get_model(:flash_lite_latest),
     temperature: 0.7,
     max_output_tokens: 1000
   ])
@@ -151,10 +151,10 @@ defmodule Gemini do
   {:ok, models} = Gemini.list_models()
 
   # Get model details
-  {:ok, model_info} = Gemini.get_model(Gemini.Config.get_model(:flash_2_0_lite))
+  {:ok, model_info} = Gemini.get_model(Gemini.Config.get_model(:flash_lite_latest))
 
   # Count tokens
-  {:ok, token_count} = Gemini.count_tokens("Your text", model: Gemini.Config.get_model(:flash_2_0_lite))
+  {:ok, token_count} = Gemini.count_tokens("Your text", model: Gemini.Config.get_model(:flash_lite_latest))
   ```
 
   This module provides backward-compatible access to the Gemini API while routing
@@ -353,7 +353,7 @@ defmodule Gemini do
       {:ok, stream_id} = Gemini.stream_generate_with_auto_tools(
         "What's the weather in San Francisco?",
         tools: [declaration],
-        model: "gemini-2.0-flash-lite"
+        model: "gemini-flash-lite-latest"
       )
 
       # Subscribe to receive only the final text response
@@ -420,7 +420,7 @@ defmodule Gemini do
       {:ok, response} = Gemini.generate_content_with_auto_tools(
         "What's the weather in San Francisco?",
         tools: [declaration],
-        model: "gemini-2.0-flash-lite"
+        model: "gemini-flash-lite-latest"
       )
 
   ## Returns

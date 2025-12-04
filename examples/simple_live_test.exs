@@ -56,7 +56,7 @@ result =
   Gemini.generate_content_with_auto_tools(
     prompt,
     tools: [tool_declaration],
-    model: "gemini-2.0-flash-lite",
+    model: "gemini-flash-lite-latest",
     temperature: 0.1,
     turn_limit: 3
   )

@@ -23,7 +23,7 @@ This document outlines the plan to fully implement all features from the officia
    - ✅ `embed_content/2` - Single text embedding
    - ✅ `batch_embed_contents/2` - Batch embedding
    - ✅ Multi-auth support (Gemini API and Vertex AI)
-   - ✅ Model selection (`gemini-embedding-001`, `text-embedding-004`)
+   - ✅ Model selection (`gemini-embedding-001`, `gemini-embedding-exp-03-07`)
 
 2. **Type System** (`lib/gemini/types/`)
    - ✅ `EmbedContentRequest` - Single embedding request
@@ -44,7 +44,7 @@ This document outlines the plan to fully implement all features from the officia
 
 4. **Dimensionality Control**
    - ✅ `output_dimensionality` parameter support
-   - ✅ Works with newer models (text-embedding-004)
+   - ✅ Works with newer models (gemini-embedding-001)
 
 5. **Similarity Metrics**
    - ✅ `ContentEmbedding.cosine_similarity/2`
@@ -379,11 +379,11 @@ end
 
 | Model | Status | Default Dimensions | Max Dimensions | Task Types | MRL | Notes |
 |-------|--------|-------------------|----------------|------------|-----|-------|
-| `text-embedding-004` | ✅ Stable | 768 | 768 | All | Yes | Recommended |
+| `gemini-embedding-001` | ✅ Stable | 768 | 768 | All | Yes | Recommended |
 | `gemini-embedding-001` | ✅ Stable | 3072 | 3072 | All | Yes | Legacy |
 | `gemini-embedding-exp-03-07` | ⚠️ Experimental | 3072 | 3072 | All | Yes | Deprecating Oct 2025 |
-| `embedding-001` | ⚠️ Deprecated | - | - | Limited | No | Use text-embedding-004 |
-| `embedding-gecko-001` | ⚠️ Deprecated | - | - | Limited | No | Use text-embedding-004 |
+| `embedding-001` | ⚠️ Deprecated | - | - | Limited | No | Use gemini-embedding-001 |
+| `embedding-gecko-001` | ⚠️ Deprecated | - | - | Limited | No | Use gemini-embedding-001 |
 
 **Priority:** MEDIUM
 **Effort:** 2 hours
@@ -537,7 +537,7 @@ examples/
 # Submit a batch job
 {:ok, operation} = Coordinator.async_batch_embed_contents(
   texts,  # or file_name: "gs://bucket/inputs.jsonl"
-  model: "text-embedding-004",
+  model: "gemini-embedding-001",
   display_name: "My Embedding Batch",
   priority: 0,
   task_type: :retrieval_document
@@ -713,7 +713,7 @@ end
 | **Parameters** |
 | title for retrieval | Recommended | ✅ Implemented | Documentation | MEDIUM |
 | **Models** |
-| text-embedding-004 | Recommended | ✅ Supported | None | - |
+| gemini-embedding-001 | Recommended | ✅ Supported | None | - |
 | gemini-embedding-001 | Stable | ✅ Supported | None | - |
 | Deprecation notices | Required | ❌ Missing | Documentation | MEDIUM |
 | **Documentation** |

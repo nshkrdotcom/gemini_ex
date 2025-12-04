@@ -2,13 +2,14 @@ defmodule Gemini.Supervisor do
   @moduledoc """
   Top-level supervisor for the Gemini application.
 
-  Manages both the streaming infrastructure and the tool execution runtime,
+  Manages the streaming infrastructure, tool execution runtime, and rate limiting,
   providing a unified supervision tree for all Gemini components.
   """
 
   use Supervisor
 
   alias Gemini.Streaming.UnifiedManager
+  alias Gemini.RateLimiter.Manager, as: RateLimitManager
   alias Altar.LATER.Registry
 
   @doc """
@@ -23,6 +24,8 @@ defmodule Gemini.Supervisor do
   @spec init(term()) :: {:ok, {Supervisor.sup_flags(), [Supervisor.child_spec()]}}
   def init(_init_arg) do
     children = [
+      # Rate limiting infrastructure (must start first)
+      {RateLimitManager, []},
       # Streaming infrastructure
       {UnifiedManager, []},
       # Tool execution registry with registered name for discoverability

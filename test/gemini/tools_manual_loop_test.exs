@@ -37,7 +37,7 @@ defmodule Gemini.ToolsManualLoopTest do
 
   test "completes a full manual tool-calling loop", %{declaration: _declaration} do
     # Step 1: Create a new chat session
-    chat = Chat.new(model: "gemini-2.0-flash-lite", temperature: 0.1)
+    chat = Chat.new(model: "gemini-flash-lite-latest", temperature: 0.1)
 
     # Step 2: Add a user turn designed to trigger the tool
     prompt = "Please use the test_processor tool to process the input 'hello_world'"

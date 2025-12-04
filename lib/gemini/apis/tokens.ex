@@ -256,7 +256,7 @@ defmodule Gemini.APIs.Tokens do
 
   ## Examples
 
-      {:ok, analysis} = Tokens.check_fit("Hello world", "gemini-2.0-flash-lite")
+      {:ok, analysis} = Tokens.check_fit("Hello world", "gemini-flash-lite-latest")
       # => {:ok, %{fits: true, tokens: 3, limit: 1000000, remaining: 999997}}
 
       # With output buffer

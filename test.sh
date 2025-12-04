@@ -156,11 +156,11 @@ defmodule Gemini.Test.MockServer do
     %{
       "models" => [
         %{
-          "name" => "models/gemini-2.0-flash",
-          "baseModelId" => "gemini-2.0-flash",
-          "version" => "001",
-          "displayName" => "Gemini 2.0 Flash",
-          "description" => "Fast and versatile multimodal model",
+          "name" => "models/gemini-flash-lite-latest",
+          "baseModelId" => "gemini-flash-lite-latest",
+          "version" => "latest",
+          "displayName" => "Gemini Flash Lite (Latest)",
+          "description" => "Fast and cost-efficient multimodal model",
           "inputTokenLimit" => 1000000,
           "outputTokenLimit" => 8192,
           "supportedGenerationMethods" => ["generateContent", "streamGenerateContent", "countTokens"]
@@ -277,11 +277,11 @@ defmodule Gemini.Test.Factory do
 
   def build(:model) do
     %Gemini.Types.Response.Model{
-      name: "models/gemini-2.0-flash",
-      base_model_id: "gemini-2.0-flash",
-      version: "001",
-      display_name: "Gemini 2.0 Flash",
-      description: "Fast and versatile multimodal model",
+      name: "models/gemini-flash-lite-latest",
+      base_model_id: "gemini-flash-lite-latest",
+      version: "latest",
+      display_name: "Gemini Flash Lite (Latest)",
+      description: "Fast and cost-efficient multimodal model",
       input_token_limit: 1000000,
       output_token_limit: 8192,
       supported_generation_methods: ["generateContent", "streamGenerateContent", "countTokens"]

@@ -79,6 +79,7 @@ defmodule TelemetryShowcase do
     end)
 
     IO.puts("✅ Attached handlers for #{length(events)} event types:")
+
     Enum.each(events, fn event ->
       IO.puts("   • #{Enum.join(event, ":")}")
     end)
@@ -180,14 +181,17 @@ defmodule TelemetryShowcase do
     # Stream ID generation
     IO.puts("Stream ID Generation:")
     stream_ids = Enum.map(1..3, fn _ -> Gemini.Telemetry.generate_stream_id() end)
+
     Enum.with_index(stream_ids, 1)
     |> Enum.each(fn {id, index} ->
       IO.puts("  #{index}. #{id} (length: #{byte_size(id)})")
     end)
+
     IO.puts("  ✅ All IDs are unique: #{length(Enum.uniq(stream_ids)) == 3}")
 
     # Content classification
     IO.puts("\nContent Type Classification:")
+
     test_contents = [
       {"Simple text", "Hello, world!"},
       {"Text list", [%{parts: [%{text: "Hello"}]}]},
@@ -202,6 +206,7 @@ defmodule TelemetryShowcase do
 
     # Model extraction
     IO.puts("\nModel Extraction:")
+
     test_opts = [
       {[model: "gemini-pro"], "with explicit model"},
       {[function: :generate], "without model (uses default)"},
@@ -215,29 +220,36 @@ defmodule TelemetryShowcase do
 
     # Metadata building
     IO.puts("\nMetadata Building:")
-    request_metadata = Gemini.Telemetry.build_request_metadata(
-      "https://api.example.com/generate",
-      :post,
-      model: "gemini-2.0-flash-lite",
-      function: :generate_content,
-      contents_type: :text
-    )
+
+    request_metadata =
+      Gemini.Telemetry.build_request_metadata(
+        "https://api.example.com/generate",
+        :post,
+        model: "gemini-flash-lite-latest",
+        function: :generate_content,
+        contents_type: :text
+      )
+
     IO.puts("  • Request metadata keys: #{Map.keys(request_metadata) |> Enum.join(", ")}")
 
     stream_id = Gemini.Telemetry.generate_stream_id()
-    stream_metadata = Gemini.Telemetry.build_stream_metadata(
-      "https://api.example.com/stream",
-      :post,
-      stream_id,
-      model: "gemini-2.0-flash-lite"
-    )
+
+    stream_metadata =
+      Gemini.Telemetry.build_stream_metadata(
+        "https://api.example.com/stream",
+        :post,
+        stream_id,
+        model: "gemini-flash-lite-latest"
+      )
+
     IO.puts("  • Stream metadata keys: #{Map.keys(stream_metadata) |> Enum.join(", ")}")
     IO.puts("  • Stream ID: #{stream_metadata.stream_id}")
 
     # Duration calculation
     IO.puts("\nDuration Calculation:")
     start_time = System.monotonic_time()
-    :timer.sleep(50)  # Sleep for 50ms
+    # Sleep for 50ms
+    :timer.sleep(50)
     duration = Gemini.Telemetry.calculate_duration(start_time)
     IO.puts("  • Measured 50ms sleep: #{duration}ms (should be ~50ms)")
   end
@@ -260,6 +272,7 @@ defmodule TelemetryShowcase do
         case Gemini.text("What is 2+2? Answer briefly.") do
           {:ok, response} ->
             IO.puts("🎯 API Response received: #{String.slice(response, 0, 100)}...")
+
           {:error, error} ->
             IO.puts("❌ API Error: #{inspect(error)}")
         end
@@ -319,8 +332,17 @@ defmodule TelemetryShowcase do
     ]
 
     successful_requests = Enum.filter(measurements, &(&1.status == 200))
-    avg_duration = Enum.map(successful_requests, & &1.duration) |> Enum.sum() |> div(length(successful_requests))
-    avg_chunk_size = Enum.map(successful_requests, & &1.chunk_size) |> Enum.sum() |> div(length(successful_requests))
+
+    avg_duration =
+      Enum.map(successful_requests, & &1.duration)
+      |> Enum.sum()
+      |> div(length(successful_requests))
+
+    avg_chunk_size =
+      Enum.map(successful_requests, & &1.chunk_size)
+      |> Enum.sum()
+      |> div(length(successful_requests))
+
     error_rate = (length(measurements) - length(successful_requests)) / length(measurements) * 100
 
     IO.puts("📈 Sample Analysis Results:")

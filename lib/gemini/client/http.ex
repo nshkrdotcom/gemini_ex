@@ -4,12 +4,25 @@ defmodule Gemini.Client.HTTP do
 
   Supports multiple authentication strategies and provides both
   regular and streaming request capabilities.
+
+  ## Rate Limiting
+
+  All requests are automatically routed through the rate limiter unless
+  `disable_rate_limiter: true` is passed in options. The rate limiter:
+
+  - Enforces concurrency limits per model
+  - Honors 429 RetryInfo delays from the API
+  - Retries transient failures with backoff
+  - Tracks token usage for budget estimation
+
+  See `Gemini.RateLimiter` for configuration options.
   """
 
   alias Gemini.Config
   alias Gemini.Auth
   alias Gemini.Error
   alias Gemini.Telemetry
+  alias Gemini.RateLimiter
 
   @doc """
   Make a GET request using the configured authentication.
@@ -29,11 +42,17 @@ defmodule Gemini.Client.HTTP do
 
   @doc """
   Make an authenticated HTTP request.
+
+  ## Options
+
+  In addition to standard request options, supports rate limiter options:
+
+  - `:disable_rate_limiter` - Bypass rate limiting (default: false)
+  - `:non_blocking` - Return immediately if rate limited (default: false)
+  - `:max_concurrency_per_model` - Override concurrency limit
   """
   def request(method, path, body, auth_config, opts \\ []) do
     Config.validate!()
-
-    start_time = System.monotonic_time()
 
     case auth_config do
       nil ->
@@ -42,53 +61,69 @@ defmodule Gemini.Client.HTTP do
       %{type: auth_type, credentials: credentials} ->
         url = build_authenticated_url(auth_type, path, credentials)
         headers = Auth.build_headers(auth_type, credentials)
+        model = extract_model_from_path(path)
 
-        metadata = Telemetry.build_request_metadata(url, method, opts)
-        measurements = %{system_time: System.system_time()}
-
-        Telemetry.execute([:gemini, :request, :start], measurements, metadata)
-
-        req_opts = [
-          method: method,
-          url: url,
-          headers: headers,
-          receive_timeout: Config.timeout(),
-          json: body
-        ]
-
-        try do
-          result = Req.request(req_opts) |> handle_response()
-
-          case result do
-            {:ok, _response} ->
-              duration = Telemetry.calculate_duration(start_time)
-
-              stop_measurements = %{
-                duration: duration,
-                status: 200
-              }
-
-              Telemetry.execute([:gemini, :request, :stop], stop_measurements, metadata)
-
-            {:error, error} ->
-              Telemetry.execute(
-                [:gemini, :request, :exception],
-                measurements,
-                Map.put(metadata, :reason, error)
-              )
-          end
-
-          result
-        rescue
-          exception ->
-            Telemetry.execute(
-              [:gemini, :request, :exception],
-              measurements,
-              Map.put(metadata, :reason, exception)
-            )
-
-            reraise exception, __STACKTRACE__
+        # Execute through rate limiter
+        request_fn = fn ->
+          execute_request(method, url, headers, body, opts)
         end
+
+        if Keyword.get(opts, :disable_rate_limiter, false) do
+          request_fn.()
+        else
+          RateLimiter.execute_with_usage_tracking(request_fn, model, opts)
+        end
+    end
+  end
+
+  # Execute the actual HTTP request with telemetry
+  defp execute_request(method, url, headers, body, opts) do
+    start_time = System.monotonic_time()
+    metadata = Telemetry.build_request_metadata(url, method, opts)
+    measurements = %{system_time: System.system_time()}
+
+    Telemetry.execute([:gemini, :request, :start], measurements, metadata)
+
+    req_opts = [
+      method: method,
+      url: url,
+      headers: headers,
+      receive_timeout: Config.timeout(),
+      json: body
+    ]
+
+    try do
+      result = Req.request(req_opts) |> handle_response()
+
+      case result do
+        {:ok, _response} ->
+          duration = Telemetry.calculate_duration(start_time)
+
+          stop_measurements = %{
+            duration: duration,
+            status: 200
+          }
+
+          Telemetry.execute([:gemini, :request, :stop], stop_measurements, metadata)
+
+        {:error, error} ->
+          Telemetry.execute(
+            [:gemini, :request, :exception],
+            measurements,
+            Map.put(metadata, :reason, error)
+          )
+      end
+
+      result
+    rescue
+      exception ->
+        Telemetry.execute(
+          [:gemini, :request, :exception],
+          measurements,
+          Map.put(metadata, :reason, exception)
+        )
+
+        reraise exception, __STACKTRACE__
     end
   end
 

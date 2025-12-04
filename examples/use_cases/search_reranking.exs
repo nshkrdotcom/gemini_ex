@@ -141,7 +141,7 @@ IO.puts("Embedding user query...")
 {:ok, %EmbedContentResponse{embedding: query_embedding}} =
   Coordinator.embed_content(
     user_query,
-    model: "text-embedding-004",
+    model: "gemini-embedding-001",
     task_type: :retrieval_query,
     output_dimensionality: 768
   )
@@ -160,7 +160,7 @@ embedded_products =
     {:ok, %EmbedContentResponse{embedding: embedding}} =
       Coordinator.embed_content(
         text,
-        model: "text-embedding-004",
+        model: "gemini-embedding-001",
         task_type: :retrieval_document,
         title: product.name,
         output_dimensionality: 768
@@ -291,7 +291,7 @@ Enum.each(additional_queries, fn query ->
   {:ok, %EmbedContentResponse{embedding: q_emb}} =
     Coordinator.embed_content(
       query,
-      model: "text-embedding-004",
+      model: "gemini-embedding-001",
       task_type: :retrieval_query,
       output_dimensionality: 768
     )

@@ -39,12 +39,12 @@ defmodule Gemini.Models do
   Get information about a specific model.
 
   ## Parameters
-    - `model_name` - Name of the model (e.g., "gemini-2.0-flash-lite")
+    - `model_name` - Name of the model (e.g., "gemini-flash-lite-latest")
 
   ## Examples
 
-      iex> Gemini.Models.get("gemini-2.0-flash-lite")
-      {:ok, %Model{name: "models/gemini-2.0-flash-lite", ...}}
+      iex> Gemini.Models.get("gemini-flash-lite-latest")
+      {:ok, %Model{name: "models/gemini-flash-lite-latest", ...}}
 
       iex> Gemini.Models.get("invalid-model")
       {:error, %Gemini.Error{type: :api_error, ...}}
@@ -71,7 +71,7 @@ defmodule Gemini.Models do
   ## Examples
 
       iex> Gemini.Models.list_names()
-      {:ok, ["gemini-2.0-flash-lite", "gemini-2.5-pro", "gemini-2.5-flash"]}
+      {:ok, ["gemini-flash-lite-latest", "gemini-3-pro-preview", "gemini-2.5-flash"]}
 
   """
   def list_names do
@@ -94,7 +94,7 @@ defmodule Gemini.Models do
 
   ## Examples
 
-      iex> Gemini.Models.exists?("gemini-2.0-flash")
+      iex> Gemini.Models.exists?("gemini-flash-lite-latest")
       {:ok, true}
 
       iex> Gemini.Models.exists?("invalid-model")

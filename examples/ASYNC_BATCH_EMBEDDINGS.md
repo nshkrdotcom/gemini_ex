@@ -331,7 +331,7 @@ Submit an async batch embedding job.
 
 **Options**:
 - `:display_name` (required) - Human-readable batch name
-- `:model` - Model to use (default: "text-embedding-004")
+- `:model` - Model to use (default: "gemini-embedding-001")
 - `:task_type` - Optimization hint (`:retrieval_document`, `:retrieval_query`, etc.)
 - `:output_dimensionality` - Output dimensions (128-3072)
 - `:priority` - Processing priority (default: 0, higher = more urgent)

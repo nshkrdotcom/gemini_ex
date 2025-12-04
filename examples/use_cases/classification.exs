@@ -140,7 +140,7 @@ embedded_training =
     {:ok, %EmbedContentResponse{embedding: embedding}} =
       Coordinator.embed_content(
         example.text,
-        model: "text-embedding-004",
+        model: "gemini-embedding-001",
         task_type: :classification,
         output_dimensionality: 768
       )
@@ -223,7 +223,7 @@ test_results =
     {:ok, %EmbedContentResponse{embedding: embedding}} =
       Coordinator.embed_content(
         text,
-        model: "text-embedding-004",
+        model: "gemini-embedding-001",
         task_type: :classification,
         output_dimensionality: 768
       )
@@ -279,7 +279,7 @@ evaluation_results =
     {:ok, %EmbedContentResponse{embedding: embedding}} =
       Coordinator.embed_content(
         test.text,
-        model: "text-embedding-004",
+        model: "gemini-embedding-001",
         task_type: :classification,
         output_dimensionality: 768
       )
@@ -387,7 +387,7 @@ extended_training =
       {:ok, %EmbedContentResponse{embedding: embedding}} =
         Coordinator.embed_content(
           example.text,
-          model: "text-embedding-004",
+          model: "gemini-embedding-001",
           task_type: :classification,
           output_dimensionality: 768
         )
@@ -405,7 +405,7 @@ IO.puts("Testing: \"#{test_feature}\"")
 {:ok, %EmbedContentResponse{embedding: test_emb}} =
   Coordinator.embed_content(
     test_feature,
-    model: "text-embedding-004",
+    model: "gemini-embedding-001",
     task_type: :classification,
     output_dimensionality: 768
   )

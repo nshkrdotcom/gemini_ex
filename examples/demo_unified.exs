@@ -11,6 +11,7 @@ defmodule UnifiedArchitectureDemo do
     first_two = String.slice(key, 0, 2)
     "#{first_two}***"
   end
+
   defp mask_api_key(_), do: "***"
 
   def run do
@@ -70,6 +71,7 @@ defmodule UnifiedArchitectureDemo do
     case Gemini.Auth.authenticate(strategy, gemini_config) do
       {:ok, headers} ->
         IO.puts("Gemini auth headers (key #{mask_api_key(demo_key)}): #{inspect(headers)}")
+
       {:error, error} ->
         IO.puts("Gemini auth error: #{error}")
     end
@@ -82,6 +84,7 @@ defmodule UnifiedArchitectureDemo do
     case Gemini.Auth.authenticate(strategy, vertex_config) do
       {:ok, headers} ->
         IO.puts("Vertex auth headers: #{inspect(headers)}")
+
       {:error, error} ->
         IO.puts("Vertex auth error: #{error}")
     end
@@ -93,6 +96,7 @@ defmodule UnifiedArchitectureDemo do
     case Gemini.Auth.base_url(Gemini.Auth.strategy(:vertex), vertex_config) do
       url when is_binary(url) ->
         IO.puts("Vertex base URL: #{url}")
+
       {:error, error} ->
         IO.puts("Vertex URL error: #{error}")
     end
@@ -106,6 +110,7 @@ defmodule UnifiedArchitectureDemo do
     case Application.ensure_all_started(:gemini) do
       {:ok, _} ->
         IO.puts("Gemini application started")
+
       {:error, error} ->
         IO.puts("Failed to start application: #{inspect(error)}")
         :error
@@ -113,7 +118,7 @@ defmodule UnifiedArchitectureDemo do
 
     # Demonstrate streaming functionality using the new unified coordinator
     contents = "Tell me about artificial intelligence"
-    opts = [model: Gemini.Config.get_model(:flash_2_0_lite)]
+    opts = [model: Gemini.Config.get_model(:flash_lite_latest)]
 
     case Gemini.APIs.Coordinator.stream_generate_content(contents, opts) do
       {:ok, stream_id} ->
@@ -123,6 +128,7 @@ defmodule UnifiedArchitectureDemo do
         case Gemini.APIs.Coordinator.subscribe_stream(stream_id, self()) do
           :ok ->
             IO.puts("Subscribed to stream")
+
           {:error, error} ->
             IO.puts("Subscription error: #{error}")
         end
@@ -131,15 +137,18 @@ defmodule UnifiedArchitectureDemo do
         case Gemini.APIs.Coordinator.stream_status(stream_id) do
           {:ok, status} ->
             IO.puts("Stream status: #{status}")
+
           {:error, error} ->
             IO.puts("Stream status error: #{error}")
         end
 
         # Stop the stream after a brief moment
         Process.sleep(100)
+
         case Gemini.APIs.Coordinator.stop_stream(stream_id) do
           :ok ->
             IO.puts("Stream stopped successfully")
+
           {:error, error} ->
             IO.puts("Stop stream error: #{error}")
         end
@@ -162,6 +171,7 @@ defmodule UnifiedArchitectureDemo do
       case Gemini.Generate.content("Hello, world!") do
         {:ok, _response} ->
           IO.puts("✅ generate_content API compatible")
+
         {:error, _error} ->
           IO.puts("✅ generate_content API compatible (expected auth error)")
       end

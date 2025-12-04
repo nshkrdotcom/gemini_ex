@@ -5,6 +5,115 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2025-12-03
+
+### Added
+
+#### Rate Limiting System (Default ON)
+
+A comprehensive rate limiting, retry, and concurrency management system that is **enabled by default**:
+
+- **RateLimitManager** - Central coordinator that wraps all outbound requests
+  - ETS-based state tracking keyed by `{model, location, metric}`
+  - Tracks `retry_until` timestamps from 429 RetryInfo responses
+  - Token usage sliding windows for budget estimation
+  - Configurable via application config or per-request options
+
+- **ConcurrencyGate** - Per-model concurrency limiting
+  - Default limit of 4 concurrent requests per model
+  - Configurable with `max_concurrency_per_model` (nil/0 disables)
+  - Optional adaptive mode: adjusts concurrency based on 429 responses
+  - Non-blocking mode returns immediately if no permits available
+
+- **RetryManager** - Intelligent retry with backoff
+  - Honors 429 RetryInfo.retryDelay from API responses
+  - Exponential backoff with jitter for 5xx/transient errors
+  - Configurable max attempts (default: 3)
+  - Coordinates with rate limiter to avoid double retries
+
+- **TokenBudget** - Preflight token estimation
+  - Track actual usage from responses
+  - Block/queue when over configured budget
+  - Sliding window tracking per model/location
+
+#### Telemetry Events
+
+New telemetry events for rate limit monitoring (consistent with existing `[:gemini, ...]` namespace):
+
+- `[:gemini, :rate_limit, :request, :start]` - Request submitted
+- `[:gemini, :rate_limit, :request, :stop]` - Request completed
+- `[:gemini, :rate_limit, :wait]` - Waiting for retry window
+- `[:gemini, :rate_limit, :error]` - Rate limit error
+
+#### Structured Errors
+
+New structured error types:
+
+- `{:error, {:rate_limited, retry_at, details}}` - Rate limited with retry info
+- `{:error, {:transient_failure, attempts, original_error}}` - Transient failure after retries
+
+#### Configuration Options
+
+```elixir
+config :gemini_ex, :rate_limiter,
+  max_concurrency_per_model: 4,    # nil/0 disables
+  max_attempts: 3,
+  base_backoff_ms: 1000,
+  jitter_factor: 0.25,
+  non_blocking: false,
+  disable_rate_limiter: false,
+  adaptive_concurrency: false,
+  adaptive_ceiling: 8,
+  profile: :prod  # :dev | :prod | :custom
+```
+
+#### Per-Request Options
+
+- `disable_rate_limiter: true` - Bypass all rate limiting
+- `non_blocking: true` - Return immediately if rate limited
+- `max_concurrency_per_model: N` - Override concurrency
+- `estimated_input_tokens: N` - For budget checking
+- `token_budget_per_window: N` - Max tokens per window
+
+#### Documentation
+
+- New rate limiting guide: `docs/guides/rate_limiting.md`
+- Comprehensive module documentation for all rate limiter components
+- Updated README with rate limiting section
+
+### Changed
+
+- HTTP client now routes all requests through rate limiter by default
+- Supervisor now starts RateLimitManager on application boot
+
+### Technical Notes
+
+- **Streaming Safe**: Rate limiter only gates request submission; open streams are not interrupted
+- **Coordinate Retry Layers**: Retry logic coordinates between rate limiter and HTTP client to avoid double retries
+- **Test Infrastructure**: Added Bypass-based fake Gemini endpoint for testing rate limit behavior
+
+### Migration Guide
+
+Rate limiting is enabled by default. To disable:
+
+```elixir
+# Per-request
+Gemini.generate("Hello", disable_rate_limiter: true)
+
+# Globally (not recommended)
+config :gemini_ex, :rate_limiter, disable_rate_limiter: true
+```
+
+The new structured errors are backward compatible - existing error handling will continue to work, but you can now pattern match on rate limit specifics:
+
+```elixir
+case Gemini.generate("Hello") do
+  {:ok, response} -> handle_success(response)
+  {:error, {:rate_limited, retry_at, _}} -> schedule_retry(retry_at)
+  {:error, other} -> handle_error(other)
+end
+```
+
 ## [0.4.0] - 2025-11-06
 
 ### Added
@@ -224,7 +333,7 @@ This release adds comprehensive text embedding functionality with Matryoshka Rep
   - Matryoshka Representation Learning explanation
   - MTEB benchmark scores table (128d to 3072d)
   - Normalization requirements and best practices
-  - Model comparison table (text-embedding-004 vs gemini-embedding-001)
+  - Model comparison table (gemini-embedding-001 vs gemini-embedding-001)
   - Critical normalization warnings
   - Distance metrics usage guide
 
@@ -274,7 +383,7 @@ This release adds comprehensive text embedding functionality with Matryoshka Rep
 
 - **Updated README.md**: Added embeddings section in features list and comprehensive usage guide
 - **Enhanced EMBEDDINGS.md**: Complete rewrite with MRL documentation and advanced examples
-- **Model Recommendations**: Updated to highlight `text-embedding-004` with MRL support
+- **Model Recommendations**: Updated to highlight `gemini-embedding-001` with MRL support
 
 ### Migration Notes
 
@@ -283,7 +392,7 @@ This release adds comprehensive text embedding functionality with Matryoshka Rep
 # Generate embedding with recommended 768 dimensions
 {:ok, response} = Gemini.embed_content(
   "Your text",
-  model: "text-embedding-004",
+  model: "gemini-embedding-001",
   output_dimensionality: 768
 )
 
@@ -553,7 +662,7 @@ This is a significant milestone release featuring a complete unified implementat
 
 #### 🏗️ Architecture Improvements
 - **Type System**: Resolved module conflicts and compilation warnings
-- **Configuration**: Updated default model to `gemini-2.0-flash-lite` 
+- **Configuration**: Updated default model to `gemini-flash-lite-latest` 
 - **Code Quality**: Zero compilation warnings achieved across entire codebase
 - **Documentation**: Updated model references and improved examples
 
@@ -565,7 +674,7 @@ This is a significant milestone release featuring a complete unified implementat
 
 #### 📝 Documentation Updates
 - **README Enhancement**: Added comprehensive examples section with detailed descriptions
-- **Model Updates**: Updated all model references to use latest Gemini 2.0 models
+- **Model Updates**: Updated references to the latest Gemini models (Gemini 3 Pro Preview, 2.5 Flash/Flash-Lite) and new defaults
 - **Configuration Examples**: Improved auth setup documentation
 - **Usage Patterns**: Better code examples and patterns
 
@@ -613,7 +722,7 @@ This is a significant milestone release featuring a complete unified implementat
 ```elixir
 # Enhanced configuration with auto-detection
 config :gemini_ex,
-  default_model: "gemini-2.0-flash-lite",  # Updated default
+  default_model: "gemini-flash-lite-latest",  # Updated default
   timeout: 30_000,
   telemetry_enabled: true  # New telemetry controls
 ```

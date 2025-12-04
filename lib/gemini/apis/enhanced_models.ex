@@ -15,10 +15,10 @@ defmodule Gemini.APIs.Models do
       models = response.models
 
       # Get specific model information
-      {:ok, model} = Models.get("gemini-2.0-flash")
+      {:ok, model} = Models.get("gemini-3-pro-preview")
 
       # Check if model exists
-      {:ok, true} = Models.exists?("gemini-2.0-flash-lite")
+      {:ok, true} = Models.exists?("gemini-flash-lite-latest")
 
       # Filter models by capabilities
       {:ok, streaming_models} = Models.supporting_method("streamGenerateContent")
@@ -95,7 +95,7 @@ defmodule Gemini.APIs.Models do
 
   ## Parameters
   - `model_name` - The model identifier, with or without "models/" prefix
-    Examples: "gemini-2.0-flash-lite", "models/gemini-2.5-pro"
+    Examples: "gemini-flash-lite-latest", "models/gemini-3-pro-preview"
 
   ## Returns
   - `{:ok, Model.t()}` - Success with model details
@@ -104,7 +104,7 @@ defmodule Gemini.APIs.Models do
   ## Examples
 
       # Get model by base ID
-      {:ok, model} = Models.get("gemini-2.0-flash-lite")
+      {:ok, model} = Models.get("gemini-flash-lite-latest")
 
       # Get model by full resource name
       {:ok, model} = Models.get("models/gemini-2.5-pro")
@@ -166,7 +166,7 @@ defmodule Gemini.APIs.Models do
   ## Examples
 
       {:ok, names} = Models.list_names()
-      # => ["gemini-2.0-flash-lite", "gemini-2.5-pro", "gemini-2.5-flash"]
+      # => ["gemini-flash-lite-latest", "gemini-2.5-pro", "gemini-2.5-flash"]
 
       # Use with enum functions
       {:ok, names} = Models.list_names()
@@ -202,12 +202,12 @@ defmodule Gemini.APIs.Models do
 
   ## Examples
 
-      {:ok, true} = Models.exists?("gemini-2.0-flash-lite")
+      {:ok, true} = Models.exists?("gemini-flash-lite-latest")
       {:ok, false} = Models.exists?("nonexistent-model")
 
       # Use in conditional logic
-      case Models.exists?("gemini-2.0-flash-lite") do
-        {:ok, true} -> generate_with_model("gemini-2.0-flash-lite")
+      case Models.exists?("gemini-flash-lite-latest") do
+        {:ok, true} -> generate_with_model("gemini-flash-lite-latest")
         {:ok, false} -> use_fallback_model()
         {:error, _} -> handle_api_error()
       end

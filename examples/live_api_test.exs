@@ -48,6 +48,7 @@ defmodule LiveAPITest do
 
     # Configure for Gemini API
     api_key = System.get_env("GEMINI_API_KEY")
+
     if api_key do
       Gemini.configure(:gemini, %{api_key: api_key})
       IO.puts("Configured Gemini API with key: #{String.slice(api_key, 0, 8)}***")
@@ -70,7 +71,9 @@ defmodule LiveAPITest do
     IO.puts("-" |> String.duplicate(40))
 
     # Check for Vertex AI credentials
-    service_account_file = System.get_env("VERTEX_JSON_FILE") || System.get_env("VERTEX_SERVICE_ACCOUNT")
+    service_account_file =
+      System.get_env("VERTEX_JSON_FILE") || System.get_env("VERTEX_SERVICE_ACCOUNT")
+
     project_id = System.get_env("VERTEX_PROJECT_ID") || System.get_env("GOOGLE_CLOUD_PROJECT")
 
     cond do
@@ -113,9 +116,11 @@ defmodule LiveAPITest do
         case Gemini.extract_text(response) do
           {:ok, text} ->
             IO.puts("  ✅ Success: #{String.slice(text, 0, 100)}...")
+
           {:error, error} ->
             IO.puts("  ❌ Text extraction failed: #{error}")
         end
+
       {:error, error} ->
         IO.puts("  ❌ Generation failed: #{inspect(error)}")
     end
@@ -130,9 +135,11 @@ defmodule LiveAPITest do
         IO.puts("  ✅ Found #{model_count} models")
 
         # Show first few model names
-        model_names = response.models
-                     |> Enum.take(3)
-                     |> Enum.map(& &1.name)
+        model_names =
+          response.models
+          |> Enum.take(3)
+          |> Enum.map(& &1.name)
+
         IO.puts("  First models: #{inspect(model_names)}")
 
       {:error, error} ->
@@ -144,7 +151,7 @@ defmodule LiveAPITest do
     IO.puts("\n  📋 Testing Vertex AI model operations")
 
     # For Vertex AI, we test specific model existence
-    model_name = "gemini-2.0-flash-lite"
+    model_name = "gemini-flash-lite-latest"
 
     case Gemini.model_exists?(model_name) do
       {:ok, true} ->
@@ -154,6 +161,7 @@ defmodule LiveAPITest do
         case Gemini.get_model(model_name) do
           {:ok, model} ->
             IO.puts("  ✅ Model details: #{model.display_name || model.name}")
+
           {:error, error} ->
             IO.puts("  ⚠️  Model details failed: #{inspect(error)}")
         end
@@ -171,6 +179,7 @@ defmodule LiveAPITest do
     case Gemini.count_tokens(test_text) do
       {:ok, response} ->
         IO.puts("  ✅ Token count: #{response.total_tokens} tokens")
+
       {:error, error} ->
         IO.puts("  ❌ Token counting failed: #{inspect(error)}")
     end
@@ -197,11 +206,12 @@ defmodule LiveAPITest do
         IO.puts("  ✅ Received #{length(responses)} stream responses")
 
         # Combine all text from stream
-        all_text = responses
-                  |> Enum.map(&Gemini.extract_text/1)
-                  |> Enum.filter(&match?({:ok, _}, &1))
-                  |> Enum.map(fn {:ok, text} -> text end)
-                  |> Enum.join("")
+        all_text =
+          responses
+          |> Enum.map(&Gemini.extract_text/1)
+          |> Enum.filter(&match?({:ok, _}, &1))
+          |> Enum.map(fn {:ok, text} -> text end)
+          |> Enum.join("")
 
         IO.puts("  📝 Streamed text: #{String.slice(all_text, 0, 200)}...")
 
@@ -229,7 +239,8 @@ defmodule LiveAPITest do
             IO.puts("  ✅ Subscribed to stream")
 
             # Wait for stream events
-            collect_stream_events(stream_id, 0, 5000)  # 5 second timeout
+            # 5 second timeout
+            collect_stream_events(stream_id, 0, 5000)
 
           {:error, error} ->
             IO.puts("  ❌ Failed to start managed stream: #{inspect(error)}")
@@ -244,13 +255,25 @@ defmodule LiveAPITest do
     receive do
       {:stream_event, ^stream_id, event} ->
         # Show actual content instead of just keys
-        content = case event do
-          %{data: %{"candidates" => [%{"content" => %{"parts" => [%{"text" => text}]}}]}} -> text
-          %{data: data} -> "Data: #{inspect(data)}"
-          %{error: error} -> "Error: #{inspect(error)}"
-          _ -> "Event: #{inspect(event)}"
-        end
-        IO.puts("  📦 Stream event #{event_count + 1}: #{String.slice(content, 0, 100)}#{if String.length(content) > 100, do: "...", else: ""}")
+        content =
+          case event do
+            %{data: %{"candidates" => [%{"content" => %{"parts" => [%{"text" => text}]}}]}} ->
+              text
+
+            %{data: data} ->
+              "Data: #{inspect(data)}"
+
+            %{error: error} ->
+              "Error: #{inspect(error)}"
+
+            _ ->
+              "Event: #{inspect(event)}"
+          end
+
+        IO.puts(
+          "  📦 Stream event #{event_count + 1}: #{String.slice(content, 0, 100)}#{if String.length(content) > 100, do: "...", else: ""}"
+        )
+
         collect_stream_events(stream_id, event_count + 1, timeout)
 
       {:stream_complete, ^stream_id} ->
@@ -258,17 +281,18 @@ defmodule LiveAPITest do
 
       {:stream_error, ^stream_id, error} ->
         IO.puts("  ❌ Stream error: #{inspect(error)}")
+    after
+      timeout ->
+        IO.puts("  ⏰ Stream timeout after #{event_count} events")
 
-    after timeout ->
-      IO.puts("  ⏰ Stream timeout after #{event_count} events")
+        # Check stream status
+        case Gemini.get_stream_status(stream_id) do
+          {:ok, status} ->
+            IO.puts("  📊 Final stream status: #{status}")
 
-      # Check stream status
-      case Gemini.get_stream_status(stream_id) do
-        {:ok, status} ->
-          IO.puts("  📊 Final stream status: #{status}")
-        {:error, _} ->
-          IO.puts("  📊 Stream status unavailable")
-      end
+          {:error, _} ->
+            IO.puts("  📊 Stream status unavailable")
+        end
     end
   end
 
@@ -279,7 +303,9 @@ defmodule LiveAPITest do
           {:ok, %{"project_id" => project_id}} -> project_id
           _ -> nil
         end
-      _ -> nil
+
+      _ ->
+        nil
     end
   end
 end

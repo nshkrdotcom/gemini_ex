@@ -23,7 +23,7 @@ Matryoshka Representation Learning (MRL) is a technique that teaches models to
 create high-dimensional embeddings where smaller prefixes are also useful. This
 allows you to truncate embeddings to smaller sizes with minimal quality loss.
 
-The text-embedding-004 model supports flexible dimensions from 128 to 3072, with
+The gemini-embedding-001 model supports flexible dimensions from 128 to 3072, with
 recommended sizes: 768, 1536, and 3072 dimensions.
 """)
 
@@ -69,7 +69,7 @@ embeddings_by_dimension =
 
     case Coordinator.embed_content(
            sample_text,
-           model: "text-embedding-004",
+           model: "gemini-embedding-001",
            output_dimensionality: dim
          ) do
       {:ok, %EmbedContentResponse{embedding: embedding}} ->
@@ -150,11 +150,14 @@ IO.puts("Dissimilar text: #{String.slice(dissimilar_text, 0..80)}...")
 
 # Generate embeddings for comparison texts
 {:ok, %EmbedContentResponse{embedding: similar_emb}} =
-  Coordinator.embed_content(similar_text, model: "text-embedding-004", output_dimensionality: 768)
+  Coordinator.embed_content(similar_text,
+    model: "gemini-embedding-001",
+    output_dimensionality: 768
+  )
 
 {:ok, %EmbedContentResponse{embedding: dissimilar_emb}} =
   Coordinator.embed_content(dissimilar_text,
-    model: "text-embedding-004",
+    model: "gemini-embedding-001",
     output_dimensionality: 768
   )
 

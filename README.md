@@ -18,8 +18,9 @@ A comprehensive Elixir client for Google's Gemini AI API with dual authenticatio
 - **🤖 Automatic Tool Calling**: A seamless, Python-SDK-like experience that automates the entire multi-turn tool-calling loop
 - **🔐 Dual Authentication**: Seamless support for both Gemini API keys and Vertex AI OAuth/Service Accounts
 - **⚡ Advanced Streaming**: Production-grade Server-Sent Events streaming with real-time processing
-- **📊 Embeddings with MRL**: Text embeddings with Matryoshka Representation Learning, normalization, and distance metrics (v0.3.0)
-- **💰 Async Batch Embeddings**: Production-scale embedding generation with 50% cost savings (NEW in v0.3.1!)
+- **🚦 Automatic Rate Limiting**: Built-in rate limit handling with retries, concurrency gating, and adaptive backoff (NEW in v0.5.0!)
+- **📊 Embeddings with MRL**: Text embeddings with Matryoshka Representation Learning, normalization, and distance metrics
+- **💰 Async Batch Embeddings**: Production-scale embedding generation with 50% cost savings
 - **🛡️ Type Safety**: Complete type definitions with runtime validation
 - **📈 Built-in Telemetry**: Comprehensive observability and metrics out of the box
 - **💬 Chat Sessions**: Multi-turn conversation management with state persistence
@@ -44,7 +45,7 @@ Add `gemini` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:gemini_ex, "~> 0.4.0"}
+    {:gemini_ex, "~> 0.5.0"}
   ]
 end
 ```
@@ -78,7 +79,7 @@ IO.puts(text)
 
 # With options
 {:ok, response} = Gemini.generate("Explain quantum computing", [
-  model: "gemini-2.0-flash-lite",
+  model: "gemini-flash-lite-latest",
   temperature: 0.7,
   max_output_tokens: 1000
 ])
@@ -233,7 +234,7 @@ See [Structured Outputs Guide](docs/guides/structured_outputs.md) for details.
 ```elixir
 # Create a chat session
 {:ok, session} = Gemini.create_chat_session([
-  model: "gemini-2.0-flash-lite",
+  model: "gemini-flash-lite-latest",
   system_instruction: "You are a helpful programming assistant."
 ])
 
@@ -322,7 +323,7 @@ Gemini.Tools.register(calc_declaration, &DemoTools.calculate/1)
 {:ok, response} = Gemini.generate_content_with_auto_tools(
   "What's the weather like in Tokyo? Also calculate 15 * 23.",
   tools: [weather_declaration, calc_declaration],
-  model: "gemini-2.0-flash-lite",
+  model: "gemini-flash-lite-latest",
   temperature: 0.1
 )
 ```
@@ -352,7 +353,7 @@ For real-time responses with tool calling:
 {:ok, stream_id} = Gemini.stream_generate_with_auto_tools(
   "Check the weather in London and calculate the tip for a $50 meal",
   tools: [weather_declaration, calc_declaration],
-  model: "gemini-2.0-flash-lite"
+  model: "gemini-flash-lite-latest"
 )
 
 # Subscribe to the stream
@@ -379,7 +380,7 @@ For advanced use cases requiring full control over the conversation loop, custom
 {:ok, response} = Gemini.generate_content(
   "What's the weather in Paris?",
   tools: [weather_declaration],
-  model: "gemini-2.0-flash-lite"
+  model: "gemini-flash-lite-latest"
 )
 
 # Step 2: Check for function calls in the response
@@ -403,7 +404,7 @@ case response.candidates do
       
       {:ok, final_response} = Gemini.generate_content(
         conversation_history,
-        model: "gemini-2.0-flash-lite"
+        model: "gemini-flash-lite-latest"
       )
       
       {:ok, text} = Gemini.extract_text(final_response)
@@ -441,13 +442,13 @@ similarity = ContentEmbedding.cosine_similarity(norm1, norm2)
 
 ### MRL (Matryoshka Representation Learning)
 
-The `text-embedding-004` model supports flexible dimensions (128-3072) with minimal quality loss:
+The `gemini-embedding-001` model supports flexible dimensions (128-3072) with minimal quality loss:
 
 ```elixir
 # 768 dimensions - RECOMMENDED (25% storage, 0.26% quality loss)
 {:ok, response} = Gemini.embed_content(
   "Your text",
-  model: "text-embedding-004",
+  model: "gemini-embedding-001",
   output_dimensionality: 768
 )
 
@@ -514,7 +515,7 @@ Efficient for multiple texts:
 ```elixir
 texts = ["Text 1", "Text 2", "Text 3"]
 {:ok, response} = Gemini.batch_embed_contents(
-  "text-embedding-004",
+  "gemini-embedding-001",
   texts,
   task_type: "RETRIEVAL_DOCUMENT"
 )
@@ -912,11 +913,16 @@ All 12 generation config options are fully supported across all API entry points
 {:ok, models} = Gemini.list_models()
 
 # Get model details
-{:ok, model_info} = Gemini.get_model("gemini-2.0-flash-lite")
+{:ok, model_info} = Gemini.get_model("gemini-flash-lite-latest")
 
 # Count tokens
-{:ok, token_count} = Gemini.count_tokens("Your text here", model: "gemini-2.0-flash-lite")
+{:ok, token_count} = Gemini.count_tokens("Your text here", model: "gemini-flash-lite-latest")
 ```
+
+**Model quick picks**
+- `gemini-flash-lite-latest` (default; fastest + most cost-efficient)
+- `gemini-2.5-flash` (balanced price/performance for high-volume workloads)
+- `gemini-3-pro-preview` (most capable multimodal reasoning)
 
 ### Multimodal Content (New in v0.2.2!)
 
