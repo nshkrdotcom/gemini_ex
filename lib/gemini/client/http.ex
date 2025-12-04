@@ -41,6 +41,22 @@ defmodule Gemini.Client.HTTP do
   end
 
   @doc """
+  Make a PATCH request using the configured authentication.
+  """
+  def patch(path, body, opts \\ []) do
+    auth_config = Config.auth_config()
+    request(:patch, path, body, auth_config, opts)
+  end
+
+  @doc """
+  Make a DELETE request using the configured authentication.
+  """
+  def delete(path, opts \\ []) do
+    auth_config = Config.auth_config()
+    request(:delete, path, nil, auth_config, opts)
+  end
+
+  @doc """
   Make an authenticated HTTP request.
 
   ## Options

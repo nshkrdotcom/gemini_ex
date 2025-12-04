@@ -7,16 +7,71 @@ defmodule Gemini.Types.GenerationConfig do
 
   defmodule ThinkingConfig do
     @moduledoc """
-    Configuration for thinking budget in Gemini 2.5 series models.
+    Configuration for thinking/reasoning in Gemini models.
 
-    Controls how much internal reasoning the model can use.
+    ## Gemini 3 (Recommended)
+
+    Use `thinking_level` for Gemini 3 models:
+    - `:low` - Minimizes latency and cost. Best for simple tasks.
+    - `:high` - Maximizes reasoning depth (default for Gemini 3).
+
+    Note: `:medium` is not currently supported.
+
+    ## Gemini 2.5 (Legacy)
+
+    Use `thinking_budget` for Gemini 2.5 models:
+    - `0` - Disable thinking (Flash/Lite only)
+    - `-1` - Dynamic thinking
+    - Positive integer - Fixed token budget
+
+    ## Important
+
+    You cannot use both `thinking_level` and `thinking_budget` in the same request.
+    Doing so will return a 400 error from the API.
     """
 
     use TypedStruct
 
+    @type thinking_level :: :low | :medium | :high
+
+    @derive Jason.Encoder
     typedstruct do
+      @typedoc "Thinking configuration for Gemini models"
       field(:thinking_budget, integer() | nil, default: nil)
+      field(:thinking_level, thinking_level() | nil, default: nil)
       field(:include_thoughts, boolean() | nil, default: nil)
+    end
+  end
+
+  defmodule ImageConfig do
+    @moduledoc """
+    Configuration for image generation in Gemini 3 Pro Image.
+
+    Used with `gemini-3-pro-image-preview` model for generating and editing images.
+
+    ## Fields
+
+    - `aspect_ratio` - Output image aspect ratio (e.g., "16:9", "1:1", "4:3", "3:4", "9:16")
+    - `image_size` - Output resolution ("2K" or "4K")
+
+    ## Example
+
+        image_config = %ImageConfig{
+          aspect_ratio: "16:9",
+          image_size: "4K"
+        }
+    """
+
+    use TypedStruct
+
+    @type aspect_ratio :: String.t()
+    @type image_size :: String.t()
+
+    @derive Jason.Encoder
+    typedstruct do
+      @typedoc "Image generation configuration"
+      field(:aspect_ratio, aspect_ratio() | nil, default: nil)
+      field(:image_size, image_size() | nil, default: nil)
     end
   end
 
@@ -36,6 +91,7 @@ defmodule Gemini.Types.GenerationConfig do
     field(:logprobs, integer() | nil, default: nil)
     field(:thinking_config, ThinkingConfig.t() | nil, default: nil)
     field(:property_ordering, [String.t()] | nil, default: nil)
+    field(:image_config, ImageConfig.t() | nil, default: nil)
   end
 
   @doc """
@@ -125,7 +181,46 @@ defmodule Gemini.Types.GenerationConfig do
   end
 
   @doc """
-  Set thinking budget for Gemini 2.5 series models.
+  Set thinking level for Gemini 3 models.
+
+  Controls the depth of reasoning before the model responds.
+
+  ## Parameters
+  - `config`: GenerationConfig struct (defaults to new config)
+  - `level`: Thinking level atom
+    - `:low` - Minimizes latency and cost. Best for simple instruction following.
+    - `:high` - Maximizes reasoning depth. Model may take longer for first token.
+
+  Note: `:medium` is not currently supported by the API.
+
+  ## Important
+
+  Cannot be used with `thinking_budget` in the same request.
+
+  ## Examples
+
+      # Fast responses for simple tasks
+      config = GenerationConfig.thinking_level(:low)
+
+      # Deep reasoning for complex tasks (default)
+      config = GenerationConfig.thinking_level(:high)
+
+      # Chain with other options
+      config =
+        GenerationConfig.new()
+        |> GenerationConfig.thinking_level(:low)
+        |> GenerationConfig.max_tokens(1000)
+  """
+  @spec thinking_level(t(), ThinkingConfig.thinking_level()) :: t()
+  def thinking_level(config \\ %__MODULE__{}, level) when level in [:low, :medium, :high] do
+    thinking_config = %ThinkingConfig{thinking_level: level}
+    %{config | thinking_config: thinking_config}
+  end
+
+  @doc """
+  Set thinking budget for Gemini 2.5 series models (legacy).
+
+  For Gemini 3 models, use `thinking_level/2` instead.
 
   Controls how many thinking tokens the model can use for internal reasoning.
 
@@ -138,6 +233,10 @@ defmodule Gemini.Types.GenerationConfig do
       - Flash: 0-24,576
       - Pro: 128-32,768
       - Lite: 512-24,576
+
+  ## Important
+
+  Cannot be used with `thinking_level` in the same request.
 
   ## Examples
 
@@ -343,5 +442,39 @@ defmodule Gemini.Types.GenerationConfig do
   @spec structured_json(t(), map()) :: t()
   def structured_json(config \\ %__MODULE__{}, schema) when is_map(schema) do
     %{config | response_mime_type: "application/json", response_schema: schema}
+  end
+
+  @doc """
+  Configure image generation settings for Gemini 3 Pro Image.
+
+  Used with `gemini-3-pro-image-preview` model for generating images.
+
+  ## Parameters
+  - `config`: GenerationConfig struct (defaults to new config)
+  - `opts`: Keyword list of image options
+    - `:aspect_ratio` - Output aspect ratio (e.g., "16:9", "1:1", "4:3", "3:4", "9:16")
+    - `:image_size` - Output resolution ("2K" or "4K")
+
+  ## Examples
+
+      # Generate 4K landscape image
+      config = GenerationConfig.image_config(aspect_ratio: "16:9", image_size: "4K")
+
+      # Generate square image at 2K
+      config = GenerationConfig.image_config(aspect_ratio: "1:1", image_size: "2K")
+
+      # Chain with other options
+      config =
+        GenerationConfig.new()
+        |> GenerationConfig.image_config(aspect_ratio: "16:9", image_size: "4K")
+  """
+  @spec image_config(t(), keyword()) :: t()
+  def image_config(config \\ %__MODULE__{}, opts) when is_list(opts) do
+    image_cfg = %ImageConfig{
+      aspect_ratio: Keyword.get(opts, :aspect_ratio),
+      image_size: Keyword.get(opts, :image_size)
+    }
+
+    %{config | image_config: image_cfg}
   end
 end

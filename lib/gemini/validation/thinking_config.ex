@@ -2,6 +2,16 @@ defmodule Gemini.Validation.ThinkingConfig do
   @moduledoc """
   Validation for thinking configuration parameters based on model capabilities.
 
+  ## Gemini 3 Models
+
+  Use `thinking_level` for Gemini 3 models:
+  - `:low` - Minimizes latency and cost
+  - `:high` - Maximizes reasoning depth (default)
+
+  Note: `:medium` is not currently supported.
+
+  ## Gemini 2.5 Models
+
   Gemini 2.5 series models support thinking budgets with model-specific ranges:
   - **2.5 Pro**: 128-32,768 tokens (cannot disable with 0)
   - **2.5 Flash**: 0-24,576 tokens (can disable)
@@ -9,10 +19,46 @@ defmodule Gemini.Validation.ThinkingConfig do
 
   Special value `-1` enables dynamic thinking (model decides budget) for all models.
 
-  See: https://ai.google.dev/gemini-api/docs/thinking
+  ## Important
+
+  You cannot use both `thinking_level` and `thinking_budget` in the same request.
+  Doing so will return a 400 error from the API.
+
+  See: https://ai.google.dev/gemini-api/docs/gemini-3
   """
 
   @type validation_result :: :ok | {:error, String.t()}
+  @type thinking_level :: :low | :medium | :high
+
+  @doc """
+  Validate thinking level for Gemini 3 models.
+
+  ## Parameters
+  - `level`: Thinking level atom (`:low`, `:medium`, or `:high`)
+
+  ## Returns
+  - `:ok` if valid
+  - `{:error, message}` if invalid
+
+  ## Examples
+
+      iex> Gemini.Validation.ThinkingConfig.validate_level(:low)
+      :ok
+
+      iex> Gemini.Validation.ThinkingConfig.validate_level(:medium)
+      {:error, "Thinking level :medium is not currently supported. Use :low or :high."}
+  """
+  @spec validate_level(thinking_level()) :: validation_result()
+  def validate_level(:low), do: :ok
+  def validate_level(:high), do: :ok
+
+  def validate_level(:medium) do
+    {:error, "Thinking level :medium is not currently supported. Use :low or :high."}
+  end
+
+  def validate_level(level) do
+    {:error, "Invalid thinking level: #{inspect(level)}. Use :low or :high."}
+  end
 
   @doc """
   Validate thinking budget for a specific model.
@@ -56,7 +102,7 @@ defmodule Gemini.Validation.ThinkingConfig do
   end
 
   @doc """
-  Validate complete thinking config including budget and include_thoughts.
+  Validate complete thinking config including budget, level, and include_thoughts.
 
   ## Parameters
   - `config`: Map or ThinkingConfig struct
@@ -65,8 +111,25 @@ defmodule Gemini.Validation.ThinkingConfig do
   ## Returns
   - `:ok` if valid
   - `{:error, message}` if invalid
+
+  ## Examples
+
+      iex> Gemini.Validation.ThinkingConfig.validate(%{thinking_level: :low}, "gemini-3-pro-preview")
+      :ok
+
+      iex> Gemini.Validation.ThinkingConfig.validate(%{thinking_budget: 1024, thinking_level: :low}, "gemini-3-pro-preview")
+      {:error, "Cannot use both thinking_level and thinking_budget in the same request"}
   """
   @spec validate(map() | struct(), String.t()) :: validation_result()
+  def validate(%{thinking_budget: budget, thinking_level: level}, _model)
+      when not is_nil(budget) and not is_nil(level) do
+    {:error, "Cannot use both thinking_level and thinking_budget in the same request"}
+  end
+
+  def validate(%{thinking_level: level}, _model) when not is_nil(level) do
+    validate_level(level)
+  end
+
   def validate(%{thinking_budget: budget}, model) when is_integer(budget) do
     validate_budget(budget, model)
   end

@@ -10,9 +10,10 @@ The simplest way to generate an embedding (equivalent to the curl example):
 
 ```elixir
 alias Gemini.APIs.Coordinator
+alias Gemini.Types.Response.EmbedContentResponse
 
 {:ok, response} = Coordinator.embed_content("What is the meaning of life?")
-values = response |> Coordinator.EmbedContentResponse.get_values()
+values = EmbedContentResponse.get_values(response)
 # => [0.123, -0.456, 0.789, ...]
 ```
 
@@ -242,41 +243,25 @@ norm = ContentEmbedding.norm(normalized_emb1)
 
 **Note:** For normalized embeddings, cosine similarity equals dot product!
 
-**Note:** MRL dimension control not supported on older models like `gemini-embedding-001` (fixed at 3072 dimensions).
-
 ## Available Models
 
 ### Recommended Model
 
-- **`gemini-embedding-001`** (Latest, Recommended)
-  - Default: 768 dimensions
-  - Supports MRL: 128-3072 dimensions
+- **`gemini-embedding-001`** (Stable, Recommended)
+  - Output dimensions: 3072 (default), flexible from 128-3072
+  - Supports MRL (Matryoshka Representation Learning) for dimension reduction
   - Supports all task types
   - MTEB Score: 67.99 (768d) to 68.17 (1536d/3072d)
-  - Requires normalization for non-3072 dimensions
+  - 3072-dimensional embeddings are pre-normalized; others require normalization
+  - Recommended dimensions: 768, 1536, or 3072
 
-### Legacy Models
+### Deprecated Models
 
-- **`gemini-embedding-001`** (Legacy)
-  - Fixed: 3072 dimensions
-  - No MRL/dimension reduction support
-  - Limited task type support
-  - Pre-normalized by API
+- **`embedding-001`** - Deprecating October 2025
+- **`embedding-gecko-001`** - Deprecating October 2025
+- **`gemini-embedding-exp-03-07`** - Deprecating October 2025
 
-- **`gemini-embedding-exp-03-07`** (Experimental)
-  - **Deprecating: October 2025**
-  - Not recommended for new projects
-
-### Model Comparison
-
-| Feature | gemini-embedding-001 | gemini-embedding-001 |
-|---------|-------------------|---------------------|
-| Default Dimensions | 768 | 3072 (fixed) |
-| MRL Support | ✅ (128-3072) | ❌ |
-| Normalization Required | ✅ (non-3072) | ❌ (pre-normalized) |
-| Task Types | All | Limited |
-| MTEB Score | 67.99-68.17 | ~68.0 |
-| Status | Current | Legacy |
+**Note:** Migrate to `gemini-embedding-001` before October 2025.
 
 ## Use Cases
 
@@ -471,4 +456,27 @@ Text classification using K-Nearest Neighbors with embeddings:
 
 ## Async Batch Embedding API
 
-**Note:** Support for the Async Batch Embedding API (50% cost savings, long-running operations) is planned for v0.4.0. The current implementation supports synchronous batch operations via `batch_embed_contents/2`.
+For production-scale embedding with 50% cost savings, use the async batch API:
+
+```elixir
+# Submit async batch job
+{:ok, batch} = Gemini.async_batch_embed_contents(
+  ["Text 1", "Text 2", "Text 3", ...],
+  display_name: "My Knowledge Base",
+  task_type: :retrieval_document,
+  output_dimensionality: 768
+)
+
+# Wait for completion with progress tracking
+{:ok, completed} = Gemini.await_batch_completion(batch.name,
+  poll_interval: 5_000,
+  on_progress: fn batch -> IO.puts("Progress: #{batch.state}") end
+)
+
+# Retrieve embeddings
+{:ok, embeddings} = Gemini.get_batch_embeddings(completed)
+```
+
+**Run:** `mix run examples/async_batch_embedding_demo.exs`
+
+See `examples/ASYNC_BATCH_EMBEDDINGS.md` for complete documentation.

@@ -8,7 +8,7 @@ defmodule Gemini.Types.Request.EmbedContentRequest do
 
   ## Fields
 
-  - `model`: The embedding model to use (e.g., "gemini-embedding-001", "gemini-embedding-exp-03-07")
+  - `model`: The embedding model to use (e.g., "gemini-embedding-001")
   - `content`: The content to embed (only text parts will be processed)
   - `task_type`: Optional task type for optimized embeddings
   - `title`: Optional title for retrieval documents

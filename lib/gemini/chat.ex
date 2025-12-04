@@ -30,10 +30,11 @@ defmodule Gemini.Chat do
   """
   @type t :: %__MODULE__{
           history: [Content.t()],
-          opts: keyword()
+          opts: keyword(),
+          last_signatures: [String.t()]
         }
 
-  defstruct history: [], opts: []
+  defstruct history: [], opts: [], last_signatures: []
 
   @doc """
   Create a new chat session with optional configuration.
@@ -60,6 +61,52 @@ defmodule Gemini.Chat do
   end
 
   @doc """
+  Add a model response to the chat history, extracting any thought signatures.
+
+  This function automatically extracts thought signatures from the response
+  and stores them for echoing in the next user message.
+
+  ## Parameters
+  - `chat`: Current chat session
+  - `response`: GenerateContentResponse from the API
+
+  ## Returns
+  Updated chat with the model's response added and signatures stored.
+
+  ## Examples
+
+      {:ok, response} = Gemini.generate("Hello", model: "gemini-3-pro-preview")
+      chat = Chat.add_model_response(chat, response)
+      # chat.last_signatures contains any signatures from the response
+  """
+  @spec add_model_response(t(), Gemini.Types.Response.GenerateContentResponse.t()) :: t()
+  def add_model_response(%__MODULE__{} = chat, response) do
+    # Extract text from response
+    text = extract_model_text(response)
+
+    # Extract thought signatures
+    signatures = Gemini.extract_thought_signatures(response)
+
+    # Add model turn to history
+    content = Content.text(text, "model")
+
+    %{chat | history: chat.history ++ [content], last_signatures: signatures}
+  end
+
+  # Extract text from a GenerateContentResponse
+  defp extract_model_text(%{candidates: [%{content: %{parts: parts}} | _]}) when is_list(parts) do
+    parts
+    |> Enum.filter(&is_map/1)
+    |> Enum.map(fn
+      %{text: text} -> text
+      _ -> ""
+    end)
+    |> Enum.join("")
+  end
+
+  defp extract_model_text(_), do: ""
+
+  @doc """
   Add a turn to the chat history.
 
   This function handles different types of content based on the role and message type:
@@ -69,25 +116,45 @@ defmodule Gemini.Chat do
   - Model function calls: `add_turn(chat, "model", [%FunctionCall{...}])`
   - User function responses: `add_turn(chat, "user", [%ToolResult{...}])`
 
+  For user messages, if there are stored thought signatures from the previous
+  model response, they will be automatically attached to the user's message part.
+
   Returns a new chat struct with the updated history, preserving immutability.
   """
   @spec add_turn(t(), String.t(), String.t() | [map()] | [FunctionCall.t()] | [ToolResult.t()]) ::
           t()
   def add_turn(%__MODULE__{} = chat, role, message) when role in ["user", "model", "tool"] do
-    content = build_content(role, message)
-    %{chat | history: chat.history ++ [content]}
+    content = build_content(role, message, chat.last_signatures)
+
+    # Clear signatures after they've been used (for user turns)
+    new_signatures = if role == "user", do: [], else: chat.last_signatures
+
+    %{chat | history: chat.history ++ [content], last_signatures: new_signatures}
   end
 
-  # Build Content struct based on role and message type
-  defp build_content("user", message) when is_binary(message) do
-    Content.text(message, "user")
+  # Build Content struct based on role, message type, and signatures
+  # User messages with signatures get them echoed
+  defp build_content("user", message, signatures) when is_binary(message) do
+    part = Gemini.Types.Part.text(message)
+
+    # Attach the first signature to the user's part (for echoing)
+    part =
+      case signatures do
+        [sig | _] when is_binary(sig) ->
+          Gemini.Types.Part.with_thought_signature(part, sig)
+
+        _ ->
+          part
+      end
+
+    %Content{role: "user", parts: [part]}
   end
 
-  defp build_content("model", message) when is_binary(message) do
+  defp build_content("model", message, _signatures) when is_binary(message) do
     Content.text(message, "model")
   end
 
-  defp build_content("model", function_calls) when is_list(function_calls) do
+  defp build_content("model", function_calls, _signatures) when is_list(function_calls) do
     # Handle model's function call turn
     parts =
       Enum.map(function_calls, fn %FunctionCall{} = call ->
@@ -102,12 +169,12 @@ defmodule Gemini.Chat do
     %Content{role: "model", parts: parts}
   end
 
-  defp build_content("tool", tool_results) when is_list(tool_results) do
+  defp build_content("tool", tool_results, _signatures) when is_list(tool_results) do
     # Handle tool's function response turn using the Content helper
     Content.from_tool_results(tool_results)
   end
 
-  defp build_content(role, parts) when is_list(parts) do
+  defp build_content(role, parts, _signatures) when is_list(parts) do
     # Handle generic parts list
     %Content{role: role, parts: parts}
   end

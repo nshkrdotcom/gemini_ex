@@ -2,17 +2,10 @@ defmodule Gemini.Integration.StructuredOutputsTest do
   use ExUnit.Case, async: false
 
   @moduletag :integration
+  @moduletag :live_api
   @moduletag timeout: 30_000
 
   alias Gemini.Types.GenerationConfig
-
-  setup do
-    unless System.get_env("GEMINI_API_KEY") do
-      {:ok, skip: true}
-    else
-      :ok
-    end
-  end
 
   describe "structured outputs with Gemini 2.5 Flash" do
     test "generates JSON matching simple schema" do

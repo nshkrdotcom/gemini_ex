@@ -480,6 +480,49 @@ defmodule Gemini do
 
   def extract_text(_), do: {:error, "Invalid response format"}
 
+  @doc """
+  Extract thought signatures from a GenerateContentResponse.
+
+  Gemini 3 models return `thought_signature` fields on parts that must be
+  echoed back in subsequent turns to maintain reasoning context.
+
+  ## Parameters
+  - `response`: GenerateContentResponse struct
+
+  ## Returns
+  - List of thought signature strings found in the response
+
+  ## Examples
+
+      {:ok, response} = Gemini.generate("Complex question", model: "gemini-3-pro-preview")
+      signatures = Gemini.extract_thought_signatures(response)
+      # => ["sig_abc123", "sig_def456"]
+
+  """
+  @spec extract_thought_signatures(GenerateContentResponse.t() | nil) :: [String.t()]
+  def extract_thought_signatures(nil), do: []
+
+  def extract_thought_signatures(%GenerateContentResponse{candidates: nil}), do: []
+
+  def extract_thought_signatures(%GenerateContentResponse{candidates: []}), do: []
+
+  def extract_thought_signatures(%GenerateContentResponse{candidates: candidates})
+      when is_list(candidates) do
+    candidates
+    |> Enum.flat_map(fn
+      %{content: %{parts: parts}} when is_list(parts) ->
+        parts
+        |> Enum.filter(&is_map/1)
+        |> Enum.map(&Map.get(&1, :thought_signature))
+        |> Enum.reject(&is_nil/1)
+
+      _ ->
+        []
+    end)
+  end
+
+  def extract_thought_signatures(_), do: []
+
   # Private orchestrator function that implements the recursive state machine
   @spec orchestrate_tool_loop(Chat.t(), non_neg_integer()) ::
           {:ok, GenerateContentResponse.t()} | {:error, Error.t()}

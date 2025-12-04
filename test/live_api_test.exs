@@ -30,8 +30,6 @@ defmodule LiveAPITest do
       IO.puts("-" |> String.duplicate(40))
 
       auth_config = Gemini.Config.auth_config()
-      IO.puts("Detected auth config: #{inspect(auth_config, pretty: true)}")
-
       auth_type = Gemini.Config.detect_auth_type()
       IO.puts("Detected auth type: #{auth_type}")
 

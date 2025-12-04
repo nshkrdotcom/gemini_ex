@@ -26,6 +26,8 @@ A comprehensive Elixir client for Google's Gemini AI API with dual authenticatio
 - **💬 Chat Sessions**: Multi-turn conversation management with state persistence
 - **🎭 Flexible Multimodal Input**: Intuitive formats for images/text with automatic MIME detection
 - **💸 Thinking Budget Control**: Optimize costs by controlling thinking token usage
+- **🧠 Gemini 3 Support**: `thinking_level`, image generation, media resolution, thought signatures (NEW in v0.5.1!)
+- **📦 Context Caching**: Cache large contexts for faster, cheaper repeated queries (NEW in v0.5.1!)
 - **⚙️ Complete Generation Config**: Full support for all generation config options including structured output
 - **🚀 Production Ready**: Robust error handling, retry logic, and performance optimizations
 - **🔧 Flexible Configuration**: Environment variables, application config, and per-request overrides
@@ -45,7 +47,7 @@ Add `gemini` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:gemini_ex, "~> 0.5.0"}
+    {:gemini_ex, "~> 0.5.1"}
   ]
 end
 ```
@@ -1021,6 +1023,107 @@ config = GenerationConfig.new()
 **Special values:**
 - `0`: Disable thinking entirely (Flash/Lite only)
 - `-1`: Dynamic thinking (model decides budget)
+
+### Gemini 3 Features (New in v0.5.1!)
+
+Gemini 3 introduces new capabilities with simplified thinking control and advanced features:
+
+```elixir
+alias Gemini.Types.GenerationConfig
+
+# Thinking Level (Gemini 3) - simpler than thinking_budget
+config = GenerationConfig.thinking_level(:low)   # Fast responses
+config = GenerationConfig.thinking_level(:high)  # Deep reasoning (default)
+
+{:ok, response} = Gemini.generate(
+  "Explain quantum entanglement",
+  model: "gemini-3-pro-preview",
+  generation_config: config
+)
+
+# Image Generation with gemini-3-pro-image-preview
+config = GenerationConfig.image_config(aspect_ratio: "16:9", image_size: "4K")
+
+{:ok, response} = Gemini.generate(
+  "Generate an image of a sunset over mountains",
+  model: "gemini-3-pro-image-preview",
+  generation_config: config
+)
+
+# Media Resolution Control for vision tasks
+alias Gemini.Types.Part
+
+# High resolution for detailed image analysis (1120 tokens)
+part = Part.inline_data_with_resolution(image_data, "image/jpeg", :high)
+
+# Low resolution for faster processing (280 tokens)
+part = Part.inline_data_with_resolution(image_data, "image/jpeg", :low)
+```
+
+**Note:** You cannot mix `thinking_level` (Gemini 3) and `thinking_budget` (Gemini 2.5) in the same request.
+
+### Context Caching (New in v0.5.1!)
+
+Cache large contexts (documents, codebases) for improved performance and reduced costs:
+
+```elixir
+alias Gemini.APIs.ContextCache
+alias Gemini.Types.Content
+
+# Create a cached context (minimum 4096 tokens required)
+large_document = File.read!("large_codebase.txt")
+contents = [Content.text(large_document, "user")]
+
+{:ok, cache} = ContextCache.create(contents,
+  display_name: "My Codebase",
+  model: "gemini-2.0-flash",
+  ttl: 3600  # 1 hour
+)
+
+# Use cached context in multiple requests (faster, cheaper)
+{:ok, response1} = Gemini.generate(
+  "Find all TODO comments in the codebase",
+  model: "gemini-2.0-flash",
+  cached_content: cache.name
+)
+
+{:ok, response2} = Gemini.generate(
+  "Identify potential security issues",
+  model: "gemini-2.0-flash",
+  cached_content: cache.name
+)
+
+# Manage caches
+{:ok, caches} = ContextCache.list()
+{:ok, cache} = ContextCache.get(cache.name)
+:ok = ContextCache.update(cache.name, ttl: 7200)  # Extend TTL
+:ok = ContextCache.delete(cache.name)  # Clean up
+```
+
+### Thought Signatures (Gemini 3)
+
+Gemini 3 returns thought signatures that maintain reasoning context across turns. The SDK handles this automatically:
+
+```elixir
+alias Gemini.Chat
+
+# Create a chat session
+chat = Chat.new(model: "gemini-3-pro-preview")
+
+# First turn
+chat = Chat.add_turn(chat, "user", "What is machine learning?")
+{:ok, response} = Gemini.generate(chat.history, chat.opts)
+
+# Add model response - automatically extracts and stores thought signatures
+chat = Chat.add_model_response(chat, response)
+
+# Next turn - signatures are automatically echoed for context preservation
+chat = Chat.add_turn(chat, "user", "Can you give me an example?")
+{:ok, response2} = Gemini.generate(chat.history, chat.opts)
+
+# You can also manually extract signatures if needed
+signatures = Gemini.extract_thought_signatures(response)
+```
 
 ### Error Handling
 

@@ -797,6 +797,9 @@ defmodule Gemini.APIs.Coordinator do
     final_content = maybe_put_tools(final_content, opts)
     final_content = maybe_put_tool_config(final_content, opts)
 
+    # Add cached_content reference if provided
+    final_content = maybe_put_cached_content(final_content, opts)
+
     {:ok, final_content}
   end
 
@@ -835,6 +838,9 @@ defmodule Gemini.APIs.Coordinator do
     final_content = maybe_put_tools(final_content, opts)
     final_content = maybe_put_tool_config(final_content, opts)
 
+    # Add cached_content reference if provided
+    final_content = maybe_put_cached_content(final_content, opts)
+
     {:ok, final_content}
   end
 
@@ -851,6 +857,9 @@ defmodule Gemini.APIs.Coordinator do
 
   @doc false
   def __test_detect_mime__(data), do: detect_mime_type(data)
+
+  @doc false
+  def __test_format_part__(part), do: format_part(part)
 
   # Already a Content struct - pass through
   defp normalize_single_content(%Content{} = content), do: content
@@ -943,12 +952,66 @@ defmodule Gemini.APIs.Coordinator do
   end
 
   # Helper function to format Part structs for API requests
-  defp format_part(%{text: text}) when is_binary(text) do
-    %{text: text}
+  # Format part for API, handling Gemini.Types.Part structs and maps
+  defp format_part(%Gemini.Types.Part{} = part) do
+    base = %{}
+
+    base =
+      if part.text do
+        Map.put(base, :text, part.text)
+      else
+        base
+      end
+
+    base =
+      if part.inline_data do
+        Map.put(base, :inlineData, %{
+          mimeType: part.inline_data.mime_type,
+          data: part.inline_data.data
+        })
+      else
+        base
+      end
+
+    # Include thought_signature for Gemini 3 context preservation
+    base =
+      if part.thought_signature do
+        Map.put(base, :thoughtSignature, part.thought_signature)
+      else
+        base
+      end
+
+    # Include media_resolution for Gemini 3 vision processing
+    base =
+      if part.media_resolution && part.media_resolution.level do
+        level_str =
+          case part.media_resolution.level do
+            :media_resolution_low -> "MEDIA_RESOLUTION_LOW"
+            :media_resolution_medium -> "MEDIA_RESOLUTION_MEDIUM"
+            :media_resolution_high -> "MEDIA_RESOLUTION_HIGH"
+          end
+
+        Map.put(base, :mediaResolution, level_str)
+      else
+        base
+      end
+
+    base
+  end
+
+  defp format_part(%{text: text} = part) when is_binary(text) do
+    base = %{text: text}
+
+    # Handle thought_signature in map format as well
+    if Map.get(part, :thought_signature) do
+      Map.put(base, :thoughtSignature, part.thought_signature)
+    else
+      base
+    end
   end
 
   defp format_part(%{inline_data: %{mime_type: mime_type, data: data}}) do
-    %{inline_data: %{mime_type: mime_type, data: data}}
+    %{inlineData: %{mimeType: mime_type, data: data}}
   end
 
   defp format_part(part), do: part
@@ -976,11 +1039,29 @@ defmodule Gemini.APIs.Coordinator do
     end
   end
 
+  # Add cached_content reference if provided
+  defp maybe_put_cached_content(map, opts) do
+    case Keyword.get(opts, :cached_content) do
+      nil ->
+        map
+
+      cache_name when is_binary(cache_name) ->
+        Map.put(map, :cachedContent, cache_name)
+
+      %{name: cache_name} when is_binary(cache_name) ->
+        Map.put(map, :cachedContent, cache_name)
+
+      _ ->
+        map
+    end
+  end
+
   # Convert ThinkingConfig to API format with camelCase keys
   @doc false
   defp convert_thinking_config_to_api(%Gemini.Types.GenerationConfig.ThinkingConfig{} = config) do
     %{}
     |> maybe_put_if_not_nil("thinkingBudget", config.thinking_budget)
+    |> maybe_put_if_not_nil("thinkingLevel", convert_thinking_level(config.thinking_level))
     |> maybe_put_if_not_nil("includeThoughts", config.include_thoughts)
   end
 
@@ -991,12 +1072,18 @@ defmodule Gemini.APIs.Coordinator do
       {:thinking_budget, budget}, acc when is_integer(budget) ->
         Map.put(acc, "thinkingBudget", budget)
 
+      {:thinking_level, level}, acc when level in [:low, :medium, :high] ->
+        Map.put(acc, "thinkingLevel", convert_thinking_level(level))
+
       {:include_thoughts, include}, acc when is_boolean(include) ->
         Map.put(acc, "includeThoughts", include)
 
       # Support both snake_case and camelCase input
       {"thinkingBudget", budget}, acc ->
         Map.put(acc, "thinkingBudget", budget)
+
+      {"thinkingLevel", level}, acc ->
+        Map.put(acc, "thinkingLevel", level)
 
       {"includeThoughts", include}, acc ->
         Map.put(acc, "includeThoughts", include)
@@ -1007,6 +1094,42 @@ defmodule Gemini.APIs.Coordinator do
   end
 
   defp convert_thinking_config_to_api(nil), do: %{}
+
+  # Convert thinking level atom to API string
+  defp convert_thinking_level(:low), do: "low"
+  defp convert_thinking_level(:medium), do: "medium"
+  defp convert_thinking_level(:high), do: "high"
+  defp convert_thinking_level(nil), do: nil
+
+  # Convert ImageConfig to API format with camelCase keys
+  @doc false
+  defp convert_image_config_to_api(%Gemini.Types.GenerationConfig.ImageConfig{} = config) do
+    %{}
+    |> maybe_put_if_not_nil("aspectRatio", config.aspect_ratio)
+    |> maybe_put_if_not_nil("imageSize", config.image_size)
+  end
+
+  defp convert_image_config_to_api(config) when is_map(config) do
+    config
+    |> Enum.reduce(%{}, fn
+      {:aspect_ratio, ratio}, acc when is_binary(ratio) ->
+        Map.put(acc, "aspectRatio", ratio)
+
+      {:image_size, size}, acc when is_binary(size) ->
+        Map.put(acc, "imageSize", size)
+
+      {"aspectRatio", ratio}, acc ->
+        Map.put(acc, "aspectRatio", ratio)
+
+      {"imageSize", size}, acc ->
+        Map.put(acc, "imageSize", size)
+
+      _, acc ->
+        acc
+    end)
+  end
+
+  defp convert_image_config_to_api(nil), do: %{}
 
   # Helper to put value only if not nil
   @doc false
@@ -1084,6 +1207,16 @@ defmodule Gemini.APIs.Coordinator do
 
         if map_size(api_format) > 0 do
           Map.put(acc, "thinkingConfig", api_format)
+        else
+          acc
+        end
+
+      # Image config support for Gemini 3 Pro Image
+      {:image_config, image_config}, acc when not is_nil(image_config) ->
+        api_format = convert_image_config_to_api(image_config)
+
+        if map_size(api_format) > 0 do
+          Map.put(acc, "imageConfig", api_format)
         else
           acc
         end

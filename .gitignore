@@ -31,3 +31,6 @@ repomix*.xml
 /python-genai/
 
 /ALTAR/
+
+# Generated content from examples (images, etc.)
+/generated/

@@ -5,6 +5,101 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2025-12-03
+
+### Added
+
+#### Gemini 3 Pro Support
+
+Full support for Google's Gemini 3 model family with new API features:
+
+- **`thinking_level` Parameter** - New thinking control for Gemini 3 models
+  - `GenerationConfig.thinking_level(:low)` - Fast responses, minimal reasoning
+  - `GenerationConfig.thinking_level(:high)` - Deep reasoning (default for Gemini 3)
+  - Note: `:medium` is not currently supported by the API
+  - Cannot be used with `thinking_budget` in the same request (API returns 400)
+
+- **`gemini-3-pro-image-preview` Model** - Image generation support
+  - Generate images from text prompts
+  - Configurable aspect ratios: "16:9", "1:1", "4:3", "3:4", "9:16"
+  - Output resolutions: "2K" or "4K"
+  - `GenerationConfig.image_config(aspect_ratio: "16:9", image_size: "4K")`
+
+- **`media_resolution` Parameter** - Fine-grained vision processing control
+  - `:low` - 280 tokens for images, 70 for video frames
+  - `:medium` - 560 tokens for images, 70 for video frames
+  - `:high` - 1120 tokens for images, 280 for video frames
+  - `Part.inline_data_with_resolution(data, mime_type, :high)`
+  - `Part.with_resolution(existing_part, :high)`
+
+- **`thought_signature` Field** - Reasoning context preservation
+  - Maintains reasoning context across API calls
+  - Required for multi-turn function calling in Gemini 3
+  - `Part.with_thought_signature(part, signature)`
+  - SDK handles automatically in chat sessions
+  - **NEW**: Automatic extraction via `Gemini.extract_thought_signatures/1`
+  - **NEW**: Automatic echoing in `Chat.add_model_response/2`
+
+- **Context Caching API** - Cache long context for improved performance
+  - `Gemini.APIs.ContextCache.create/2` - Create cached content
+  - `Gemini.APIs.ContextCache.list/1` - List cached contents
+  - `Gemini.APIs.ContextCache.get/2` - Get specific cache
+  - `Gemini.APIs.ContextCache.update/2` - Update cache TTL
+  - `Gemini.APIs.ContextCache.delete/2` - Delete cache
+  - Use with `cached_content: "cachedContents/id"` in generate requests
+  - Minimum 4096 tokens required for caching
+
+- **New Example**: `examples/gemini_3_demo.exs` - Comprehensive Gemini 3 features demonstration
+
+#### Updated Validation
+
+- `Gemini.Validation.ThinkingConfig` now validates Gemini 3's `thinking_level`
+- Prevents combining `thinking_level` and `thinking_budget` (API constraint)
+- Warns that `:medium` thinking level is not supported
+
+### Changed
+
+#### Embeddings Documentation Updates
+- **Fixed EMBEDDINGS.md**: Corrected code examples and removed outdated/confusing information
+  - Fixed incorrect module reference (`Coordinator.EmbedContentResponse` → `EmbedContentResponse`)
+  - Removed confusing legacy model section (there's only `gemini-embedding-001` now)
+  - Updated model comparison to reflect current API (single model with MRL support)
+  - Updated async batch section with working code examples (was marked as "planned")
+  - Added deprecation notice for `embedding-001`, `embedding-gecko-001`, `gemini-embedding-exp-03-07` (October 2025)
+
+- **Updated embed_content_request.ex**: Removed deprecated model reference from documentation
+
+### Fixed
+
+- Documentation now accurately reflects the current Gemini Embeddings API specification (June 2025)
+- Clarified that `gemini-embedding-001` is the only recommended model with full MRL support
+
+### Migration Notes
+
+#### For Gemini 3 Users
+
+```elixir
+# Use thinking_level instead of thinking_budget for Gemini 3
+config = GenerationConfig.thinking_level(:low)  # Fast
+config = GenerationConfig.thinking_level(:high) # Deep reasoning (default)
+
+# Image generation
+config = GenerationConfig.image_config(aspect_ratio: "16:9", image_size: "4K")
+{:ok, response} = Coordinator.generate_content(
+  "Generate an image of a sunset",
+  model: "gemini-3-pro-image-preview",
+  generation_config: config
+)
+
+# Media resolution for vision tasks
+Part.inline_data_with_resolution(image_data, "image/jpeg", :high)
+```
+
+#### Temperature Recommendation
+
+For Gemini 3, keep temperature at 1.0 (the default). Lower temperatures may cause
+looping or degraded performance on complex reasoning tasks.
+
 ## [0.5.0] - 2025-12-03
 
 ### Added
@@ -866,6 +961,10 @@ config :gemini_ex,
 - Minimal latency overhead
 - Concurrent request processing
 
+[0.5.1]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.5.1
+[0.5.0]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.5.0
+[0.4.0]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.4.0
+[0.3.1]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.3.1
 [0.3.0]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.3.0
 [0.2.3]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.2.3
 [0.2.2]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.2.2

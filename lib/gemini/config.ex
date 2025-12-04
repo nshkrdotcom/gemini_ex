@@ -18,6 +18,7 @@ defmodule Gemini.Config do
   @models %{
     # Gemini 3 models
     pro_3_preview: "gemini-3-pro-preview",
+    pro_3_image_preview: "gemini-3-pro-image-preview",
 
     # Gemini 2.5 models
     pro_2_5: "gemini-2.5-pro",
