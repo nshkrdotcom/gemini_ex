@@ -5,6 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.1] - 2025-12-04
+
+> ⚠️ **Potentially breaking (upgrade note)**: Token estimation now runs automatically and budget checks fall back to profile defaults. Apps that never set `:estimated_input_tokens` or `:token_budget_per_window` can now receive local `:over_budget` errors. To preserve 0.6.0 behavior, set `token_budget_per_window: nil` (globally or per-call), or disable the rate limiter.
+
+### Added
+
+#### Proactive Rate Limiting Enhancements (ADR Implementation)
+
+- **Auto Token Estimation (ADR-0001)**
+  - Automatic input token estimation at the Coordinator boundary before request normalization
+  - Token estimates passed to rate limiter via `:estimated_input_tokens` option
+  - Safe handling of API maps (`%{contents: [...]}`) in `Tokens.estimate/1` - returns 0 for unknown shapes instead of raising
+  - Supports both atom keys (`:contents`) and string keys (`"contents"`)
+
+- **Token Budget Configuration (ADR-0002)**
+  - New `token_budget_per_window` config field with conservative defaults
+  - New `window_duration_ms` config field (default: 60,000ms)
+  - Budget checking falls back to `config.token_budget_per_window` when not in per-request opts
+  - `State.record_usage/4` now accepts configurable window duration via opts
+
+- **Enhanced 429 Propagation (ADR-0003)**
+  - Retry state now captures `quota_dimensions` and `quota_value` from 429 responses
+  - Enhanced quota metric extraction from nested error details
+
+- **Tier-Based Rate Limit Profiles (ADR-0004)**
+  - New `:free_tier` profile - Conservative for 15 RPM / 1M TPM (32,000 token budget)
+  - New `:paid_tier_1` profile - Standard production 500 RPM / 4M TPM (1,000,000 token budget)
+  - New `:paid_tier_2` profile - High throughput 1000 RPM / 8M TPM (2,000,000 token budget)
+  - Updated `:dev` and `:prod` profiles with token budgets
+  - Profile type expanded to include all tier options
+
+### Changed
+
+- `RateLimiter.Config` struct now includes `token_budget_per_window` and `window_duration_ms` fields
+- `Manager.check_token_budget/3` now falls back to config defaults
+- `Manager.record_usage_from_response/3` passes window duration from config to State
+- Updated `docs/guides/rate_limiting.md` with comprehensive tier documentation
+
+### Documentation
+
+- Added Quick Start section with tier profile selection table
+- Expanded Profiles section with all tier configurations
+- Enhanced Token Budgeting section explaining automatic estimation
+- Added Fine-Tuning section for concurrency vs token budget guidance
+
 ## [0.6.0] - 2025-12-04
 
 ### Added
@@ -1080,6 +1125,7 @@ config :gemini_ex,
 - Minimal latency overhead
 - Concurrent request processing
 
+[0.6.1]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.6.1
 [0.6.0]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.6.0
 [0.5.2]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.5.2
 [0.5.1]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.5.1

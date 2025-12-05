@@ -294,9 +294,12 @@ defmodule Gemini.RateLimiter.Manager do
     RetryManager.execute_with_retry(wrapped_fn, state_key, config, opts)
   end
 
-  defp check_token_budget(state_key, opts, _config) do
+  defp check_token_budget(state_key, opts, config) do
+    # ADR-0001/0002: Use estimated tokens from opts, fall back to 0
     estimated_tokens = Keyword.get(opts, :estimated_input_tokens, 0)
-    budget = Keyword.get(opts, :token_budget_per_window)
+
+    # ADR-0002: Fall back to config.token_budget_per_window when not in opts
+    budget = Keyword.get(opts, :token_budget_per_window, config.token_budget_per_window)
 
     if State.would_exceed_budget?(state_key, estimated_tokens, budget) do
       :over_budget
@@ -333,6 +336,9 @@ defmodule Gemini.RateLimiter.Manager do
     location = Keyword.get(opts, :location)
     state_key = State.build_key(model, location, :token_count)
 
+    # ADR-0002: Get window duration from config
+    config = Config.build(opts)
+
     # Extract usage from response
     usage = extract_usage(response)
 
@@ -340,7 +346,8 @@ defmodule Gemini.RateLimiter.Manager do
       State.record_usage(
         state_key,
         Map.get(usage, :input_tokens, 0),
-        Map.get(usage, :output_tokens, 0)
+        Map.get(usage, :output_tokens, 0),
+        window_duration_ms: config.window_duration_ms
       )
     end
   end

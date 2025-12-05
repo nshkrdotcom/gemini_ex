@@ -47,7 +47,7 @@ Add `gemini` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:gemini_ex, "~> 0.6.0"}
+    {:gemini_ex, "~> 0.6.1"}
   ]
 end
 ```

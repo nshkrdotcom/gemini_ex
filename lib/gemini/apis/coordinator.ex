@@ -85,8 +85,12 @@ defmodule Gemini.APIs.Coordinator do
     model = Keyword.get(opts, :model, Config.default_model())
     path = "models/#{model}:generateContent"
 
-    with {:ok, request} <- build_generate_request(input, opts),
-         {:ok, response} <- HTTP.post(path, request, opts) do
+    # ADR-0001: Estimate tokens on original input BEFORE building the request
+    # This runs on supported input types (string, Content list) before normalization
+    opts_with_estimation = inject_token_estimation(input, opts)
+
+    with {:ok, request} <- build_generate_request(input, opts_with_estimation),
+         {:ok, response} <- HTTP.post(path, request, opts_with_estimation) do
       parse_generate_response(response)
     else
       {:error, reason} -> {:error, reason}
@@ -140,9 +144,12 @@ defmodule Gemini.APIs.Coordinator do
   def stream_generate_content(input, opts \\ []) do
     model = Keyword.get(opts, :model, Config.default_model())
 
-    with {:ok, request_body} <- build_generate_request(input, opts) do
+    # ADR-0001: Estimate tokens on original input BEFORE building the request
+    opts_with_estimation = inject_token_estimation(input, opts)
+
+    with {:ok, request_body} <- build_generate_request(input, opts_with_estimation) do
       # Pass through the auto_execute_tools option to the UnifiedManager
-      UnifiedManager.start_stream(model, request_body, opts)
+      UnifiedManager.start_stream(model, request_body, opts_with_estimation)
     else
       {:error, reason} -> {:error, reason}
     end
@@ -729,6 +736,25 @@ defmodule Gemini.APIs.Coordinator do
   def extract_text(_), do: {:error, "No candidates found in response"}
 
   # Private Helper Functions
+
+  # ADR-0001: Inject token estimation into opts if not already provided
+  # Runs on the original input BEFORE request normalization
+  @spec inject_token_estimation(term(), keyword()) :: keyword()
+  defp inject_token_estimation(input, opts) do
+    # Skip if caller already provided an estimate
+    if Keyword.has_key?(opts, :estimated_input_tokens) do
+      opts
+    else
+      case Gemini.APIs.Tokens.estimate(input) do
+        {:ok, count} when count > 0 ->
+          Keyword.put(opts, :estimated_input_tokens, count)
+
+        _ ->
+          # Estimation failed or returned 0, proceed without estimate
+          opts
+      end
+    end
+  end
 
   @doc false
   @spec convert_to_camel_case(atom()) :: String.t()

@@ -23,20 +23,9 @@ defstruct max_concurrency_per_model: 4,
 **What's Missing:**
 - `token_budget_per_window` - Maximum tokens allowed per time window
 - `window_duration_ms` - Duration of the budget window
+- Wiring: `Manager.check_token_budget/3` only reads budgets from per-call opts (nil by default), and `State.record_usage/3` always uses a hard-coded 60s window. Even if defaults are added to `Config`, they do nothing until Manager/State consume them.
 
-Without these defaults, callers must explicitly set `:token_budget_per_window` per-request for budget checking to work. The `check_token_budget/3` function in the manager retrieves this from options:
-
-```elixir
-budget = Keyword.get(opts, :token_budget_per_window)  # nil if not provided
-```
-
-When `budget` is `nil`, `State.would_exceed_budget?/3` returns `false`:
-
-```elixir
-def would_exceed_budget?(_key, _estimated_tokens, nil), do: false
-```
-
-This means **token budgeting is effectively disabled by default**.
+When `budget` is `nil`, `State.would_exceed_budget?/3` returns `false`, so **token budgeting is effectively disabled by default**.
 
 ### Google API Rate Limits
 
@@ -52,7 +41,7 @@ Google's Gemini API enforces tiered rate limits:
 
 ## Decision
 
-Add `token_budget_per_window` and `window_duration_ms` to the Config struct with sensible defaults based on Google's rate limit tiers.
+Add `token_budget_per_window` and `window_duration_ms` to the Config struct with sensible defaults, and plumb them through Manager/State so global config works without per-call overrides.
 
 ### Implementation
 
@@ -199,28 +188,10 @@ config :gemini_ex, :rate_limiter,
 - Current implementation tracks per-model, but uses global budget
 - Could be enhanced: `token_budget_per_model: %{"gemini-pro" => 500_000}`
 
-## State Module Update
+## Manager/State Wiring
 
-The `State` module already has a default window duration:
-
-```elixir
-# In state.ex:28
-@default_window_duration_ms 60_000
-```
-
-This should be made configurable via the Config struct:
-
-```elixir
-defp new_window(input_tokens, output_tokens, now, config \\ nil) do
-  duration = if config, do: config.window_duration_ms, else: @default_window_duration_ms
-  %{
-    input_tokens: input_tokens,
-    output_tokens: output_tokens,
-    window_start: now,
-    window_duration_ms: duration
-  }
-end
-```
+- In `Manager.check_token_budget/3`, prefer the budget from opts but fall back to `config.token_budget_per_window` so app config is honored.
+- In `State.record_usage/3`, accept an optional `config` (or `window_duration_ms` argument) and pass it from Manager when recording usage, so the window length is actually configurable instead of fixed at 60s.
 
 ## Implementation Priority
 

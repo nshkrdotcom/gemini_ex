@@ -113,13 +113,11 @@ defmodule Gemini.RateLimiter.RetryManager do
   Extract retry delay from a 429 error response.
   """
   @spec extract_retry_info({:error, term()}) :: map()
-  def extract_retry_info({:error, %{details: details}}) when is_map(details) do
-    extract_retry_info_from_details(details)
-  end
+  def extract_retry_info({:error, %{details: details}}) when is_map(details),
+    do: extract_retry_info_from_details(details)
 
-  def extract_retry_info({:error, {:http_error, 429, body}}) when is_map(body) do
-    extract_retry_info_from_details(body)
-  end
+  def extract_retry_info({:error, {:http_error, 429, body}}) when is_map(body),
+    do: extract_retry_info_from_details(body)
 
   def extract_retry_info(_), do: %{}
 
@@ -236,38 +234,43 @@ defmodule Gemini.RateLimiter.RetryManager do
   end
 
   defp extract_retry_info_from_details(details) do
-    # Look for retry info in various locations
-    cond do
-      Map.has_key?(details, "error") ->
-        error = details["error"]
-        extract_from_error_details(error)
+    # Look for retry info in various locations and enrich with quota metadata
+    base =
+      cond do
+        Map.has_key?(details, "error") ->
+          error = details["error"]
+          extract_from_error_details(error)
 
-      Map.has_key?(details, "retryDelay") ->
-        details
+        Map.has_key?(details, "retryDelay") ->
+          details
 
-      true ->
-        %{}
-    end
+        true ->
+          %{}
+      end
+
+    quota_info = extract_quota_info(details)
+    Map.merge(base, quota_info)
   end
 
   defp extract_from_error_details(error) when is_map(error) do
-    # Gemini API returns retry info in error.details array
     case error do
-      %{"details" => [%{"@type" => type} = detail | _]}
-      when type == "type.googleapis.com/google.rpc.RetryInfo" or
-             type == "google.rpc.RetryInfo" ->
-        %{
-          "retryDelay" => Map.get(detail, "retryDelay", "60s")
-        }
+      %{"details" => [%{"@type" => type} = detail | _]} ->
+        cond do
+          type == "type.googleapis.com/google.rpc.RetryInfo" or type == "google.rpc.RetryInfo" ->
+            %{"retryDelay" => Map.get(detail, "retryDelay", "60s")}
+
+          true ->
+            %{}
+        end
 
       %{"details" => details} when is_list(details) ->
-        # Search through details for retry info
-        Enum.find_value(details, %{}, fn detail ->
-          case detail do
-            %{"retryDelay" => _} = info -> info
-            _ -> nil
-          end
+        Enum.find_value(details, %{}, fn
+          %{"retryDelay" => _} = info -> info
+          _ -> nil
         end)
+
+      %{"retryDelay" => _} = info ->
+        info
 
       _ ->
         %{}
@@ -275,4 +278,52 @@ defmodule Gemini.RateLimiter.RetryManager do
   end
 
   defp extract_from_error_details(_), do: %{}
+
+  defp extract_quota_info(term) do
+    %{}
+    |> maybe_put("quotaMetric", find_quota_field(term, "quotaMetric"))
+    |> maybe_put("quotaId", find_quota_field(term, "quotaId"))
+    |> maybe_put("quotaDimensions", find_quota_field(term, "quotaDimensions"))
+    |> maybe_put("quotaValue", find_quota_field(term, "quotaValue"))
+  end
+
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, key, value), do: Map.put(map, key, value)
+
+  defp find_quota_field(term, field) when is_map(term) do
+    Map.get(term, field) ||
+      find_in_error(term, field) ||
+      find_in_details(term, field) ||
+      find_in_violations(term, field)
+  end
+
+  defp find_quota_field(_term, _field), do: nil
+
+  defp find_in_error(term, field) do
+    case Map.get(term, "error") do
+      nil -> nil
+      error when is_map(error) -> find_quota_field(error, field)
+      _ -> nil
+    end
+  end
+
+  defp find_in_details(term, field) do
+    case Map.get(term, "details") do
+      details when is_list(details) ->
+        Enum.find_value(details, fn detail -> find_quota_field(detail, field) end)
+
+      _ ->
+        nil
+    end
+  end
+
+  defp find_in_violations(term, field) do
+    case Map.get(term, "violations") do
+      violations when is_list(violations) ->
+        Enum.find_value(violations, fn violation -> find_quota_field(violation, field) end)
+
+      _ ->
+        nil
+    end
+  end
 end

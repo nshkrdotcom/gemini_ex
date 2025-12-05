@@ -209,7 +209,7 @@ defmodule Gemini.APIs.Tokens do
   Useful for quick validation and pre-filtering before actual counting.
 
   ## Parameters
-  - `content` - Content to estimate (string or Content list)
+  - `content` - Content to estimate (string, Content list, or API map with :contents key)
   - `opts` - Options (currently unused, for future expansion)
 
   ## Returns
@@ -225,12 +225,16 @@ defmodule Gemini.APIs.Tokens do
       text = "This is a longer piece of text that we want to estimate..."
       {:ok, estimate} = Tokens.estimate(text)
 
+      # Also handles API maps (ADR-0001)
+      {:ok, estimate} = Tokens.estimate(%{contents: [%{parts: [%{text: "Hello"}]}]})
+
   ## Note
 
   This is a heuristic estimate and may not match the actual token count
   from the API. Use `count/2` for accurate token counting.
   """
-  @spec estimate(String.t() | [Content.t()], keyword()) :: {:ok, integer()} | {:error, Error.t()}
+  @spec estimate(String.t() | [Content.t()] | map(), keyword()) ::
+          {:ok, integer()} | {:error, Error.t()}
   def estimate(content, _opts \\ []) do
     try do
       estimated_tokens = estimate_tokens_heuristic(content)
@@ -368,7 +372,7 @@ defmodule Gemini.APIs.Tokens do
 
   defp has_non_text_parts?(_), do: false
 
-  @spec estimate_tokens_heuristic(String.t() | [Content.t()]) :: integer()
+  @spec estimate_tokens_heuristic(String.t() | [Content.t()] | map()) :: integer()
   defp estimate_tokens_heuristic(content) when is_binary(content) do
     # Rough heuristic: ~4 characters per token for English text
     # This is a very rough estimate and actual tokenization will vary
@@ -389,6 +393,46 @@ defmodule Gemini.APIs.Tokens do
     |> Enum.map(&estimate_content_tokens/1)
     |> Enum.sum()
   end
+
+  # ADR-0001: Handle API maps with :contents or "contents" key
+  defp estimate_tokens_heuristic(%{contents: contents}) when is_list(contents) do
+    estimate_api_contents(contents)
+  end
+
+  defp estimate_tokens_heuristic(%{"contents" => contents}) when is_list(contents) do
+    estimate_api_contents(contents)
+  end
+
+  # Fallback for unknown map shapes - return 0 rather than raise
+  defp estimate_tokens_heuristic(%{} = _map), do: 0
+
+  # Helper to estimate tokens from API-format contents
+  defp estimate_api_contents(contents) do
+    contents
+    |> Enum.map(&estimate_api_content_item/1)
+    |> Enum.sum()
+  end
+
+  # Estimate tokens from an API content item (map with parts)
+  defp estimate_api_content_item(%{parts: parts}) when is_list(parts) do
+    parts |> Enum.map(&estimate_api_part/1) |> Enum.sum()
+  end
+
+  defp estimate_api_content_item(%{"parts" => parts}) when is_list(parts) do
+    parts |> Enum.map(&estimate_api_part/1) |> Enum.sum()
+  end
+
+  defp estimate_api_content_item(_), do: 0
+
+  # Estimate tokens from an API part
+  defp estimate_api_part(%{text: text}) when is_binary(text), do: estimate_tokens_heuristic(text)
+
+  defp estimate_api_part(%{"text" => text}) when is_binary(text),
+    do: estimate_tokens_heuristic(text)
+
+  defp estimate_api_part(%{inline_data: _}), do: 200
+  defp estimate_api_part(%{"inlineData" => _}), do: 200
+  defp estimate_api_part(_), do: 0
 
   @spec estimate_content_tokens(Content.t()) :: integer()
   defp estimate_content_tokens(%Content{parts: parts}) do

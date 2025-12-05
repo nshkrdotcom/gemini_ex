@@ -35,7 +35,7 @@ Gemini.generate("Hello", [
 ])
 ```
 
-**The Problem**: Users don't know what values to use. Google's tier limits are documented but mapping them to configuration is non-obvious.
+**The Problem**: Users don't know what values to use. Google's tier limits are documented but mapping them to configuration is non-obvious. Also, the current `Config` only recognizes `:dev | :prod | :custom`, so any new profile names (e.g., `:free_tier`) will be ignored until `Config.profile` and `@profiles` are expanded.
 
 ## Decision
 
@@ -185,25 +185,19 @@ config :gemini_ex, :rate_limiter,
 
 ### Dynamic Configuration
 
-For applications that need runtime adjustment:
-
-```elixir
-# Increase budget during off-peak hours
-Gemini.RateLimiter.Config.update(
-  token_budget_per_window: 2_000_000
-)
-
-# Decrease concurrency if seeing many 429s
-Gemini.RateLimiter.Config.update(
-  max_concurrency_per_model: 5
-)
-```
+Not implemented today. If runtime changes are needed, add a small API (e.g., `Config.update/1`) that safely refreshes ETS-backed state or rebuilds config for new calls. Until then, these examples are aspirational.
 
 ## Implementation
 
-### Profile Enumeration
+### Profile Enumeration and Wiring
 
-Update `config.ex` with all recommended profiles:
+The current code only supports `:dev | :prod | :custom`. To make these recommendations actionable:
+- Expand the `Config.profile` type to include `:free_tier`, `:paid_tier_1`, `:paid_tier_2`, and any other recommended profiles.
+- Add those profiles to `@profiles` in `config.ex` with the values below.
+- Keep precedence order in `Config.build/1` (defaults → profile → app config → overrides).
+- Ensure `token_budget_per_window` defaults exist per ADR-0002 so the budgets below are honored.
+
+Then populate `@profiles`:
 
 ```elixir
 @profiles %{

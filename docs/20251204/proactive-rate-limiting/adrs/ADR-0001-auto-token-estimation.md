@@ -5,113 +5,56 @@
 
 ## Context
 
-The current `Gemini.RateLimiter.Manager` implements token budget checking in `check_token_budget/3`, but this logic is **passive** rather than proactive:
+**Current behavior:** `Gemini.RateLimiter.Manager.check_token_budget/3` runs before the request, but defaults `estimated_input_tokens` to `0` and only reads `token_budget_per_window` from per-call opts. With those defaults, the budget check is effectively bypassed unless callers remember to provide both values.
 
-```elixir
-# Current implementation in manager.ex:298-306
-defp check_token_budget(state_key, opts, _config) do
-  estimated_tokens = Keyword.get(opts, :estimated_input_tokens, 0)  # Defaults to 0!
-  budget = Keyword.get(opts, :token_budget_per_window)
+**Estimator constraints:** `Gemini.APIs.Tokens.estimate/2` only accepts raw text or a list of `Gemini.Types.Content` structs. By the time the HTTP client sees the request, the payload has been transformed into an API map (`%{contents: [...]}`), which the estimator does **not** handle. Calling `estimate/2` on that map raises and is rescued to `{:error, ...}` → `nil`, so the fallback remains `0`.
 
-  if State.would_exceed_budget?(state_key, estimated_tokens, budget) do
-    :over_budget
-  else
-    :ok
-  end
-end
-```
-
-**The Problem:**
-- If callers don't pass `:estimated_input_tokens`, the manager defaults to `0`
-- With an estimate of 0 tokens, requests always pass the budget check
-- Heavy requests proceed to Google's API, hit the TPM limit, and receive 429s
-- Token usage is only recorded *after* the response, not prevented proactively
-
-**Existing Capability:**
-The library already has `Gemini.APIs.Tokens.estimate/2` which provides heuristic-based token estimation:
-
-```elixir
-# From lib/gemini/apis/tokens.ex:233-239
-@spec estimate(String.t() | [Content.t()], keyword()) :: {:ok, integer()} | {:error, Error.t()}
-def estimate(content, _opts \\ []) do
-  try do
-    estimated_tokens = estimate_tokens_heuristic(content)
-    {:ok, estimated_tokens}
-  rescue
-    error -> {:error, Error.validation_error("Failed to estimate tokens: #{inspect(error)}")}
-  end
-end
-```
-
-This estimation uses:
-- Word-based estimate: `word_count * 1.3`
-- Character-based estimate: `char_count / 4.0`
-- Takes the maximum of both for safety
+**Key gaps today:**
+- No automatic estimation on the original input (string or `Content` list).
+- No default budget pulled from config, so `budget` is often `nil`.
+- Budget window length is fixed at 60s in `State`, so even if we estimate tokens, the window cannot be tuned yet (see ADR-0002).
 
 ## Decision
 
-Integrate `Gemini.APIs.Tokens.estimate/2` directly into `check_token_budget/3` to enable **proactive** token budget enforcement without requiring explicit caller input.
+Estimate **before** the request body is transformed, pass the result to the rate limiter, and fall back to config defaults for the token budget. This keeps the estimator on supported input types and makes proactive blocking actually work.
 
 ### Implementation
 
-Modify `lib/gemini/rate_limiter/manager.ex`:
+1) **Estimate at the Coordinator boundary (supported input types).**
+
+- In `Gemini.APIs.Coordinator.generate_content/2` (and streaming entry points), run `Tokens.estimate/1` on the original `input` (string or `Content` list) **before** it is normalized into the API map.
+- If estimation succeeds, inject `:estimated_input_tokens` into the rate-limiter options passed to HTTP/RateLimiter.
+- If it fails (unsupported shape or error), skip and let the fallback be `0`.
+
+Illustrative sketch:
 
 ```elixir
-defp check_token_budget(state_key, opts, config) do
-  # Priority order for token estimation:
-  # 1. Explicit estimate from opts (caller knows best)
-  # 2. Heuristic estimate from request contents
-  # 3. Default to 0 only if neither available
-  estimated_tokens =
-    Keyword.get(opts, :estimated_input_tokens) ||
-    estimate_from_contents(opts) ||
-    0
-
-  budget = Keyword.get(opts, :token_budget_per_window, config.token_budget_per_window)
-
-  if State.would_exceed_budget?(state_key, estimated_tokens, budget) do
-    :over_budget
-  else
-    :ok
-  end
-end
-
-@spec estimate_from_contents(keyword()) :: non_neg_integer() | nil
-defp estimate_from_contents(opts) do
-  case Keyword.get(opts, :contents) do
-    nil ->
-      nil
-
-    contents ->
-      case Gemini.APIs.Tokens.estimate(contents) do
-        {:ok, count} -> count
-        {:error, _} -> nil
-      end
-  end
-end
-```
-
-### Content Propagation
-
-For the estimation to work, request contents must be available in the options passed to the rate limiter. This requires updating the call chain in `lib/gemini/client/http.ex`:
-
-```elixir
-# In request/5, extract and pass contents to rate limiter
-def request(method, path, body, auth_config, opts \\ []) do
-  # ... existing code ...
-
-  # Extract contents from body for rate limiter estimation
+with {:ok, request_body} <- build_generate_request(input, opts) do
   rate_limiter_opts =
-    opts
-    |> Keyword.put_new(:contents, extract_contents_from_body(body))
+    case Tokens.estimate(input) do
+      {:ok, count} -> Keyword.put(opts, :estimated_input_tokens, count)
+      _ -> opts
+    end
 
-  RateLimiter.execute_with_usage_tracking(request_fn, model, rate_limiter_opts)
+  HTTP.post(path, request_body, rate_limiter_opts)
 end
-
-defp extract_contents_from_body(%{"contents" => contents}), do: contents
-defp extract_contents_from_body(%{contents: contents}), do: contents
-defp extract_contents_from_body(_), do: nil
 ```
+
+2) **Use config defaults when callers don’t pass budgets.**
+
+In `Gemini.RateLimiter.Manager.check_token_budget/3`, prefer:
+
+```elixir
+estimated_tokens =
+  Keyword.get(opts, :estimated_input_tokens, 0)
+
+budget =
+  Keyword.get(opts, :token_budget_per_window, config.token_budget_per_window)
+```
+
+3) **(Optional, if desired) Extend the estimator to support API maps.**
+
+If we want to estimate after normalization, add a safe clause in `Tokens.estimate/1` to accept `%{contents: [...]}` and walk parts, but keep it defensive so it never raises.
 
 ## Consequences
 

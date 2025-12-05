@@ -71,13 +71,83 @@ end
 {:ok, response} = Gemini.generate("Hello", max_concurrency_per_model: 8)
 ```
 
+## Quick Start
+
+Choose a profile matching your Google Cloud tier:
+
+| Profile | Best For | RPM | TPM | Token Budget |
+|---------|----------|-----|-----|--------------|
+| `:free_tier` | Development, testing | 15 | 1M | 32,000 |
+| `:paid_tier_1` | Standard production | 500 | 4M | 1,000,000 |
+| `:paid_tier_2` | High throughput | 1000 | 8M | 2,000,000 |
+
+```elixir
+# Select your tier
+config :gemini_ex, :rate_limiter, profile: :paid_tier_1
+```
+
+> **Default behavior:** If you don’t choose a profile, `:prod` is used (`token_budget_per_window: 500_000`, `window_duration_ms: 60_000`). The base fallback defaults are 32,000/60s and are used by `:custom` unless overridden. Set `token_budget_per_window: nil` if you need the pre-0.6.1 “unlimited” budgeting behavior.
+
 ## Profiles
 
-The rate limiter supports configuration profiles:
+The rate limiter supports tier-based configuration profiles that automatically set
+appropriate limits for your Google Cloud plan.
 
-### Development Profile (`:dev`)
+### Tier Profiles
 
-Lower concurrency, longer backoff, ideal for testing:
+#### Free Tier (`:free_tier`)
+
+Conservative settings for Google's free tier (15 RPM / 1M TPM):
+
+```elixir
+config :gemini_ex, :rate_limiter, profile: :free_tier
+
+# Equivalent to:
+# max_concurrency_per_model: 2
+# max_attempts: 5
+# base_backoff_ms: 2000
+# token_budget_per_window: 32_000
+# adaptive_concurrency: true
+# adaptive_ceiling: 4
+```
+
+#### Paid Tier 1 (`:paid_tier_1`)
+
+Standard production settings for Tier 1 plans (500 RPM / 4M TPM):
+
+```elixir
+config :gemini_ex, :rate_limiter, profile: :paid_tier_1
+
+# Equivalent to:
+# max_concurrency_per_model: 10
+# max_attempts: 3
+# base_backoff_ms: 500
+# token_budget_per_window: 1_000_000
+# adaptive_concurrency: true
+# adaptive_ceiling: 15
+```
+
+#### Paid Tier 2 (`:paid_tier_2`)
+
+High throughput settings for Tier 2 plans (1000 RPM / 8M TPM):
+
+```elixir
+config :gemini_ex, :rate_limiter, profile: :paid_tier_2
+
+# Equivalent to:
+# max_concurrency_per_model: 20
+# max_attempts: 2
+# base_backoff_ms: 250
+# token_budget_per_window: 2_000_000
+# adaptive_concurrency: true
+# adaptive_ceiling: 30
+```
+
+### Legacy Profiles
+
+#### Development Profile (`:dev`)
+
+Lower concurrency, longer backoff, ideal for local development:
 
 ```elixir
 config :gemini_ex, :rate_limiter, profile: :dev
@@ -86,12 +156,13 @@ config :gemini_ex, :rate_limiter, profile: :dev
 # max_concurrency_per_model: 2
 # max_attempts: 5
 # base_backoff_ms: 2000
+# token_budget_per_window: 16_000
 # adaptive_ceiling: 4
 ```
 
-### Production Profile (`:prod`)
+#### Production Profile (`:prod`)
 
-Higher concurrency, optimized for throughput (default):
+Balanced settings for typical production usage (default):
 
 ```elixir
 config :gemini_ex, :rate_limiter, profile: :prod
@@ -100,8 +171,20 @@ config :gemini_ex, :rate_limiter, profile: :prod
 # max_concurrency_per_model: 4
 # max_attempts: 3
 # base_backoff_ms: 1000
+# token_budget_per_window: 500_000
 # adaptive_ceiling: 8
 ```
+
+## Fine-Tuning
+
+### Concurrency vs Token Budget
+
+- **Concurrency** limits parallel requests (affects RPM)
+- **Token Budget** limits total tokens per window (affects TPM)
+
+For most applications, start with a profile and adjust:
+- Seeing 429s? Lower both concurrency and budget
+- Underutilizing quota? Raise budget, enable adaptive concurrency
 
 ## Structured Errors
 
@@ -172,22 +255,66 @@ This is useful when you're unsure of your quota limits.
 
 ## Token Budgeting
 
-You can set token budgets to preemptively avoid rate limits:
+Token budgeting helps you stay within TPM (tokens per minute) limits by tracking
+token usage and preemptively blocking requests that would exceed your budget.
+
+### Automatic Token Estimation
+
+By default, the rate limiter automatically estimates input tokens for each request
+before it's sent. This estimation happens on the original input (string or Content list)
+and is used for proactive budget checking.
 
 ```elixir
-# Estimate input tokens and set a budget
+# Token estimation happens automatically - no code changes needed!
+{:ok, response} = Gemini.generate("Hello world")
+
+# The estimated tokens are passed to the rate limiter internally
+# If the estimate would exceed your budget, the request is blocked locally
+```
+
+### Default Token Budgets
+
+Each profile includes a default token budget:
+
+- `:free_tier` - 32,000 tokens per minute (~3% of 1M TPM)
+- `:paid_tier_1` - 1,000,000 tokens per minute (25% of 4M TPM)
+- `:paid_tier_2` - 2,000,000 tokens per minute (25% of 8M TPM)
+- `:prod` - 500,000 tokens per minute
+- `:dev` - 16,000 tokens per minute
+
+### Manual Token Estimation
+
+You can override the automatic estimate if you have a more accurate count:
+
+```elixir
+# Use your own token estimate (e.g., from countTokens API)
+{:ok, token_count} = Gemini.count_tokens("Your long prompt here...")
+
 opts = [
-  estimated_input_tokens: 100,
-  token_budget_per_window: 10_000
+  estimated_input_tokens: token_count.total_tokens,
+  token_budget_per_window: 500_000
 ]
 
-case Gemini.generate("Hello", opts) do
+case Gemini.generate("Your long prompt here...", opts) do
   {:ok, response} ->
     # Success
 
   {:error, {:rate_limited, _, %{reason: :over_budget}}} ->
     # Would exceed budget, wait for window to reset
 end
+```
+
+### Disabling Token Budgeting
+
+To disable token budget checking:
+
+```elixir
+# Disable for a single request
+{:ok, response} = Gemini.generate("Hello", token_budget_per_window: nil)
+
+# Disable globally
+config :gemini_ex, :rate_limiter,
+  token_budget_per_window: nil
 ```
 
 ## Telemetry Events
