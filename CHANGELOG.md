@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.2] - 2025-12-05
+
+### Fixed
+
+- Eliminated recursive retry loop on `:over_budget` blocking calls; blocking now waits once for the current window to end, then retries through the normal pipeline.
+- Over-budget `retry_at` is now set to the window end in non-blocking mode instead of `nil`.
+- Requests whose estimated tokens exceed the configured budget return immediately with `request_too_large: true` instead of hanging.
+
+### Added
+
+- `estimated_cached_tokens` option for proactive budgeting with cached contexts; cached token usage (`cachedContentTokenCount`) is now included in recorded input tokens.
+- Telemetry for over-budget waits/errors now includes token estimates and wait metadata.
+- `max_budget_wait_ms` config/option to cap how long blocking over-budget calls will sleep before returning a `rate_limited` error with `retry_at`.
+
+### Documentation
+
+- README and rate limiting guide updated with over-budget behavior, `estimated_cached_tokens`, and cached context budgeting notes.
+
 ## [0.6.1] - 2025-12-04
 
 > ⚠️ **Potentially breaking (upgrade note)**: Token estimation now runs automatically and budget checks fall back to profile defaults. Apps that never set `:estimated_input_tokens` or `:token_budget_per_window` can now receive local `:over_budget` errors. To preserve 0.6.0 behavior, set `token_budget_per_window: nil` (globally or per-call), or disable the rate limiter.

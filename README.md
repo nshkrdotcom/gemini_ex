@@ -47,7 +47,7 @@ Add `gemini` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:gemini_ex, "~> 0.6.1"}
+    {:gemini_ex, "~> 0.6.2"}
   ]
 end
 ```
@@ -149,6 +149,13 @@ Gemini.Streaming.pause_stream(stream_id)
 Gemini.Streaming.resume_stream(stream_id)
 Gemini.Streaming.stop_stream(stream_id)
 ```
+
+### Rate Limiting (built-in)
+
+- Enabled by default: requests block when over budget; non-blocking mode returns `{:error, {:rate_limited, retry_at, details}}` with `retry_at` set to the window end.
+- Oversized requests (estimate exceeds budget) return `reason: :over_budget, request_too_large: true` immediately—no retry loop.
+- Cached context tokens are counted toward budgets. When you precompute cache size, you can pass `estimated_cached_tokens:` alongside `estimated_input_tokens:` to budget correctly before the API reports usage.
+- Optional `max_budget_wait_ms` caps how long blocking calls sleep for a full window; if the cap is hit and the window is still full, you get a `rate_limited` error with `retry_at` set to the actual window end.
 
 ### Advanced Generation Configuration
 

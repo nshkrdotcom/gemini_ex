@@ -372,8 +372,16 @@ defmodule Gemini.RateLimiterTest do
     end
 
     test "emits telemetry events" do
+      prev_telemetry = Application.get_env(:gemini_ex, :telemetry_enabled)
       # Ensure telemetry is enabled for this test
       Application.put_env(:gemini_ex, :telemetry_enabled, true)
+
+      on_exit(fn ->
+        case prev_telemetry do
+          nil -> Application.delete_env(:gemini_ex, :telemetry_enabled)
+          value -> Application.put_env(:gemini_ex, :telemetry_enabled, value)
+        end
+      end)
 
       model = "test-model-#{System.unique_integer()}"
       test_pid = self()
@@ -531,6 +539,207 @@ defmodule Gemini.RateLimiterTest do
       # With paid_tier_1 profile (1M budget), should pass
       result = Manager.check_status(model, estimated_input_tokens: 5000, profile: :paid_tier_1)
       assert result == :ok
+    end
+  end
+
+  describe "Over budget handling" do
+    test "returns request_too_large without executing when estimate exceeds budget" do
+      model = "oversized-#{System.unique_integer()}"
+      parent = self()
+
+      request_fn = fn ->
+        send(parent, :executed)
+        {:ok, %{text: "should not run"}}
+      end
+
+      result =
+        Manager.execute(
+          request_fn,
+          model,
+          estimated_input_tokens: 200,
+          token_budget_per_window: 100
+        )
+
+      assert {:error, {:rate_limited, nil, details}} = result
+      assert details.reason == :over_budget
+      assert details.request_too_large == true
+      assert details.estimated_input_tokens == 200
+      assert details.token_budget == 100
+      refute_receive :executed, 50
+    end
+
+    test "blocks until window clears then succeeds" do
+      model = "window-wait-#{System.unique_integer()}"
+      key = State.build_key(model, nil, :token_count)
+
+      # Consume most of the budget with a short window
+      State.record_usage(key, 15, 0, window_duration_ms: 30)
+
+      parent = self()
+
+      request_fn = fn ->
+        send(parent, {:executed, System.monotonic_time(:millisecond)})
+        {:ok, %{text: "success"}}
+      end
+
+      start = System.monotonic_time(:millisecond)
+
+      result =
+        Manager.execute(
+          request_fn,
+          model,
+          estimated_input_tokens: 10,
+          token_budget_per_window: 20
+        )
+
+      assert {:ok, %{text: "success"}} = result
+
+      assert_receive {:executed, exec_time}, 200
+      assert exec_time - start >= 5
+    end
+
+    test "non_blocking returns retry_at and does not execute request" do
+      model = "non-blocking-#{System.unique_integer()}"
+      key = State.build_key(model, nil, :token_count)
+
+      # Set a short window that should produce a future retry_at
+      State.record_usage(key, 15, 0, window_duration_ms: 50)
+
+      parent = self()
+
+      request_fn = fn ->
+        send(parent, :executed)
+        {:ok, %{text: "should not run"}}
+      end
+
+      result =
+        Manager.execute(
+          request_fn,
+          model,
+          estimated_input_tokens: 10,
+          token_budget_per_window: 20,
+          non_blocking: true
+        )
+
+      assert {:error, {:rate_limited, retry_at, details}} = result
+      assert %DateTime{} = retry_at
+      assert details.reason == :over_budget
+      assert details.request_too_large == false
+      refute_receive :executed, 50
+    end
+
+    test "estimated_cached_tokens contribute to over_budget checks" do
+      model = "cached-estimate-#{System.unique_integer()}"
+
+      result =
+        Manager.check_status(model,
+          estimated_input_tokens: 10,
+          estimated_cached_tokens: 95,
+          token_budget_per_window: 100
+        )
+
+      assert {:over_budget, ctx} = result
+      assert ctx.request_too_large
+      assert ctx.estimated_total_tokens == 105
+    end
+
+    test "cached_content_token_count is recorded into usage" do
+      model = "cached-usage-#{System.unique_integer()}"
+
+      response = %{
+        "usageMetadata" => %{
+          "promptTokenCount" => 10,
+          "candidatesTokenCount" => 5,
+          "cachedContentTokenCount" => 20
+        }
+      }
+
+      Manager.execute_with_usage_tracking(
+        fn -> {:ok, response} end,
+        model,
+        disable_rate_limiter: true
+      )
+
+      usage = Manager.get_usage(model)
+      assert usage.input_tokens == 30
+      assert usage.output_tokens == 5
+    end
+
+    test "max_budget_wait_ms caps blocking wait and returns retry_at" do
+      model = "wait-cap-#{System.unique_integer()}"
+      key = State.build_key(model, nil, :token_count)
+
+      # Create usage with long window to force wait
+      State.record_usage(key, 15, 0, window_duration_ms: 200)
+
+      start = System.monotonic_time(:millisecond)
+
+      result =
+        Manager.execute(
+          fn -> {:ok, %{text: "should not run"}} end,
+          model,
+          estimated_input_tokens: 10,
+          token_budget_per_window: 20,
+          max_budget_wait_ms: 10
+        )
+
+      elapsed = System.monotonic_time(:millisecond) - start
+
+      assert {:error, {:rate_limited, retry_at, details}} = result
+      assert %DateTime{} = retry_at
+      assert details.request_too_large == false
+      assert elapsed < 100
+    end
+
+    test "telemetry wait event includes token estimates and wait metadata" do
+      prev_telemetry = Application.get_env(:gemini_ex, :telemetry_enabled)
+      Application.put_env(:gemini_ex, :telemetry_enabled, true)
+
+      on_exit(fn ->
+        case prev_telemetry do
+          nil -> Application.delete_env(:gemini_ex, :telemetry_enabled)
+          value -> Application.put_env(:gemini_ex, :telemetry_enabled, value)
+        end
+      end)
+
+      model = "telemetry-overbudget-#{System.unique_integer()}"
+      key = State.build_key(model, nil, :token_count)
+      test_pid = self()
+      handler_id = "wait-handler-#{System.unique_integer()}"
+
+      :telemetry.attach(
+        handler_id,
+        [:gemini, :rate_limit, :wait],
+        fn event, measurements, metadata, _ ->
+          send(test_pid, {:wait_event, event, measurements, metadata})
+        end,
+        nil
+      )
+
+      # Consume budget so next request waits
+      State.record_usage(key, 15, 0, window_duration_ms: 50)
+
+      Manager.execute(
+        fn -> {:ok, %{text: "success"}} end,
+        model,
+        estimated_input_tokens: 10,
+        estimated_cached_tokens: 5,
+        token_budget_per_window: 20
+      )
+
+      assert_receive {:wait_event, [:gemini, :rate_limit, :wait], _,
+                      %{
+                        model: ^model,
+                        reason: :over_budget,
+                        estimated_input_tokens: 10,
+                        estimated_cached_tokens: 5,
+                        estimated_total_tokens: 15,
+                        wait_ms: wait_ms
+                      }},
+                     200
+
+      assert is_integer(wait_ms)
+      :telemetry.detach(handler_id)
     end
   end
 

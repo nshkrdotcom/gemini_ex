@@ -282,6 +282,36 @@ Each profile includes a default token budget:
 - `:prod` - 500,000 tokens per minute
 - `:dev` - 16,000 tokens per minute
 
+### Cached context tokens
+
+Cached contexts still consume tokens (returned as `cachedContentTokenCount` in responses) and are counted toward the budget. The rate limiter records these tokens automatically on success. If you pre-compute cache size and want proactive blocking before first use, supply both:
+
+```elixir
+Gemini.generate("Run on cached context",
+  cached_content: cache_name,
+  estimated_input_tokens: 200,      # prompt size
+  estimated_cached_tokens: 50_000,  # precomputed cache size
+  token_budget_per_window: 1_000_000
+)
+```
+
+### Over-budget behavior
+
+- **Request too large**: If `estimated_input_tokens + estimated_cached_tokens > token_budget_per_window`, the limiter returns `{:error, {:rate_limited, nil, %{reason: :over_budget, request_too_large: true}}}` immediately (no retries).
+- **Window full**: If the current window is full but the request fits the budget, blocking mode waits until the window ends once, then retries; non-blocking mode returns `retry_at` set to that window end.
+
+### Limiting wait time
+
+Blocking calls can cap their wait with `max_budget_wait_ms` (default: `nil` = no cap). If the cap is reached and the window is still full, the limiter returns `{:error, {:rate_limited, retry_at, details}}` where `retry_at` is the actual window end:
+
+```elixir
+Gemini.generate("...", [
+  token_budget_per_window: 500_000,
+  estimated_input_tokens: 20_000,
+  max_budget_wait_ms: 5_000  # block at most 5 seconds on budget waits
+])
+```
+
 ### Manual Token Estimation
 
 You can override the automatic estimate if you have a more accurate count:

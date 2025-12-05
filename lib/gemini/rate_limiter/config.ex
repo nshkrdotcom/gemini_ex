@@ -17,6 +17,7 @@ defmodule Gemini.RateLimiter.Config do
   - `:adaptive_ceiling` - Maximum concurrency when adaptive mode is enabled (default: 8)
   - `:token_budget_per_window` - Maximum tokens per window (default: profile-dependent; base is 32_000, `:prod` profile sets 500_000; nil disables)
   - `:window_duration_ms` - Duration of budget window in milliseconds (default: 60_000)
+  - `:max_budget_wait_ms` - Maximum time to block on over-budget windows before returning (default: nil = no cap)
   - `:profile` - Configuration profile (see below)
 
   ## Profiles
@@ -34,7 +35,7 @@ defmodule Gemini.RateLimiter.Config do
 
   **Defaults & precedence**
 
-  - `Config.build/0` uses the `:prod` profile by default → `token_budget_per_window` is `500_000`.
+  - `build/0` uses the `:prod` profile by default → `token_budget_per_window` is `500_000`.
   - The base struct default (`32_000`) is overridden by the selected profile.
   - `:custom` uses the base defaults unless you explicitly override fields.
   - Order of application: base defaults → profile → app config → per-call overrides.
@@ -68,7 +69,8 @@ defmodule Gemini.RateLimiter.Config do
           profile: profile(),
           # Token budget settings (ADR-0002)
           token_budget_per_window: non_neg_integer() | nil,
-          window_duration_ms: pos_integer()
+          window_duration_ms: pos_integer(),
+          max_budget_wait_ms: pos_integer() | nil
         }
 
   defstruct max_concurrency_per_model: 4,
@@ -82,7 +84,9 @@ defmodule Gemini.RateLimiter.Config do
             profile: :prod,
             # Base fallback defaults (overridden by profiles/app config)
             token_budget_per_window: 32_000,
-            window_duration_ms: 60_000
+            window_duration_ms: 60_000,
+            # Optional cap on over-budget blocking wait (nil = no cap)
+            max_budget_wait_ms: nil
 
   @profiles %{
     # Development profile - lower concurrency, more conservative
