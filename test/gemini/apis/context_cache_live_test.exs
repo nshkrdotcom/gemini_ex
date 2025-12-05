@@ -16,6 +16,8 @@ defmodule Gemini.APIs.ContextCacheLiveTest do
   alias Gemini.APIs.ContextCache
   alias Gemini.Types.Content
 
+  import Gemini.Test.ModelHelpers
+
   setup_all do
     Application.ensure_all_started(:gemini)
 
@@ -53,7 +55,7 @@ defmodule Gemini.APIs.ContextCacheLiveTest do
         result =
           ContextCache.create(contents,
             display_name: "GeminiEx Test Cache #{:rand.uniform(10000)}",
-            model: "gemini-2.0-flash",
+            model: default_model(),
             ttl: 300
           )
 
@@ -115,7 +117,7 @@ defmodule Gemini.APIs.ContextCacheLiveTest do
         create_result =
           ContextCache.create(contents,
             display_name: "GeminiEx Project Context #{:rand.uniform(10000)}",
-            model: "gemini-2.0-flash",
+            model: default_model(),
             ttl: 300
           )
 
@@ -127,7 +129,7 @@ defmodule Gemini.APIs.ContextCacheLiveTest do
             generate_result =
               Gemini.generate(
                 "Based on the project context, what database is used?",
-                model: "gemini-2.0-flash",
+                model: default_model(),
                 cached_content: cache.name
               )
 
@@ -169,7 +171,7 @@ defmodule Gemini.APIs.ContextCacheLiveTest do
         create_result =
           ContextCache.create(contents,
             display_name: "TTL Test Cache #{:rand.uniform(10000)}",
-            model: "gemini-2.0-flash",
+            model: default_model(),
             ttl: 300
           )
 
@@ -194,6 +196,62 @@ defmodule Gemini.APIs.ContextCacheLiveTest do
 
           {:error, error} ->
             IO.puts("Context caching may not be available: #{inspect(error)}")
+            :ok
+        end
+      end
+    end
+  end
+
+  describe "enhanced cache features" do
+    @tag :live_api
+    @tag :enhanced_cache_features
+    test "create cache with system instruction and file uri", context do
+      if context[:skip] do
+        IO.puts("Skipping: GEMINI_API_KEY not set")
+        :ok
+      else
+        contents = [
+          Content.text("Include insights from the attached document.", "user"),
+          %Content{
+            role: "user",
+            parts: [%{file_uri: "gs://cloud-samples-data/generative-ai/pdf/scene.pdf"}]
+          }
+        ]
+
+        result =
+          ContextCache.create(contents,
+            display_name: "GeminiEx Enhanced Cache #{:rand.uniform(10000)}",
+            model: default_model(),
+            ttl: 300,
+            system_instruction: "Answer in one concise sentence."
+          )
+
+        case result do
+          {:ok, cache} ->
+            IO.puts("Created enhanced cache: #{cache.name}")
+
+            generate_result =
+              Gemini.generate(
+                "Confirm you will use the cached file context.",
+                model: default_model(),
+                cached_content: cache.name
+              )
+
+            case generate_result do
+              {:ok, response} ->
+                {:ok, text} = Gemini.extract_text(response)
+                IO.puts("Response: #{String.slice(text, 0, 200)}")
+                assert String.length(text) > 0
+
+              {:error, gen_error} ->
+                IO.puts("Generate with enhanced cache failed: #{inspect(gen_error)}")
+                :ok
+            end
+
+            ContextCache.delete(cache.name)
+
+          {:error, error} ->
+            IO.puts("Enhanced cache creation may not be available: #{inspect(error)}")
             :ok
         end
       end

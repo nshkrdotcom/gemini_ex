@@ -3,98 +3,150 @@ defmodule Gemini.IntegrationTest do
 
   @moduletag :live_api
 
+  import Gemini.Test.ModelHelpers
+
+  setup_all do
+    {:ok, %{has_auth: auth_available?()}}
+  end
+
   describe "Models API" do
-    test "lists available models" do
-      {:ok, response} = Gemini.list_models()
+    # Note: Models API (list_models, get_model) only works with Gemini API, not Vertex AI
+    test "lists available models", %{has_auth: _has_auth} do
+      unless gemini_api_available?() do
+        IO.puts("Skipping Models API test - requires GEMINI_API_KEY (not supported on Vertex AI)")
+        assert true
+      else
+        {:ok, response} = Gemini.list_models()
 
-      assert is_list(response.models)
-      assert length(response.models) > 0
+        assert is_list(response.models)
+        assert length(response.models) > 0
 
-      # Check that we have common models
-      model_names = Enum.map(response.models, & &1.name)
-      assert Enum.any?(model_names, &String.contains?(&1, "gemini"))
+        # Check that we have common models
+        model_names = Enum.map(response.models, & &1.name)
+        assert Enum.any?(model_names, &String.contains?(&1, "gemini"))
+      end
     end
 
-    test "gets specific model information" do
-      {:ok, model} = Gemini.get_model("gemini-flash-lite-latest")
+    test "gets specific model information", %{has_auth: _has_auth} do
+      unless gemini_api_available?() do
+        IO.puts("Skipping Models API test - requires GEMINI_API_KEY (not supported on Vertex AI)")
+        assert true
+      else
+        {:ok, model} = Gemini.get_model(default_model())
 
-      assert model.name =~ "gemini-flash-lite-latest"
-      assert is_binary(model.display_name)
-      assert is_integer(model.input_token_limit)
-      assert model.input_token_limit > 0
+        assert model.name =~ default_model()
+        assert is_binary(model.display_name)
+        assert is_integer(model.input_token_limit)
+        assert model.input_token_limit > 0
+      end
     end
 
-    test "checks model existence" do
-      {:ok, exists} = Gemini.model_exists?("gemini-flash-lite-latest")
-      assert exists == true
+    test "checks model existence", %{has_auth: _has_auth} do
+      unless gemini_api_available?() do
+        IO.puts("Skipping Models API test - requires GEMINI_API_KEY (not supported on Vertex AI)")
+        assert true
+      else
+        {:ok, exists} = Gemini.model_exists?(default_model())
+        assert exists == true
 
-      {:ok, exists} = Gemini.model_exists?("non-existent-model-12345")
-      assert exists == false
+        {:ok, exists} = Gemini.model_exists?("non-existent-model-12345")
+        assert exists == false
+      end
     end
   end
 
   describe "Content Generation" do
-    test "generates simple text" do
-      {:ok, text} = Gemini.text("Say hello")
+    test "generates simple text", %{has_auth: has_auth} do
+      unless has_auth do
+        IO.puts("Skipping integration test - no API key configured")
+        assert true
+      else
+        {:ok, text} = Gemini.text("Say hello")
 
-      assert is_binary(text)
-      assert String.length(text) > 0
-      assert String.downcase(text) =~ "hello"
+        assert is_binary(text)
+        assert String.length(text) > 0
+        assert String.downcase(text) =~ "hello"
+      end
     end
 
-    test "generates content with response details" do
-      {:ok, response} = Gemini.generate("What is 2+2?")
+    test "generates content with response details", %{has_auth: has_auth} do
+      unless has_auth do
+        IO.puts("Skipping integration test - no API key configured")
+        assert true
+      else
+        {:ok, response} = Gemini.generate("What is 2+2?")
 
-      assert length(response.candidates) > 0
+        assert length(response.candidates) > 0
 
-      candidate = List.first(response.candidates)
-      assert candidate.content != nil
-      assert length(candidate.content.parts) > 0
+        candidate = List.first(response.candidates)
+        assert candidate.content != nil
+        assert length(candidate.content.parts) > 0
 
-      {:ok, text} = Gemini.extract_text(response)
-      assert text =~ "4"
+        {:ok, text} = Gemini.extract_text(response)
+        assert text =~ "4"
+      end
     end
 
-    test "counts tokens" do
-      {:ok, count_response} = Gemini.count_tokens("This is a test message for token counting.")
+    test "counts tokens", %{has_auth: has_auth} do
+      unless has_auth do
+        IO.puts("Skipping integration test - no API key configured")
+        assert true
+      else
+        {:ok, count_response} = Gemini.count_tokens("This is a test message for token counting.")
 
-      assert is_integer(count_response.total_tokens)
-      assert count_response.total_tokens > 0
+        assert is_integer(count_response.total_tokens)
+        assert count_response.total_tokens > 0
+      end
     end
 
-    test "generates with configuration" do
-      alias Gemini.Types.GenerationConfig
+    test "generates with configuration", %{has_auth: has_auth} do
+      unless has_auth do
+        IO.puts("Skipping integration test - no API key configured")
+        assert true
+      else
+        alias Gemini.Types.GenerationConfig
 
-      config = GenerationConfig.precise(max_output_tokens: 50)
-      {:ok, text} = Gemini.text("Write one sentence about cats", generation_config: config)
+        config = GenerationConfig.precise(max_output_tokens: 50)
+        {:ok, text} = Gemini.text("Write one sentence about cats", generation_config: config)
 
-      assert is_binary(text)
-      assert String.length(text) > 0
+        assert is_binary(text)
+        assert String.length(text) > 0
+      end
     end
   end
 
   describe "Chat Sessions" do
-    test "maintains conversation context" do
-      {:ok, chat} = Gemini.chat()
+    test "maintains conversation context", %{has_auth: has_auth} do
+      unless has_auth do
+        IO.puts("Skipping integration test - no API key configured")
+        assert true
+      else
+        {:ok, chat} = Gemini.chat()
 
-      # First message
-      {:ok, response1, chat} = Gemini.send_message(chat, "My name is Alice. Remember this.")
-      {:ok, text1} = Gemini.extract_text(response1)
-      assert is_binary(text1)
+        # First message
+        {:ok, response1, chat} = Gemini.send_message(chat, "My name is Alice. Remember this.")
+        {:ok, text1} = Gemini.extract_text(response1)
+        assert is_binary(text1)
 
-      # Second message referencing the first
-      {:ok, response2, _chat} = Gemini.send_message(chat, "What is my name?")
-      {:ok, text2} = Gemini.extract_text(response2)
-      assert String.downcase(text2) =~ "alice"
+        # Second message referencing the first
+        {:ok, response2, _chat} = Gemini.send_message(chat, "What is my name?")
+        {:ok, text2} = Gemini.extract_text(response2)
+        assert String.downcase(text2) =~ "alice"
+      end
     end
   end
 
   describe "Error Handling" do
-    test "handles invalid model gracefully" do
-      {:error, error} = Gemini.text("Hello", model: "invalid-model-name-12345")
+    test "handles invalid model gracefully", %{has_auth: has_auth} do
+      unless has_auth do
+        IO.puts("Skipping integration test - no API key configured")
+        assert true
+      else
+        {:error, error} = Gemini.text("Hello", model: "invalid-model-name-12345")
 
-      assert %Gemini.Error{} = error
-      assert error.type in [:api_error, :http_error]
+        assert %Gemini.Error{} = error
+        assert error.type in [:api_error, :http_error]
+      end
     end
   end
 
@@ -118,4 +170,6 @@ defmodule Gemini.IntegrationTest do
       assert is_binary(text)
     end
   end
+
+  # auth_available?/0 and gemini_api_available?/0 are imported from ModelHelpers
 end

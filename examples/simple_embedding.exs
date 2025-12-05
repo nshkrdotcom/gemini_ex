@@ -15,6 +15,7 @@
 #   mix run examples/simple_embedding.exs
 
 alias Gemini.APIs.Coordinator
+alias Gemini.Config
 alias Gemini.Types.Response.EmbedContentResponse
 
 # Simple embedding - equivalent to the curl command
@@ -22,7 +23,7 @@ text = "What is the meaning of life?"
 
 IO.puts("\nEmbedding text: \"#{text}\"\n")
 
-case Coordinator.embed_content(text, model: "gemini-embedding-001") do
+case Coordinator.embed_content(text, model: Config.get_model(:embedding)) do
   {:ok, response} ->
     values = EmbedContentResponse.get_values(response)
 

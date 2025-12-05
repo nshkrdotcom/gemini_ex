@@ -33,12 +33,25 @@ defmodule Gemini.APIs.ContextCache do
 
   alias Gemini.Client.HTTP
   alias Gemini.Types.Content
+  alias Gemini.Types.Part
+  alias Gemini.Types.ToolSerialization
+  alias Gemini.Types.CachedContentUsageMetadata
+  alias Gemini.Utils.ResourceNames
+
+  require Logger
 
   @type cache_opts :: [
           display_name: String.t(),
           model: String.t(),
           ttl: non_neg_integer(),
-          expire_time: DateTime.t()
+          expire_time: DateTime.t(),
+          system_instruction: String.t() | Content.t(),
+          tools: [Altar.ADM.FunctionDeclaration.t()],
+          tool_config: Altar.ADM.ToolConfig.t(),
+          kms_key_name: String.t(),
+          auth: :gemini | :vertex_ai,
+          project_id: String.t(),
+          location: String.t()
         ]
 
   @type cached_content :: %{
@@ -48,7 +61,7 @@ defmodule Gemini.APIs.ContextCache do
           create_time: String.t() | nil,
           update_time: String.t() | nil,
           expire_time: String.t() | nil,
-          usage_metadata: map() | nil
+          usage_metadata: CachedContentUsageMetadata.t() | nil
         }
 
   @doc """
@@ -77,15 +90,22 @@ defmodule Gemini.APIs.ContextCache do
         ttl: 7200
       )
   """
-  @spec create([Content.t()] | [map()], cache_opts()) ::
+  @spec create([Content.t()] | [map()] | String.t(), cache_opts()) ::
           {:ok, cached_content()} | {:error, term()}
-  def create(contents, opts \\ []) when is_list(contents) do
+  def create(contents, opts \\ [])
+
+  def create(contents, opts) when is_binary(contents) do
+    create([Content.text(contents)], opts)
+  end
+
+  def create(contents, opts) when is_list(contents) do
     display_name =
       Keyword.get(opts, :display_name) ||
         raise ArgumentError, "display_name is required for cached content"
 
     model = Keyword.get(opts, :model, Gemini.Config.default_model())
-    full_model_name = "models/#{model}"
+    full_model_name = ResourceNames.normalize_cache_model_name(model, opts)
+    validate_cache_model(full_model_name)
 
     # Build TTL specification
     ttl_spec = build_ttl_spec(opts)
@@ -94,20 +114,36 @@ defmodule Gemini.APIs.ContextCache do
     formatted_contents = format_contents(contents)
 
     request_body =
-      %{
-        model: full_model_name,
-        displayName: display_name,
-        contents: formatted_contents
-      }
-      |> Map.merge(ttl_spec)
+      base_create_body(full_model_name, display_name, formatted_contents, ttl_spec, opts)
 
-    case HTTP.post("cachedContents", request_body, opts) do
+    path = ResourceNames.cached_contents_path(opts)
+
+    case HTTP.post(path, request_body, opts) do
       {:ok, response} ->
         {:ok, normalize_cache_response(response)}
 
       {:error, reason} ->
         {:error, reason}
     end
+  end
+
+  @doc false
+  def __test_build_create_body__(contents, opts) do
+    display_name =
+      Keyword.get(opts, :display_name) ||
+        raise ArgumentError, "display_name is required for cached content"
+
+    model = Keyword.get(opts, :model, Gemini.Config.default_model())
+    full_model_name = ResourceNames.normalize_cache_model_name(model, opts)
+    ttl_spec = build_ttl_spec(opts)
+    formatted_contents = format_contents(contents)
+
+    request_body =
+      base_create_body(full_model_name, display_name, formatted_contents, ttl_spec, opts)
+
+    path = ResourceNames.cached_contents_path(opts)
+
+    %{body: request_body, path: path}
   end
 
   @doc """
@@ -136,12 +172,14 @@ defmodule Gemini.APIs.ContextCache do
         do: [{:pageToken, opts[:page_token]} | query_params],
         else: query_params
 
+    base_path = ResourceNames.cached_contents_path(opts)
+
     path =
       if query_params == [] do
-        "cachedContents"
+        base_path
       else
         query_string = URI.encode_query(query_params)
-        "cachedContents?#{query_string}"
+        "#{base_path}?#{query_string}"
       end
 
     case HTTP.get(path, opts) do
@@ -178,7 +216,9 @@ defmodule Gemini.APIs.ContextCache do
   """
   @spec get(String.t(), keyword()) :: {:ok, cached_content()} | {:error, term()}
   def get(name, opts \\ []) when is_binary(name) do
-    case HTTP.get(name, opts) do
+    normalized_name = ResourceNames.normalize_cached_content_name(name, opts)
+
+    case HTTP.get(normalized_name, opts) do
       {:ok, response} ->
         {:ok, normalize_cache_response(response)}
 
@@ -205,12 +245,13 @@ defmodule Gemini.APIs.ContextCache do
   @spec update(String.t(), keyword()) :: {:ok, cached_content()} | {:error, term()}
   def update(name, opts \\ []) when is_binary(name) do
     ttl_spec = build_ttl_spec(opts)
+    normalized_name = ResourceNames.normalize_cached_content_name(name, opts)
 
     if map_size(ttl_spec) == 0 do
       {:error, "Must specify either :ttl or :expire_time"}
     else
       # PATCH request
-      case HTTP.patch(name, ttl_spec, opts) do
+      case HTTP.patch(normalized_name, ttl_spec, opts) do
         {:ok, response} ->
           {:ok, normalize_cache_response(response)}
 
@@ -235,7 +276,9 @@ defmodule Gemini.APIs.ContextCache do
   """
   @spec delete(String.t(), keyword()) :: :ok | {:error, term()}
   def delete(name, opts \\ []) when is_binary(name) do
-    case HTTP.delete(name, opts) do
+    normalized_name = ResourceNames.normalize_cached_content_name(name, opts)
+
+    case HTTP.delete(normalized_name, opts) do
       {:ok, _response} ->
         :ok
 
@@ -245,6 +288,19 @@ defmodule Gemini.APIs.ContextCache do
   end
 
   # Private helpers
+
+  defp base_create_body(full_model_name, display_name, formatted_contents, ttl_spec, opts) do
+    %{
+      model: full_model_name,
+      displayName: display_name,
+      contents: formatted_contents
+    }
+    |> Map.merge(ttl_spec)
+    |> maybe_add_system_instruction(opts)
+    |> maybe_add_tools(opts)
+    |> maybe_add_tool_config(opts)
+    |> maybe_add_kms_key(opts)
+  end
 
   defp build_ttl_spec(opts) do
     cond do
@@ -261,52 +317,175 @@ defmodule Gemini.APIs.ContextCache do
     end
   end
 
+  defp maybe_add_system_instruction(map, opts) do
+    case Keyword.get(opts, :system_instruction) do
+      nil ->
+        map
+
+      instruction when is_binary(instruction) ->
+        Map.put(map, :systemInstruction, %{role: "user", parts: [%{text: instruction}]})
+
+      %Content{} = content ->
+        Map.put(map, :systemInstruction, format_content(content))
+
+      %{} = content ->
+        Map.put(map, :systemInstruction, format_content(content))
+    end
+  end
+
+  defp maybe_add_tools(map, opts) do
+    case Keyword.get(opts, :tools) do
+      tools when is_list(tools) and length(tools) > 0 ->
+        Map.put(map, :tools, ToolSerialization.to_api_tool_list(tools))
+
+      _ ->
+        map
+    end
+  end
+
+  defp maybe_add_tool_config(map, opts) do
+    case Keyword.get(opts, :tool_config) do
+      %Altar.ADM.ToolConfig{} = tool_config ->
+        Map.put(map, :toolConfig, ToolSerialization.to_api_tool_config(tool_config))
+
+      _ ->
+        map
+    end
+  end
+
+  defp maybe_add_kms_key(map, opts) do
+    case Keyword.get(opts, :kms_key_name) do
+      nil ->
+        map
+
+      kms_key ->
+        auth_type = Keyword.get(opts, :auth) || auth_type_from_config()
+
+        if auth_type == :vertex_ai do
+          Map.put(map, :encryptionSpec, %{kmsKeyName: kms_key})
+        else
+          raise ArgumentError, "kms_key_name is only supported with Vertex AI authentication"
+        end
+    end
+  end
+
   defp format_contents(contents) do
-    Enum.map(contents, fn
-      %Content{role: role, parts: parts} ->
-        %{
-          role: role,
-          parts: format_parts(parts)
-        }
+    Enum.map(contents, &format_content/1)
+  end
 
-      %{role: role, parts: parts} ->
-        %{
-          role: role,
-          parts: format_parts(parts)
-        }
+  defp format_content(%Content{role: role, parts: parts}) do
+    %{role: role, parts: format_parts(parts)}
+  end
 
-      %{text: text} ->
-        %{
-          role: "user",
-          parts: [%{text: text}]
-        }
+  defp format_content(%{role: role, parts: parts}) do
+    %{role: role, parts: format_parts(parts)}
+  end
 
-      text when is_binary(text) ->
-        %{
-          role: "user",
-          parts: [%{text: text}]
-        }
-    end)
+  defp format_content(%{parts: parts} = map) do
+    role =
+      Map.get(map, :role) ||
+        Map.get(map, "role") ||
+        "user"
+
+    %{role: role, parts: format_parts(parts)}
+  end
+
+  defp format_content(%{text: text} = map) when is_binary(text) do
+    role = Map.get(map, :role, "user")
+    parts = Map.get(map, :parts, [%{text: text}])
+    %{role: role, parts: format_parts(parts)}
+  end
+
+  defp format_content(text) when is_binary(text) do
+    %{role: "user", parts: [%{text: text}]}
   end
 
   defp format_parts(parts) when is_list(parts) do
-    Enum.map(parts, fn
-      %Gemini.Types.Part{text: text} when is_binary(text) ->
-        %{text: text}
-
-      %{text: text} when is_binary(text) ->
-        %{text: text}
-
-      %Gemini.Types.Part{inline_data: %{data: data, mime_type: mime}} ->
-        %{inlineData: %{data: data, mimeType: mime}}
-
-      %{inline_data: %{data: data, mime_type: mime}} ->
-        %{inlineData: %{data: data, mimeType: mime}}
-
-      other ->
-        other
-    end)
+    Enum.map(parts, &format_part/1)
   end
+
+  defp format_part(%Part{text: text} = part) when is_binary(text) do
+    %{text: text}
+    |> maybe_put_thought_signature(part)
+    |> maybe_put_media_resolution(part)
+  end
+
+  defp format_part(%{text: text} = part) when is_binary(text) do
+    %{text: text}
+    |> maybe_put_thought_signature(part)
+  end
+
+  defp format_part(%Part{inline_data: %{data: data, mime_type: mime}} = part) do
+    %{inlineData: %{data: data, mimeType: mime}}
+    |> maybe_put_media_resolution(part)
+  end
+
+  defp format_part(%{inline_data: %{data: data, mime_type: mime}} = part) do
+    %{inlineData: %{data: data, mimeType: mime}}
+    |> maybe_put_media_resolution(part)
+  end
+
+  defp format_part(%Part{function_call: %Altar.ADM.FunctionCall{name: name, args: args}} = part) do
+    %{functionCall: %{name: name, args: args || %{}}}
+    |> maybe_put_thought_signature(part)
+  end
+
+  defp format_part(%{function_call: %{name: name} = call} = part) when is_binary(name) do
+    args = Map.get(call, :args, %{}) || %{}
+
+    %{functionCall: %{name: name, args: args}}
+    |> maybe_put_thought_signature(part)
+  end
+
+  defp format_part(%{function_call: %{"name" => name} = call} = part) when is_binary(name) do
+    args = Map.get(call, "args", %{}) || %{}
+
+    %{functionCall: %{name: name, args: args}}
+    |> maybe_put_thought_signature(part)
+  end
+
+  defp format_part(%{file_data: %{file_uri: uri, mime_type: mime}}) when is_binary(uri) do
+    %{fileData: %{fileUri: uri, mimeType: mime}}
+  end
+
+  defp format_part(%{file_data: %{file_uri: uri}}) when is_binary(uri) do
+    %{fileData: %{fileUri: uri}}
+  end
+
+  defp format_part(%{file_uri: uri}) when is_binary(uri) do
+    %{fileData: %{fileUri: uri}}
+  end
+
+  defp format_part(%{"fileData" => _} = part), do: part
+  defp format_part(%{"functionResponse" => _} = part), do: part
+  defp format_part(%{"functionCall" => _} = part), do: part
+
+  defp format_part(%{parts: _} = part), do: part
+  defp format_part(other), do: other
+
+  defp maybe_put_thought_signature(map, %{thought_signature: sig}) when is_binary(sig) do
+    Map.put(map, :thoughtSignature, sig)
+  end
+
+  defp maybe_put_thought_signature(map, %{"thoughtSignature" => sig}) when is_binary(sig) do
+    Map.put(map, :thoughtSignature, sig)
+  end
+
+  defp maybe_put_thought_signature(map, _), do: map
+
+  defp maybe_put_media_resolution(map, %Part{
+         media_resolution: %Part.MediaResolution{level: level}
+       })
+       when not is_nil(level) do
+    Map.put(map, :mediaResolution, %{level: level})
+  end
+
+  defp maybe_put_media_resolution(map, %{media_resolution: %Part.MediaResolution{level: level}})
+       when not is_nil(level) do
+    Map.put(map, :mediaResolution, %{level: level})
+  end
+
+  defp maybe_put_media_resolution(map, _), do: map
 
   defp normalize_cache_response(response) when is_map(response) do
     %{
@@ -323,9 +502,44 @@ defmodule Gemini.APIs.ContextCache do
   defp normalize_usage_metadata(nil), do: nil
 
   defp normalize_usage_metadata(metadata) when is_map(metadata) do
-    %{
+    %CachedContentUsageMetadata{
       total_token_count: Map.get(metadata, "totalTokenCount"),
-      cached_content_token_count: Map.get(metadata, "cachedContentTokenCount")
+      cached_content_token_count: Map.get(metadata, "cachedContentTokenCount"),
+      audio_duration_seconds: Map.get(metadata, "audioDurationSeconds"),
+      image_count: Map.get(metadata, "imageCount"),
+      text_count: Map.get(metadata, "textCount"),
+      video_duration_seconds: Map.get(metadata, "videoDurationSeconds")
     }
+  end
+
+  @valid_cache_models [
+    "gemini-2.0-flash-001",
+    "gemini-2.0-flash-lite-001",
+    "gemini-2.5-flash",
+    "gemini-2.5-pro",
+    "gemini-3-pro-preview"
+  ]
+
+  defp validate_cache_model(model) do
+    base_model =
+      model
+      |> String.split("/")
+      |> List.last()
+
+    unless Enum.any?(@valid_cache_models, &String.starts_with?(base_model, &1)) do
+      Logger.warning(
+        "Model #{model} may not support explicit caching. " <>
+          "Use models with explicit version suffixes like 'gemini-2.5-flash'"
+      )
+    end
+
+    :ok
+  end
+
+  defp auth_type_from_config do
+    case Gemini.Config.auth_config() do
+      %{type: type} -> type
+      _ -> :gemini
+    end
   end
 end

@@ -3,6 +3,24 @@ defmodule Gemini.APIs.CoordinatorEmbeddingTest do
 
   alias Gemini.Types.Request.{EmbedContentRequest, BatchEmbedContentsRequest}
   alias Gemini.Types.Response.{EmbedContentResponse, BatchEmbedContentsResponse, ContentEmbedding}
+  alias Gemini.Config
+
+  import Gemini.Test.ModelHelpers
+
+  # No setup block - tests are auth-aware and validate both Gemini API and Vertex AI behavior
+  # Task type handling differs between APIs:
+  # - Gemini API (gemini-embedding-001): Uses taskType parameter in struct
+  # - Vertex AI (embeddinggemma): Embeds task in prompt text, task_type field is nil
+
+  # Helper to check if current config uses prompt prefixes (Vertex AI)
+  defp uses_prompt_prefix? do
+    Config.uses_prompt_prefix?(embedding_model())
+  end
+
+  # Helper to get text content from request
+  defp get_request_text(%EmbedContentRequest{content: content}) do
+    content.parts |> hd() |> Map.get(:text)
+  end
 
   describe "embed_content/2" do
     test "creates valid request from text string" do
@@ -11,15 +29,15 @@ defmodule Gemini.APIs.CoordinatorEmbeddingTest do
       request = EmbedContentRequest.new(text)
 
       assert %EmbedContentRequest{} = request
-      assert request.model == "models/gemini-embedding-001"
+      assert request.model == "models/#{embedding_model()}"
       assert %Gemini.Types.Content{} = request.content
     end
 
     test "supports custom model" do
       text = "Test"
-      request = EmbedContentRequest.new(text, model: "gemini-embedding-001")
+      request = EmbedContentRequest.new(text, model: embedding_model())
 
-      assert request.model == "models/gemini-embedding-001"
+      assert request.model == "models/#{embedding_model()}"
     end
 
     test "supports task type" do
@@ -28,8 +46,18 @@ defmodule Gemini.APIs.CoordinatorEmbeddingTest do
       request =
         EmbedContentRequest.new(text, task_type: :retrieval_document, title: "Test Document")
 
-      assert request.task_type == :retrieval_document
-      assert request.title == "Test Document"
+      if uses_prompt_prefix?() do
+        # Vertex AI (embeddinggemma): Task is embedded in prompt text
+        assert request.task_type == nil
+        assert request.title == nil
+        # Text should contain the prompt prefix with title
+        assert get_request_text(request) =~ "title: Test Document"
+        assert get_request_text(request) =~ "text: Test"
+      else
+        # Gemini API: Task type stored in struct field
+        assert request.task_type == :retrieval_document
+        assert request.title == "Test Document"
+      end
     end
 
     test "supports output dimensionality" do
@@ -59,15 +87,24 @@ defmodule Gemini.APIs.CoordinatorEmbeddingTest do
 
       request =
         BatchEmbedContentsRequest.new(texts,
-          model: "gemini-embedding-001",
+          model: embedding_model(),
           task_type: :semantic_similarity,
           output_dimensionality: 256
         )
 
       Enum.each(request.requests, fn req ->
-        assert req.model == "models/gemini-embedding-001"
-        assert req.task_type == :semantic_similarity
+        assert req.model == "models/#{embedding_model()}"
         assert req.output_dimensionality == 256
+
+        if uses_prompt_prefix?() do
+          # Vertex AI (embeddinggemma): Task is embedded in prompt text
+          assert req.task_type == nil
+          # Text should contain the semantic similarity prompt prefix
+          assert get_request_text(req) =~ "task: sentence similarity"
+        else
+          # Gemini API: Task type stored in struct field
+          assert req.task_type == :semantic_similarity
+        end
       end)
     end
   end
@@ -131,22 +168,35 @@ defmodule Gemini.APIs.CoordinatorEmbeddingTest do
   describe "task type serialization" do
     test "converts all task types correctly" do
       task_types = [
-        {:task_type_unspecified, "TASK_TYPE_UNSPECIFIED"},
-        {:retrieval_query, "RETRIEVAL_QUERY"},
-        {:retrieval_document, "RETRIEVAL_DOCUMENT"},
-        {:semantic_similarity, "SEMANTIC_SIMILARITY"},
-        {:classification, "CLASSIFICATION"},
-        {:clustering, "CLUSTERING"},
-        {:question_answering, "QUESTION_ANSWERING"},
-        {:fact_verification, "FACT_VERIFICATION"},
-        {:code_retrieval_query, "CODE_RETRIEVAL_QUERY"}
+        {:task_type_unspecified, "TASK_TYPE_UNSPECIFIED", nil},
+        {:retrieval_query, "RETRIEVAL_QUERY", "task: search result | query:"},
+        {:retrieval_document, "RETRIEVAL_DOCUMENT", "title:"},
+        {:semantic_similarity, "SEMANTIC_SIMILARITY", "task: sentence similarity | query:"},
+        {:classification, "CLASSIFICATION", "task: classification | query:"},
+        {:clustering, "CLUSTERING", "task: clustering | query:"},
+        {:question_answering, "QUESTION_ANSWERING", "task: question answering | query:"},
+        {:fact_verification, "FACT_VERIFICATION", "task: fact checking | query:"},
+        {:code_retrieval_query, "CODE_RETRIEVAL_QUERY", "task: code retrieval | query:"}
       ]
 
-      Enum.each(task_types, fn {atom, expected_string} ->
+      Enum.each(task_types, fn {atom, expected_string, expected_prefix} ->
         request = EmbedContentRequest.new("test", task_type: atom)
         api_map = EmbedContentRequest.to_api_map(request)
 
-        assert api_map["taskType"] == expected_string
+        if uses_prompt_prefix?() do
+          # Vertex AI (embeddinggemma): Task is embedded in prompt text, not in API params
+          refute Map.has_key?(api_map, "taskType")
+          # Verify the prompt prefix is in the content text
+          text = get_in(api_map, ["content", "parts", Access.at(0), "text"])
+
+          if expected_prefix do
+            assert text =~ expected_prefix,
+                   "Expected text to contain '#{expected_prefix}', got: #{text}"
+          end
+        else
+          # Gemini API: Task type serialized to API parameter
+          assert api_map["taskType"] == expected_string
+        end
       end)
     end
 

@@ -53,24 +53,22 @@ defmodule Gemini.Auth.MultiAuthCoordinator do
   def coordinate_auth(strategy, opts \\ [])
 
   def coordinate_auth(:gemini, opts) do
-    case get_credentials(:gemini, opts) do
-      {:ok, credentials} ->
-        headers = Auth.build_headers(:gemini, credentials)
-        {:ok, :gemini, headers}
-
+    with {:ok, credentials} <- get_credentials(:gemini, opts),
+         {:ok, headers} <- Auth.build_headers(:gemini, credentials) do
+      {:ok, :gemini, headers}
+    else
       {:error, reason} ->
-        {:error, "Gemini auth failed: #{reason}"}
+        {:error, "Gemini auth failed: #{inspect(reason)}"}
     end
   end
 
   def coordinate_auth(:vertex_ai, opts) do
-    case get_credentials(:vertex_ai, opts) do
-      {:ok, credentials} ->
-        headers = Auth.build_headers(:vertex_ai, credentials)
-        {:ok, :vertex_ai, headers}
-
+    with {:ok, credentials} <- get_credentials(:vertex_ai, opts),
+         {:ok, headers} <- Auth.build_headers(:vertex_ai, credentials) do
+      {:ok, :vertex_ai, headers}
+    else
       {:error, reason} ->
-        {:error, "Vertex AI auth failed: #{reason}"}
+        {:error, "Vertex AI auth failed: #{inspect(reason)}"}
     end
   end
 

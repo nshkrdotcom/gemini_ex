@@ -15,6 +15,7 @@
 require Logger
 
 alias Gemini.APIs.Coordinator
+alias Gemini.Config
 alias Gemini.Types.Response.{EmbedContentResponse, ContentEmbedding}
 # alias Gemini.Types.Request.Content
 
@@ -112,7 +113,7 @@ embedded_docs =
     {:ok, %EmbedContentResponse{embedding: embedding}} =
       Coordinator.embed_content(
         doc.content,
-        model: "gemini-embedding-001",
+        model: Config.get_model(:embedding),
         task_type: :retrieval_document,
         title: doc.title,
         output_dimensionality: 768
@@ -142,7 +143,7 @@ IO.puts("Embedding query using RETRIEVAL_QUERY task type...")
 {:ok, %EmbedContentResponse{embedding: query_embedding}} =
   Coordinator.embed_content(
     user_query,
-    model: "gemini-embedding-001",
+    model: Config.get_model(:embedding),
     task_type: :retrieval_query,
     output_dimensionality: 768
   )
@@ -217,7 +218,7 @@ ANSWER:
 
 IO.puts("Generating response using retrieved context...\n")
 
-case Coordinator.generate_content(rag_prompt, model: "gemini-2.0-flash-exp") do
+case Coordinator.generate_content(rag_prompt, model: Config.default_model()) do
   {:ok, response} ->
     {:ok, answer} = Coordinator.extract_text(response)
 
@@ -241,7 +242,7 @@ case Coordinator.generate_content(rag_prompt, model: "gemini-2.0-flash-exp") do
     Provide a brief answer:
     """
 
-    case Coordinator.generate_content(simple_prompt, model: "gemini-2.0-flash-exp") do
+    case Coordinator.generate_content(simple_prompt, model: Config.default_model()) do
       {:ok, simple_response} ->
         {:ok, simple_answer} = Coordinator.extract_text(simple_response)
 
@@ -278,7 +279,7 @@ Enum.each(additional_queries, fn query ->
   {:ok, %EmbedContentResponse{embedding: q_emb}} =
     Coordinator.embed_content(
       query,
-      model: "gemini-embedding-001",
+      model: Config.get_model(:embedding),
       task_type: :retrieval_query,
       output_dimensionality: 768
     )

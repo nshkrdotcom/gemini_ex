@@ -5,6 +5,119 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2025-12-04
+
+### Added
+
+- **Context Caching Enhancements**
+  - Cache creation now supports `system_instruction` parameter for setting
+    system-level instructions that apply to all cached content usage
+  - Cache creation now supports `tools` parameter for caching function
+    declarations alongside content
+  - Cache creation now supports `tool_config` parameter for configuring
+    function calling behavior in cached contexts
+  - Cache creation now supports `fileUri` in content parts for caching
+    files stored in Google Cloud Storage (gs:// URIs)
+  - Cache creation now supports `kms_key_name` parameter for customer-
+    managed encryption keys (Vertex AI only)
+  - Resource name normalization for Vertex AI automatically expands short
+    cache names like "cachedContents/abc" to fully qualified paths like
+    "projects/{project}/locations/{location}/cachedContents/abc"
+  - Model name normalization for Vertex AI automatically expands model
+    names to full publisher paths
+  - Top-level cache API delegates added to main Gemini module:
+    - `Gemini.create_cache/2` - Create cached content
+    - `Gemini.list_caches/1` - List all cached contents
+    - `Gemini.get_cache/2` - Retrieve cached content by name
+    - `Gemini.update_cache/2` - Update cache TTL or expiration
+    - `Gemini.delete_cache/2` - Delete cached content
+  - `CachedContentUsageMetadata` struct expanded with Vertex AI specific
+    fields: `audio_duration_seconds`, `image_count`, `text_count`, and
+    `video_duration_seconds`
+  - Model validation warning when using models that may not support
+    explicit caching (models without version suffixes)
+  - Live test covering `system_instruction` with `fileUri` caching
+
+- **Auth-Aware Model Configuration System**
+  - Model registry organized by API compatibility:
+    - Universal models work identically in both Gemini API and Vertex AI
+    - Gemini API models include convenience aliases like `-latest` suffix
+    - Vertex AI models include EmbeddingGemma variants
+  - Config.default_model/0 automatically selects appropriate model based
+    on detected authentication:
+    - Gemini API: `gemini-flash-lite-latest`
+    - Vertex AI: `gemini-2.0-flash-lite`
+  - Config.default_embedding_model/0 selects embedding model by auth:
+    - Gemini API: `gemini-embedding-001` (3072 dimensions)
+    - Vertex AI: `embeddinggemma` (768 dimensions)
+  - Config.default_model_for/1 and Config.default_embedding_model_for/1
+    for explicit API type selection
+  - Config.models_for/1 returns all models available for a specific API
+  - Config.model_available?/2 checks if a model key works with an API
+  - Config.model_api/1 returns the API compatibility of a model key
+  - Config.current_api_type/0 returns detected auth type
+  - Embedding configuration system with per-model settings:
+    - Config.embedding_config/1 returns full config for embedding models
+    - Config.uses_prompt_prefix?/1 checks if model uses prompt prefixes
+    - Config.embedding_prompt_prefix/2 generates task-specific prefixes
+    - Config.default_embedding_dimensions/1 returns model default dims
+    - Config.needs_normalization?/2 checks if manual normalization needed
+  - EmbeddingGemma support with automatic prompt prefix formatting for
+    task types (retrieval_query becomes "task: search result | query: ")
+
+- **Test Infrastructure**
+  - `Gemini.Test.ModelHelpers` module for centralized model references
+  - `Gemini.Test.AuthHelpers` module for shared auth detection logic
+  - Helper functions: `auth_available?/0`, `gemini_api_available?/0`,
+    `vertex_api_available?/0`, `default_model/0`, `embedding_model/0`,
+    `thinking_model/0`, `caching_model/0`, `universal_model/0`
+
+### Changed
+
+- `Auth.build_headers/2` now returns `{:ok, headers}` or `{:error, reason}`
+  instead of always returning headers, enabling proper error propagation
+- `Gemini.configure/2` now stores config under `:gemini` app environment
+  to align with Config.auth_config/0 which reads from both :gemini
+  and `:gemini_ex` namespaces
+- `EmbedContentRequest.new/2` automatically formats text with prompt
+  prefixes when using EmbeddingGemma models on Vertex AI
+- All example scripts updated to use `Config.default_model()` instead of
+  hardcoded model strings
+- All tests updated to use auth-aware model selection via ModelHelpers
+- Config module default model comment updated to explain auto-detection
+
+### Fixed
+
+- **Vertex AI Cache Endpoints**: Cache operations now build fully qualified
+  paths (`projects/{project}/locations/{location}/cachedContents`) instead
+  of calling `/cachedContents` directly, which was causing 404 errors
+- **Config Alignment**: `Gemini.configure/2` now properly feeds config to
+  Config.auth_config/0 by using the correct app environment key
+- **Service Account Auth**: Removed placeholder tokens that masked real
+  authentication failures; errors now propagate properly with descriptive
+  messages
+- **JWT Token Exchange**: Fixed OAuth2 JWT payload to include scope in the
+  JWT claims as required by Google's jwt-bearer grant type specification
+- **Content Formatting**: Part formatting now handles function calls,
+  function responses, thought signatures, file data, and media resolution
+  correctly instead of leaving them in snake_case struct format
+- **Empty Env Vars**: Environment variable reading now treats empty strings
+  as unset, preventing configuration issues with `GEMINI_API_KEY=""`
+- **ContextCache.create/2**: Now accepts string content directly in
+  addition to lists, matching README documentation examples
+- **Model Prefix Handling**: Model name normalization no longer double-
+  prefixes when callers pass `models/...` format
+
+### Documentation
+
+- README updated with enhanced context caching examples showing
+  system_instruction, fileUri, and model selection
+- README includes new Model Configuration System section explaining
+  auth-aware defaults and API differences
+- README includes embedding model differences table
+- Config module documentation expanded with model registry explanation
+- Implementation plan documents added in docs/20251204/
+
 ## [0.5.2] - 2025-12-03
 
 ### Fixed
@@ -967,6 +1080,7 @@ config :gemini_ex,
 - Minimal latency overhead
 - Concurrent request processing
 
+[0.6.0]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.6.0
 [0.5.2]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.5.2
 [0.5.1]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.5.1
 [0.5.0]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.5.0

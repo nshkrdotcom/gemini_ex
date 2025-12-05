@@ -2,8 +2,10 @@ import Config
 
 # Configure the Gemini client
 config :gemini_ex,
-  # Default model to use if not specified (can also use Gemini.Config.get_model(:default))
-  default_model: "gemini-flash-lite-latest",
+  # Default model is auto-detected based on authentication:
+  # - Gemini API (GEMINI_API_KEY): "gemini-flash-lite-latest"
+  # - Vertex AI (VERTEX_PROJECT_ID): "gemini-2.0-flash-lite"
+  # Uncomment to override: default_model: "your-model-name",
 
   # HTTP timeout in milliseconds
   timeout: 30_000,

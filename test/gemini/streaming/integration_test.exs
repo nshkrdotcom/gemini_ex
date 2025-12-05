@@ -4,6 +4,9 @@ defmodule Gemini.StreamingIntegrationTest do
   alias Gemini.SSE.Parser
   alias Gemini.Streaming.UnifiedManager
 
+  import ExUnit.CaptureLog
+  import Gemini.Test.ModelHelpers
+
   describe "SSE Parser" do
     test "parses single complete event" do
       parser = Parser.new()
@@ -137,7 +140,8 @@ defmodule Gemini.StreamingIntegrationTest do
     end
 
     test "requires authentication to start stream" do
-      # Save original state
+      # Save original state - both :gemini and :gemini_ex namespaces
+      original_gemini_auth = Application.get_env(:gemini, :auth)
       original_config = Application.get_env(:gemini_ex, :auth)
       original_api_key = Application.get_env(:gemini_ex, :api_key)
       original_gemini_key = System.get_env("GEMINI_API_KEY")
@@ -147,7 +151,8 @@ defmodule Gemini.StreamingIntegrationTest do
       original_vertex_project = System.get_env("VERTEX_PROJECT_ID")
       original_google_project = System.get_env("GOOGLE_CLOUD_PROJECT")
 
-      # Clear all auth sources
+      # Clear all auth sources - BOTH namespaces
+      Application.delete_env(:gemini, :auth)
       Application.delete_env(:gemini_ex, :auth)
       Application.delete_env(:gemini_ex, :api_key)
       System.delete_env("GEMINI_API_KEY")
@@ -159,7 +164,7 @@ defmodule Gemini.StreamingIntegrationTest do
 
       try do
         contents = "Hello, world!"
-        opts = [model: "gemini-flash-lite-latest"]
+        opts = [model: default_model()]
 
         # Should fail with proper error when no auth is configured
         assert {:error, error_msg} = UnifiedManager.start_stream(contents, opts, self())
@@ -167,7 +172,8 @@ defmodule Gemini.StreamingIntegrationTest do
         assert (is_binary(error_msg) and String.contains?(error_msg, "auth failed")) or
                  error_msg == :no_auth_config
       after
-        # Restore original state
+        # Restore original state - BOTH namespaces
+        if original_gemini_auth, do: Application.put_env(:gemini, :auth, original_gemini_auth)
         if original_config, do: Application.put_env(:gemini_ex, :auth, original_config)
         if original_api_key, do: Application.put_env(:gemini_ex, :api_key, original_api_key)
         if original_gemini_key, do: System.put_env("GEMINI_API_KEY", original_gemini_key)
@@ -197,25 +203,28 @@ defmodule Gemini.StreamingIntegrationTest do
 
       try do
         contents = "Hello, world!"
-        opts = [model: "gemini-flash-lite-latest"]
+        opts = [model: default_model()]
 
-        case UnifiedManager.start_stream(contents, opts, self()) do
-          {:ok, stream_id} ->
-            assert is_binary(stream_id)
+        # Capture debug logs from streaming setup
+        capture_log(fn ->
+          case UnifiedManager.start_stream(contents, opts, self()) do
+            {:ok, stream_id} ->
+              assert is_binary(stream_id)
 
-            # Verify stream is tracked
-            {:ok, info} = UnifiedManager.get_stream_info(stream_id)
-            assert info.status in [:starting, :active]
-            assert info.model == "gemini-flash-lite-latest"
+              # Verify stream is tracked
+              {:ok, info} = UnifiedManager.get_stream_info(stream_id)
+              assert info.status in [:starting, :active]
+              assert info.model == default_model()
 
-            # Clean up the stream
-            UnifiedManager.stop_stream(stream_id)
+              # Clean up the stream
+              UnifiedManager.stop_stream(stream_id)
 
-          {:error, reason} ->
-            # This is expected since we're using a fake API key
-            # but the stream should at least start before failing
-            assert reason != :no_auth_config
-        end
+            {:error, reason} ->
+              # This is expected since we're using a fake API key
+              # but the stream should at least start before failing
+              assert reason != :no_auth_config
+          end
+        end)
       after
         # Restore original config
         if original_config do
@@ -227,7 +236,8 @@ defmodule Gemini.StreamingIntegrationTest do
     end
 
     test "fails without authentication" do
-      # Save original state
+      # Save original state - both :gemini and :gemini_ex namespaces
+      original_gemini_auth = Application.get_env(:gemini, :auth)
       original_config = Application.get_env(:gemini_ex, :auth)
       original_api_key = Application.get_env(:gemini_ex, :api_key)
       original_gemini_key = System.get_env("GEMINI_API_KEY")
@@ -237,7 +247,8 @@ defmodule Gemini.StreamingIntegrationTest do
       original_vertex_project = System.get_env("VERTEX_PROJECT_ID")
       original_google_project = System.get_env("GOOGLE_CLOUD_PROJECT")
 
-      # Clear all auth sources
+      # Clear all auth sources - BOTH namespaces
+      Application.delete_env(:gemini, :auth)
       Application.delete_env(:gemini_ex, :auth)
       Application.delete_env(:gemini_ex, :api_key)
       System.delete_env("GEMINI_API_KEY")
@@ -255,7 +266,8 @@ defmodule Gemini.StreamingIntegrationTest do
         assert (is_binary(error_msg) and String.contains?(error_msg, "auth failed")) or
                  error_msg == :no_auth_config
       after
-        # Restore original state
+        # Restore original state - BOTH namespaces
+        if original_gemini_auth, do: Application.put_env(:gemini, :auth, original_gemini_auth)
         if original_config, do: Application.put_env(:gemini_ex, :auth, original_config)
         if original_api_key, do: Application.put_env(:gemini_ex, :api_key, original_api_key)
         if original_gemini_key, do: System.put_env("GEMINI_API_KEY", original_gemini_key)
@@ -286,29 +298,32 @@ defmodule Gemini.StreamingIntegrationTest do
       try do
         contents = "Test content"
 
-        case UnifiedManager.start_stream(contents, [], self()) do
-          {:ok, stream_id} ->
-            # Add another subscriber
-            subscriber2 =
-              spawn(fn ->
-                receive do
-                  msg -> send(self(), {:subscriber2_got, msg})
-                end
-              end)
+        # Capture debug logs from streaming setup
+        capture_log(fn ->
+          case UnifiedManager.start_stream(contents, [], self()) do
+            {:ok, stream_id} ->
+              # Add another subscriber
+              subscriber2 =
+                spawn(fn ->
+                  receive do
+                    msg -> send(self(), {:subscriber2_got, msg})
+                  end
+                end)
 
-            :ok = UnifiedManager.subscribe_stream(stream_id, subscriber2)
+              :ok = UnifiedManager.subscribe_stream(stream_id, subscriber2)
 
-            {:ok, info} = UnifiedManager.get_stream_info(stream_id)
-            assert info.subscribers_count == 2
+              {:ok, info} = UnifiedManager.get_stream_info(stream_id)
+              assert info.subscribers_count == 2
 
-            # Clean up
-            UnifiedManager.stop_stream(stream_id)
+              # Clean up
+              UnifiedManager.stop_stream(stream_id)
 
-          {:error, reason} ->
-            # Should not be no_auth_config since we set up auth
-            # (though it may fail for other reasons like network/API key validity)
-            assert reason != :no_auth_config
-        end
+            {:error, reason} ->
+              # Should not be no_auth_config since we set up auth
+              # (though it may fail for other reasons like network/API key validity)
+              assert reason != :no_auth_config
+          end
+        end)
       after
         # Restore original config
         if original_config do
@@ -322,39 +337,45 @@ defmodule Gemini.StreamingIntegrationTest do
     test "cleans up when subscribers die" do
       contents = "Test content"
 
-      case UnifiedManager.start_stream(contents, [], self()) do
-        {:ok, stream_id} ->
-          # Create a subscriber that will die
-          subscriber = spawn(fn -> :ok end)
-          :ok = UnifiedManager.subscribe_stream(stream_id, subscriber)
+      # Capture debug logs from streaming setup
+      capture_log(fn ->
+        case UnifiedManager.start_stream(contents, [], self()) do
+          {:ok, stream_id} ->
+            # Create a subscriber that will die
+            subscriber = spawn(fn -> :ok end)
+            :ok = UnifiedManager.subscribe_stream(stream_id, subscriber)
 
-          # Kill the subscriber
-          Process.exit(subscriber, :kill)
+            # Kill the subscriber
+            Process.exit(subscriber, :kill)
 
-          # Give manager time to process DOWN message
-          Process.sleep(50)
+            # Give manager time to process DOWN message
+            Process.sleep(50)
 
-          # Check if stream was cleaned up (if no other subscribers)
-          case UnifiedManager.get_stream_info(stream_id) do
-            {:error, :stream_not_found} ->
-              # Stream was cleaned up because last subscriber died
-              :ok
+            # Check if stream was cleaned up (if no other subscribers)
+            case UnifiedManager.get_stream_info(stream_id) do
+              {:error, :stream_not_found} ->
+                # Stream was cleaned up because last subscriber died
+                :ok
 
-            {:ok, info} ->
-              # Stream still exists because calling process is still subscribed
-              assert info.subscribers_count == 1
-          end
+              {:ok, info} ->
+                # Stream still exists because calling process is still subscribed
+                assert info.subscribers_count == 1
+            end
 
-        {:error, _reason} ->
-          :ok
-      end
+          {:error, _reason} ->
+            :ok
+        end
+      end)
     end
 
     test "enforces maximum streams limit" do
-      # This would test the max_streams configuration
-      stats = UnifiedManager.get_stats()
-      assert is_integer(stats.max_streams)
-      assert stats.total_streams >= 0
+      # Capture debug logs from streaming setup
+      capture_log(fn ->
+        # This would test the max_streams configuration
+        stats = UnifiedManager.get_stats()
+        assert is_integer(stats.max_streams)
+        assert stats.total_streams >= 0
+      end)
     end
 
     test "provides comprehensive statistics" do
@@ -416,16 +437,19 @@ defmodule Gemini.StreamingIntegrationTest do
     test "stops streams cleanly" do
       contents = "Test content"
 
-      case UnifiedManager.start_stream(contents, [], self()) do
-        {:ok, stream_id} ->
-          :ok = UnifiedManager.stop_stream(stream_id)
+      # Capture debug logs from streaming setup
+      capture_log(fn ->
+        case UnifiedManager.start_stream(contents, [], self()) do
+          {:ok, stream_id} ->
+            :ok = UnifiedManager.stop_stream(stream_id)
 
-          # Verify stream is removed
-          assert {:error, :stream_not_found} = UnifiedManager.get_stream_info(stream_id)
+            # Verify stream is removed
+            assert {:error, :stream_not_found} = UnifiedManager.get_stream_info(stream_id)
 
-        {:error, _reason} ->
-          :ok
-      end
+          {:error, _reason} ->
+            :ok
+        end
+      end)
     end
   end
 
@@ -442,7 +466,7 @@ defmodule Gemini.StreamingIntegrationTest do
           # Use existing manager
 
           contents = "Count from 1 to 5, one number per response"
-          opts = [model: "gemini-flash-lite-latest"]
+          opts = [model: default_model()]
 
           {:ok, stream_id} = UnifiedManager.start_stream(contents, opts, self())
 

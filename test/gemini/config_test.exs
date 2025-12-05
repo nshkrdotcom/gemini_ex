@@ -3,69 +3,63 @@ defmodule Gemini.ConfigTest do
 
   alias Gemini.Config
 
+  import Gemini.Test.ModelHelpers
+
+  # All environment variables that Config reads from
+  @env_vars ~w(
+    GEMINI_API_KEY
+    GOOGLE_CLOUD_PROJECT
+    GOOGLE_CLOUD_LOCATION
+    VERTEX_PROJECT_ID
+    VERTEX_LOCATION
+    VERTEX_ACCESS_TOKEN
+    VERTEX_SERVICE_ACCOUNT
+    VERTEX_JSON_FILE
+  )
+
   setup do
-    # Save original environment variables
-    original_gemini_key = System.get_env("GEMINI_API_KEY")
-    original_project = System.get_env("GOOGLE_CLOUD_PROJECT")
-    original_location = System.get_env("GOOGLE_CLOUD_LOCATION")
+    # Save all original environment variables
+    original_env = Enum.map(@env_vars, fn key -> {key, System.get_env(key)} end)
 
     on_exit(fn ->
-      # Restore original environment variables
-      if original_gemini_key do
-        System.put_env("GEMINI_API_KEY", original_gemini_key)
-      else
-        System.delete_env("GEMINI_API_KEY")
-      end
-
-      if original_project do
-        System.put_env("GOOGLE_CLOUD_PROJECT", original_project)
-      else
-        System.delete_env("GOOGLE_CLOUD_PROJECT")
-      end
-
-      if original_location do
-        System.put_env("GOOGLE_CLOUD_LOCATION", original_location)
-      else
-        System.delete_env("GOOGLE_CLOUD_LOCATION")
-      end
+      # Restore all original environment variables
+      Enum.each(original_env, fn
+        {key, nil} -> System.delete_env(key)
+        {key, value} -> System.put_env(key, value)
+      end)
     end)
 
-    %{
-      original_gemini_key: original_gemini_key,
-      original_project: original_project,
-      original_location: original_location
-    }
+    %{original_env: original_env}
+  end
+
+  # Helper to clear all config-related env vars for isolated tests
+  defp clear_all_auth_env_vars do
+    Enum.each(@env_vars, &System.delete_env/1)
   end
 
   describe "get/0" do
     test "returns default gemini configuration when no environment variables set" do
-      # Clear any existing environment variables for this test
-      System.delete_env("GEMINI_API_KEY")
-      System.delete_env("GOOGLE_CLOUD_PROJECT")
-      System.delete_env("GOOGLE_CLOUD_LOCATION")
+      clear_all_auth_env_vars()
 
       config = Config.get()
 
       assert config.auth_type == :gemini
       assert config.api_key == nil
-      assert config.model == "gemini-flash-lite-latest"
+      assert config.model == default_model()
     end
 
     test "detects gemini auth type when GEMINI_API_KEY is set" do
+      clear_all_auth_env_vars()
       System.put_env("GEMINI_API_KEY", "test-key")
-      System.delete_env("GOOGLE_CLOUD_PROJECT")
 
       config = Config.get()
 
       assert config.auth_type == :gemini
       assert config.api_key == "test-key"
-
-      # Cleanup
-      System.delete_env("GEMINI_API_KEY")
     end
 
     test "detects vertex auth type when GOOGLE_CLOUD_PROJECT is set" do
-      System.delete_env("GEMINI_API_KEY")
+      clear_all_auth_env_vars()
       System.put_env("GOOGLE_CLOUD_PROJECT", "test-project")
       System.put_env("GOOGLE_CLOUD_LOCATION", "us-central1")
 
@@ -74,13 +68,10 @@ defmodule Gemini.ConfigTest do
       assert config.auth_type == :vertex
       assert config.project_id == "test-project"
       assert config.location == "us-central1"
-
-      # Cleanup
-      System.delete_env("GOOGLE_CLOUD_PROJECT")
-      System.delete_env("GOOGLE_CLOUD_LOCATION")
     end
 
     test "gemini takes priority when both auth types are available" do
+      clear_all_auth_env_vars()
       System.put_env("GEMINI_API_KEY", "test-key")
       System.put_env("GOOGLE_CLOUD_PROJECT", "test-project")
       System.put_env("GOOGLE_CLOUD_LOCATION", "us-central1")
@@ -89,16 +80,12 @@ defmodule Gemini.ConfigTest do
 
       assert config.auth_type == :gemini
       assert config.api_key == "test-key"
-
-      # Cleanup
-      System.delete_env("GEMINI_API_KEY")
-      System.delete_env("GOOGLE_CLOUD_PROJECT")
-      System.delete_env("GOOGLE_CLOUD_LOCATION")
     end
   end
 
   describe "get/1" do
     test "allows overriding auth_type" do
+      clear_all_auth_env_vars()
       System.put_env("GEMINI_API_KEY", "test-key")
 
       config =
@@ -107,28 +94,48 @@ defmodule Gemini.ConfigTest do
       assert config.auth_type == :vertex
       assert config.project_id == "override-project"
       assert config.location == "us-west1"
-
-      # Cleanup
-      System.delete_env("GEMINI_API_KEY")
     end
 
     test "allows overriding specific fields while keeping detection" do
+      clear_all_auth_env_vars()
       System.put_env("GEMINI_API_KEY", "test-key")
 
-      config = Config.get(model: "gemini-flash-lite-latest")
+      config = Config.get(model: default_model())
 
       assert config.auth_type == :gemini
       assert config.api_key == "test-key"
-      assert config.model == "gemini-flash-lite-latest"
-
-      # Cleanup
-      System.delete_env("GEMINI_API_KEY")
+      assert config.model == default_model()
     end
   end
 
   describe "default_model/0" do
     test "returns default model" do
-      assert Config.default_model() == "gemini-flash-lite-latest"
+      assert Config.default_model() == default_model()
+    end
+  end
+
+  describe "auth_config/0" do
+    test "uses runtime configure env stored under :gemini app" do
+      original_env =
+        Enum.map(
+          ~w(GEMINI_API_KEY GOOGLE_CLOUD_PROJECT GOOGLE_CLOUD_LOCATION VERTEX_SERVICE_ACCOUNT VERTEX_JSON_FILE VERTEX_ACCESS_TOKEN VERTEX_PROJECT_ID VERTEX_LOCATION),
+          fn key -> {key, System.get_env(key)} end
+        )
+
+      Enum.each(original_env, fn {key, _} -> System.delete_env(key) end)
+
+      Application.put_env(:gemini, :auth, %{type: :gemini, credentials: %{api_key: "runtime-key"}})
+
+      on_exit(fn ->
+        Application.delete_env(:gemini, :auth)
+
+        Enum.each(original_env, fn
+          {key, nil} -> System.delete_env(key)
+          {key, value} -> System.put_env(key, value)
+        end)
+      end)
+
+      assert %{type: :gemini, credentials: %{api_key: "runtime-key"}} = Config.auth_config()
     end
   end
 

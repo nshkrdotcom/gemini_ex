@@ -12,6 +12,7 @@ defmodule MultimodalFixDemo do
   Now, they can use intuitive map formats inspired by other AI SDKs.
   """
 
+  alias Gemini.Config
   alias Gemini.Types.{Content, Part}
 
   def run do
@@ -58,7 +59,7 @@ defmodule MultimodalFixDemo do
        ]
     """)
 
-    case Gemini.generate(content, model: "gemini-2.5-flash") do
+    case Gemini.generate(content, model: Config.default_model()) do
       {:ok, _response} ->
         IO.puts(
           "   " <>
@@ -170,7 +171,7 @@ defmodule MultimodalFixDemo do
   end
 
   defp verify_format(content) do
-    case Gemini.generate(content, model: "gemini-2.5-flash") do
+    case Gemini.generate(content, model: Config.default_model()) do
       {:ok, _response} ->
         IO.puts("   " <> IO.ANSI.green() <> "✅ Accepted" <> IO.ANSI.reset())
 

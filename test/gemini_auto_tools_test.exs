@@ -5,6 +5,8 @@ defmodule Gemini.AutoToolsTest do
   alias Gemini.Tools
   alias Altar.ADM
 
+  import Gemini.Test.ModelHelpers
+
   @moduletag :integration
 
   setup do
@@ -80,7 +82,7 @@ defmodule Gemini.AutoToolsTest do
       Gemini.generate_content_with_auto_tools(
         "What's the weather like in San Francisco? Please use the get_weather tool.",
         tools: [weather_declaration],
-        model: "gemini-flash-lite-latest",
+        model: default_model(),
         temperature: 0.1,
         turn_limit: 5
       )
@@ -115,7 +117,7 @@ defmodule Gemini.AutoToolsTest do
       Gemini.generate_content_with_auto_tools(
         "Keep calling the weather tool repeatedly",
         tools: [weather_declaration],
-        model: "gemini-flash-lite-latest",
+        model: default_model(),
         temperature: 0.1,
         turn_limit: 1
       )
@@ -142,7 +144,7 @@ defmodule Gemini.AutoToolsTest do
     case Gemini.stream_generate_with_auto_tools(
            "What's the weather in New York? Use the get_weather tool.",
            tools: [weather_declaration],
-           model: "gemini-flash-lite-latest",
+           model: default_model(),
            temperature: 0.1,
            turn_limit: 5
          ) do
@@ -196,7 +198,7 @@ defmodule Gemini.AutoToolsTest do
       Gemini.generate_content_with_auto_tools(
         "What's the weather in London and what time is it there? Use both the get_weather and get_time tools.",
         tools: [weather_declaration, time_declaration],
-        model: "gemini-flash-lite-latest",
+        model: default_model(),
         temperature: 0.1,
         turn_limit: 10
       )

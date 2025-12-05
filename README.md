@@ -27,7 +27,7 @@ A comprehensive Elixir client for Google's Gemini AI API with dual authenticatio
 - **Flexible Multimodal Input**: Intuitive formats for images/text with automatic MIME detection
 - **Thinking Budget Control**: Optimize costs by controlling thinking token usage
 - **Gemini 3 Support**: `thinking_level`, image generation, media resolution, thought signatures (NEW in v0.5.x!)
-- **Context Caching**: Cache large contexts once and reuse by ID (NEW in v0.5.x!)
+- **Context Caching**: Cache large contexts once and reuse by ID (NEW in v0.6.0!)
 - **Complete Generation Config**: Full support for all generation config options including structured output
 - **Production Ready**: Robust error handling, retry logic, and performance optimizations
 - **Flexible Configuration**: Environment variables, application config, and per-request overrides
@@ -47,7 +47,7 @@ Add `gemini` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:gemini_ex, "~> 0.5.2"}
+    {:gemini_ex, "~> 0.6.0"}
   ]
 end
 ```
@@ -231,13 +231,24 @@ config =
 
 See [Structured Outputs Guide](docs/guides/structured_outputs.md) for details.
 
-## Context Caching (New in v0.5.x!)
+## Context Caching (New in v0.6.0!)
 
 Cache large prompts/contexts once and reuse the cache ID to avoid resending bytes:
 
 ```elixir
-# Create a cache from your content
-{:ok, cache} = Gemini.APIs.ContextCache.create("long document or conversation history")
+alias Gemini.Types.Content
+
+# Create a cache from your content (supports system_instruction, tools, fileUri)
+{:ok, cache} =
+  Gemini.create_cache(
+    [
+      Content.text("long document or conversation history"),
+      %Content{role: "user", parts: [%{file_uri: "gs://cloud-samples-data/generative-ai/pdf/scene.pdf"}]}
+    ],
+    display_name: "My Cache",
+    model: "gemini-2.5-flash",  # Use models that support caching
+    system_instruction: "Answer in one concise paragraph."
+  )
 
 # Use cached content by name (e.g., "cachedContents/123")
 {:ok, response} =
@@ -247,7 +258,13 @@ Cache large prompts/contexts once and reuse the cache ID to avoid resending byte
   )
 ```
 
-You can list, get, update TTL, and delete caches via `Gemini.APIs.ContextCache.*` helpers.
+**Models that support explicit caching:**
+- `gemini-2.5-flash`
+- `gemini-2.5-pro`
+- `gemini-2.0-flash-001`
+- `gemini-3-pro-preview`
+
+You can list, get, update TTL, and delete caches via the top-level `Gemini.*cache*` helpers or `Gemini.APIs.ContextCache.*`. Vertex AI names are auto-expanded when `auth: :vertex_ai` or configured credentials are present.
 
 ### Multi-turn Conversations
 
@@ -877,6 +894,88 @@ config :gemini_ex, :auth,
     project_id: System.get_env("VERTEX_PROJECT_ID"),
     location: "us-central1"
   }
+```
+
+## Model Configuration System
+
+The library includes an intelligent model registry that handles the differences between Gemini API (AI Studio) and Vertex AI.
+
+### Auth-Aware Model Defaults
+
+Default models are automatically selected based on detected authentication:
+
+```elixir
+# With GEMINI_API_KEY set:
+Gemini.Config.default_model()        #=> "gemini-flash-lite-latest"
+Gemini.Config.default_embedding_model()  #=> "gemini-embedding-001"
+
+# With VERTEX_PROJECT_ID set (no GEMINI_API_KEY):
+Gemini.Config.default_model()        #=> "gemini-2.0-flash-lite"
+Gemini.Config.default_embedding_model()  #=> "embeddinggemma"
+```
+
+### Model Compatibility
+
+Models are organized by API compatibility:
+
+| Category | Example Models | Gemini API | Vertex AI |
+|----------|---------------|------------|-----------|
+| **Universal** | `gemini-2.5-flash`, `gemini-2.0-flash-lite` | ✓ | ✓ |
+| **AI Studio Only** | `gemini-flash-lite-latest`, `gemini-pro-latest` | ✓ | ✗ |
+| **Vertex AI Only** | `embeddinggemma`, `embeddinggemma-300m` | ✗ | ✓ |
+
+```elixir
+# Check model availability
+Gemini.Config.model_available?(:flash_2_5, :vertex_ai)     #=> true
+Gemini.Config.model_available?(:flash_lite_latest, :vertex_ai) #=> false
+
+# Get models for a specific API
+Gemini.Config.models_for(:vertex_ai)  # All Vertex-compatible models
+Gemini.Config.models_for(:both)       # Only universal models
+
+# Get model by key with validation
+Gemini.Config.get_model(:flash_2_5)  #=> "gemini-2.5-flash"
+Gemini.Config.get_model(:flash_2_5, api: :vertex_ai)  # Validates compatibility
+```
+
+### Embedding Model Differences
+
+Embedding models differ significantly between APIs:
+
+| Model | API | Default Dims | Task Type Handling |
+|-------|-----|--------------|-------------------|
+| `gemini-embedding-001` | Gemini API | 3072 | `taskType` parameter |
+| `embeddinggemma` | Vertex AI | 768 | Prompt prefixes |
+
+```elixir
+# Gemini API - uses taskType parameter
+{:ok, emb} = Gemini.embed_content("Search query",
+  task_type: :retrieval_query  # Sent as API parameter
+)
+
+# Vertex AI with EmbeddingGemma - task embedded in prompt
+{:ok, emb} = Gemini.embed_content("Search query",
+  task_type: :retrieval_query  # Becomes: "task: search result | query: Search query"
+)
+```
+
+The library handles this automatically based on detected authentication.
+
+### Custom Model Configuration
+
+Override defaults in your application config:
+
+```elixir
+config :gemini_ex,
+  default_model: "gemini-2.5-flash",
+  default_embedding_model: "gemini-embedding-001"
+```
+
+Or specify per-request:
+
+```elixir
+Gemini.generate("Hello", model: "gemini-3-pro-preview")
+Gemini.embed_content("Text", model: "gemini-embedding-001")
 ```
 
 ## Documentation

@@ -31,6 +31,7 @@ defmodule Gemini.APIs.Coordinator do
   See `t:Gemini.options/0` in `Gemini` for the canonical list of options.
   """
 
+  alias Gemini.Config
   alias Gemini.Client.HTTP
   alias Gemini.Streaming.UnifiedManager
   alias Gemini.Types.Request.GenerateContentRequest
@@ -81,7 +82,7 @@ defmodule Gemini.APIs.Coordinator do
         ) ::
           api_result(GenerateContentResponse.t())
   def generate_content(input, opts \\ []) do
-    model = Keyword.get(opts, :model, Gemini.Config.get_model(:default))
+    model = Keyword.get(opts, :model, Config.default_model())
     path = "models/#{model}:generateContent"
 
     with {:ok, request} <- build_generate_request(input, opts),
@@ -137,7 +138,7 @@ defmodule Gemini.APIs.Coordinator do
   @spec stream_generate_content(String.t() | GenerateContentRequest.t(), Gemini.options()) ::
           api_result(String.t())
   def stream_generate_content(input, opts \\ []) do
-    model = Keyword.get(opts, :model, Gemini.Config.get_model(:default))
+    model = Keyword.get(opts, :model, Config.default_model())
 
     with {:ok, request_body} <- build_generate_request(input, opts) do
       # Pass through the auto_execute_tools option to the UnifiedManager
@@ -266,9 +267,9 @@ defmodule Gemini.APIs.Coordinator do
   @doc """
   Generate an embedding for the given text content.
 
-  Uses the Gemini embedding models to convert text into a numerical vector
-  representation that can be used for similarity comparison, clustering,
-  and retrieval tasks.
+  Uses the appropriate embedding model based on detected authentication:
+  - **Gemini API**: `gemini-embedding-001` (3072 dimensions, task type parameter)
+  - **Vertex AI**: `embeddinggemma` (768 dimensions, prompt prefix formatting)
 
   See `t:Gemini.options/0` for available options.
 
@@ -279,7 +280,7 @@ defmodule Gemini.APIs.Coordinator do
 
   ## Options
 
-  - `:model`: Embedding model to use (default: "gemini-embedding-001")
+  - `:model`: Embedding model to use (default: auto-detected based on auth)
   - `:auth`: Authentication strategy (`:gemini` or `:vertex_ai`)
   - `:task_type`: Optional task type for optimized embeddings
     - `:retrieval_query` - Text is a search query
@@ -291,35 +292,46 @@ defmodule Gemini.APIs.Coordinator do
     - `:fact_verification` - For fact verification
     - `:code_retrieval_query` - For code retrieval
   - `:title`: Optional title (only for `:retrieval_document` task type)
-  - `:output_dimensionality`: Optional dimension reduction for newer models
+  - `:output_dimensionality`: Optional dimension reduction
+
+  ## API-Specific Behavior
+
+  For **Gemini API** (`gemini-embedding-001`):
+  - Task type is passed as `taskType` parameter
+  - Default dimensions: 3072 (supports MRL: 768, 1536, 3072)
+  - Dimensions below 3072 need manual normalization
+
+  For **Vertex AI** (`embeddinggemma`):
+  - Task type is embedded as prompt prefix in the text
+  - Default dimensions: 768 (supports MRL: 128, 256, 512, 768)
+  - All dimensions are pre-normalized
 
   ## Examples
 
-      # Simple embedding
+      # Simple embedding (auto-detects model)
       {:ok, response} = Coordinator.embed_content("What is the meaning of life?")
       {:ok, values} = EmbedContentResponse.get_values(response)
 
-      # With task type for retrieval
+      # With task type (works with both APIs transparently)
       {:ok, response} = Coordinator.embed_content(
         "This is a document about AI",
         task_type: :retrieval_document,
         title: "AI Overview"
       )
 
-      # With specific model and dimensionality
+      # With explicit dimensionality
       {:ok, response} = Coordinator.embed_content(
         "Query text",
-        model: "gemini-embedding-001",
         task_type: :retrieval_query,
-        output_dimensionality: 256
+        output_dimensionality: 768
       )
   """
   @spec embed_content(String.t(), Gemini.options()) :: api_result(EmbedContentResponse.t())
   def embed_content(text, opts \\ []) when is_binary(text) do
-    model = Keyword.get(opts, :model, "gemini-embedding-001")
+    model = Keyword.get(opts, :model, Config.default_embedding_model())
     path = "models/#{model}:embedContent"
 
-    request = EmbedContentRequest.new(text, opts)
+    request = EmbedContentRequest.new(text, Keyword.put(opts, :model, model))
     request_body = EmbedContentRequest.to_api_map(request)
 
     with {:ok, response} <- HTTP.post(path, request_body, opts) do
@@ -366,10 +378,10 @@ defmodule Gemini.APIs.Coordinator do
   @spec batch_embed_contents([String.t()], Gemini.options()) ::
           api_result(BatchEmbedContentsResponse.t())
   def batch_embed_contents(texts, opts \\ []) when is_list(texts) do
-    model = Keyword.get(opts, :model, "gemini-embedding-001")
+    model = Keyword.get(opts, :model, Config.default_embedding_model())
     path = "models/#{model}:batchEmbedContents"
 
-    request = BatchEmbedContentsRequest.new(texts, opts)
+    request = BatchEmbedContentsRequest.new(texts, Keyword.put(opts, :model, model))
     request_body = BatchEmbedContentsRequest.to_api_map(request)
 
     with {:ok, response} <- HTTP.post(path, request_body, opts) do
@@ -397,7 +409,7 @@ defmodule Gemini.APIs.Coordinator do
 
   ## Options
 
-  - `:model`: Model to use (default: "gemini-embedding-001")
+  - `:model`: Model to use (default: auto-detected based on auth)
   - `:display_name`: Human-readable batch name (required)
   - `:priority`: Processing priority (default: 0, higher = more urgent)
   - `:task_type`: Task type applied to all requests
@@ -443,12 +455,13 @@ defmodule Gemini.APIs.Coordinator do
       Keyword.get(opts, :display_name) ||
         raise ArgumentError, "display_name is required for async batch operations"
 
-    model = Keyword.get(opts, :model, "gemini-embedding-001")
+    model = Keyword.get(opts, :model, Config.default_embedding_model())
+    opts_with_model = Keyword.put(opts, :model, model)
 
     # Build inlined requests from texts
     inlined_requests =
       Enum.map(texts, fn text ->
-        request = EmbedContentRequest.new(text, opts)
+        request = EmbedContentRequest.new(text, opts_with_model)
         InlinedEmbedContentRequest.new(request)
       end)
 
@@ -673,7 +686,7 @@ defmodule Gemini.APIs.Coordinator do
   @spec count_tokens(String.t() | GenerateContentRequest.t(), Gemini.options()) ::
           api_result(%{total_tokens: integer()})
   def count_tokens(input, opts \\ []) do
-    model = Keyword.get(opts, :model, Gemini.Config.get_model(:default))
+    model = Keyword.get(opts, :model, Config.default_model())
     path = "models/#{model}:countTokens"
 
     with {:ok, request} <- build_count_tokens_request(input, opts),
@@ -765,9 +778,11 @@ defmodule Gemini.APIs.Coordinator do
 
   defp build_generate_request(text, opts) when is_binary(text) do
     # Build a basic content request from text
+    # Include role: "user" for Vertex AI compatibility
     content = %{
       contents: [
         %{
+          role: "user",
           parts: [%{text: text}]
         }
       ]

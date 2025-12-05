@@ -4,6 +4,8 @@ defmodule Gemini.RateLimiterTest do
   alias Gemini.{Error, RateLimiter}
   alias Gemini.RateLimiter.{Config, State, ConcurrencyGate, RetryManager, Manager}
 
+  import Gemini.Test.ModelHelpers
+
   @moduletag :rate_limiter
 
   setup do
@@ -82,8 +84,8 @@ defmodule Gemini.RateLimiterTest do
     end
 
     test "builds state keys" do
-      key = State.build_key("gemini-2.0-flash", "us-central1", :token_count)
-      assert key == {"gemini-2.0-flash", "us-central1", :token_count}
+      key = State.build_key(default_model(), "us-central1", :token_count)
+      assert key == {default_model(), "us-central1", :token_count}
     end
 
     test "manages retry_until state" do
@@ -400,6 +402,12 @@ defmodule Gemini.RateLimiterTest do
   end
 
   describe "concurrency serialization" do
+    setup do
+      # Clean up ETS state to ensure test isolation
+      Manager.reset_all()
+      :ok
+    end
+
     test "serializes requests when max_concurrency=1" do
       model = "serial-test-#{System.unique_integer()}"
 
@@ -429,14 +437,15 @@ defmodule Gemini.RateLimiterTest do
           end)
         end
 
-      # Wait for all to complete
-      results = Task.await_many(tasks, 5000)
+      # Wait for all to complete - increased timeout to handle ETS race conditions
+      results = Task.await_many(tasks, 10_000)
 
       # All should succeed
       assert Enum.all?(results, &match?({:ok, _}, &1))
 
       # Clean up
       :ets.delete(order_list)
+      Manager.reset_all()
     end
   end
 

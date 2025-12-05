@@ -14,7 +14,7 @@ defmodule Gemini.Auth.GeminiStrategy do
   Authenticate with Gemini API using API key.
   """
   def authenticate(%{api_key: api_key}) when is_binary(api_key) and api_key != "" do
-    {:ok, headers(%{api_key: api_key})}
+    headers(%{api_key: api_key})
   end
 
   def authenticate(%{api_key: nil}) do
@@ -34,11 +34,24 @@ defmodule Gemini.Auth.GeminiStrategy do
   end
 
   @impl true
-  def headers(%{api_key: api_key}) do
-    [
-      {"Content-Type", "application/json"},
-      {"x-goog-api-key", api_key}
-    ]
+  def headers(%{api_key: api_key}) when is_binary(api_key) and api_key != "" do
+    {:ok,
+     [
+       {"Content-Type", "application/json"},
+       {"x-goog-api-key", api_key}
+     ]}
+  end
+
+  def headers(%{api_key: nil}) do
+    {:error, "API key is nil"}
+  end
+
+  def headers(%{api_key: ""}) do
+    {:error, "API key is empty"}
+  end
+
+  def headers(_credentials) do
+    {:error, "API key is missing or invalid"}
   end
 
   @impl true

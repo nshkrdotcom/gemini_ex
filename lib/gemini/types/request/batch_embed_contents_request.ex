@@ -37,11 +37,15 @@ defmodule Gemini.Types.Request.BatchEmbedContentsRequest do
   @doc """
   Creates a new batch embedding request from a list of texts.
 
+  Uses auth-aware embedding model selection:
+  - **Gemini API**: `gemini-embedding-001` with taskType parameter
+  - **Vertex AI**: `embeddinggemma` with prompt prefix formatting
+
   ## Parameters
 
   - `texts`: List of text strings to embed
   - `opts`: Optional keyword list of options to apply to all requests
-    - `:model`: Model to use (default: "gemini-embedding-001")
+    - `:model`: Model to use (default: auto-detected based on auth)
     - `:task_type`: Task type for optimized embeddings
     - `:output_dimensionality`: Dimension reduction
 

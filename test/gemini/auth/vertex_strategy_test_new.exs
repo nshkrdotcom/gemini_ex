@@ -1,7 +1,9 @@
-defmodule Gemini.Auth.VertexStrategyTest do
+defmodule Gemini.Auth.VertexStrategyTestNew do
   use ExUnit.Case, async: true
 
   alias Gemini.Auth.VertexStrategy
+
+  import Gemini.Test.ModelHelpers
 
   @sample_service_account_key %{
     type: "service_account",
@@ -56,7 +58,7 @@ defmodule Gemini.Auth.VertexStrategyTest do
       result = VertexStrategy.authenticate(config)
 
       # Should return either success or error (depending on token exchange)
-      assert match?({:ok, _} | {:error, _}, result)
+      assert match?({:ok, _}, result) or match?({:error, _}, result)
 
       case result do
         {:ok, credentials} ->
@@ -82,7 +84,7 @@ defmodule Gemini.Auth.VertexStrategyTest do
       result = VertexStrategy.authenticate(config)
 
       # Should return either success or error (depending on token exchange)
-      assert match?({:ok, _} | {:error, _}, result)
+      assert match?({:ok, _}, result) or match?({:error, _}, result)
     end
 
     test "returns credentials for direct access token" do
@@ -131,7 +133,7 @@ defmodule Gemini.Auth.VertexStrategyTest do
     test "creates headers for access token credentials" do
       credentials = %{access_token: "test-access-token"}
 
-      headers = VertexStrategy.headers(credentials)
+      assert {:ok, headers} = VertexStrategy.headers(credentials)
 
       assert headers == [
                {"Content-Type", "application/json"},
@@ -142,7 +144,7 @@ defmodule Gemini.Auth.VertexStrategyTest do
     test "creates headers for JWT token credentials" do
       credentials = %{jwt_token: "test.jwt.token"}
 
-      headers = VertexStrategy.headers(credentials)
+      assert {:ok, headers} = VertexStrategy.headers(credentials)
 
       assert headers == [
                {"Content-Type", "application/json"},
@@ -158,28 +160,31 @@ defmodule Gemini.Auth.VertexStrategyTest do
 
       credentials = %{service_account_key: temp_path}
 
-      headers = VertexStrategy.headers(credentials)
+      result = VertexStrategy.headers(credentials)
 
-      # Should return headers with either real token or error token
-      assert [
-               {"Content-Type", "application/json"},
-               {"Authorization", "Bearer " <> token}
-             ] = headers
+      # Should return either success with headers or error (depending on token exchange)
+      case result do
+        {:ok, headers} ->
+          assert [
+                   {"Content-Type", "application/json"},
+                   {"Authorization", "Bearer " <> token}
+                 ] = headers
 
-      assert is_binary(token)
+          assert is_binary(token)
+
+        {:error, reason} ->
+          # Expected in test environment without real token exchange
+          assert is_binary(reason)
+      end
 
       File.rm!(temp_path)
     end
 
-    test "creates default headers for unknown credentials" do
+    test "returns error for unknown credentials" do
       credentials = %{}
 
-      headers = VertexStrategy.headers(credentials)
-
-      assert headers == [
-               {"Content-Type", "application/json"},
-               {"Authorization", "Bearer default-credentials-token"}
-             ]
+      assert {:error, reason} = VertexStrategy.headers(credentials)
+      assert reason =~ "No valid Vertex AI credentials found"
     end
   end
 
@@ -219,27 +224,27 @@ defmodule Gemini.Auth.VertexStrategyTest do
 
   describe "build_path/3" do
     test "builds correct path for Vertex AI model endpoint" do
-      model = "gemini-flash-lite-latest"
+      model = default_model()
       endpoint = "generateContent"
       config = %{project_id: "test-project", location: "us-central1"}
 
       path = VertexStrategy.build_path(model, endpoint, config)
 
       expected =
-        "projects/test-project/locations/us-central1/publishers/google/models/gemini-flash-lite-latest:generateContent"
+        "projects/test-project/locations/us-central1/publishers/google/models/#{default_model()}:generateContent"
 
       assert path == expected
     end
 
     test "strips 'models/' prefix from model name" do
-      model = "models/gemini-flash-lite-latest"
+      model = "models/#{default_model()}"
       endpoint = "generateContent"
       config = %{project_id: "test-project", location: "us-central1"}
 
       path = VertexStrategy.build_path(model, endpoint, config)
 
       expected =
-        "projects/test-project/locations/us-central1/publishers/google/models/gemini-flash-lite-latest:generateContent"
+        "projects/test-project/locations/us-central1/publishers/google/models/#{default_model()}:generateContent"
 
       assert path == expected
     end
@@ -314,7 +319,7 @@ defmodule Gemini.Auth.VertexStrategyTest do
       result = VertexStrategy.create_signed_jwt(service_account_email, audience, credentials)
 
       # Should return either success or error (depending on key validity)
-      assert match?({:ok, _} | {:error, _}, result)
+      assert match?({:ok, _}, result) or match?({:error, _}, result)
 
       File.rm!(temp_path)
     end
@@ -327,7 +332,7 @@ defmodule Gemini.Auth.VertexStrategyTest do
       result = VertexStrategy.create_signed_jwt(service_account_email, audience, credentials)
 
       # Should return either success or error (depending on key validity)
-      assert match?({:ok, _} | {:error, _}, result)
+      assert match?({:ok, _}, result) or match?({:error, _}, result)
     end
 
     test "creates JWT with access token for IAM API" do
@@ -338,7 +343,7 @@ defmodule Gemini.Auth.VertexStrategyTest do
       result = VertexStrategy.create_signed_jwt(service_account_email, audience, credentials)
 
       # Should return either success or error (depending on API call)
-      assert match?({:ok, _} | {:error, _}, result)
+      assert match?({:ok, _}, result) or match?({:error, _}, result)
     end
 
     test "returns error when no suitable credentials found" do

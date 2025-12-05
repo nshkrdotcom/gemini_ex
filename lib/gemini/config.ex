@@ -3,27 +3,70 @@ defmodule Gemini.Config do
   Unified configuration management for both Gemini and Vertex AI authentication.
 
   Supports multiple authentication strategies:
-  - Gemini: API key authentication
+  - Gemini API (AI Studio): API key authentication
   - Vertex AI: OAuth2 or Service Account authentication
+
+  ## Model Registry
+
+  Models are organized by API compatibility:
+  - **Universal models**: Work identically in both Gemini API and Vertex AI
+  - **Gemini API models**: Only available in AI Studio (convenience aliases like `-latest`)
+  - **Vertex AI models**: Only available in Vertex AI (e.g., EmbeddingGemma)
+
+  Use `models_for/1` to discover available models for your auth type.
+
+  ## Auth-Aware Defaults
+
+  Default models are automatically selected based on detected authentication:
+  - Gemini API: `gemini-flash-lite-latest` (convenience alias)
+  - Vertex AI: `gemini-2.0-flash-lite` (universal name)
+
+  For embeddings:
+  - Gemini API: `gemini-embedding-001` (3072 dimensions)
+  - Vertex AI: `embeddinggemma` (768 dimensions)
+
+  ## Examples
+
+      # Auto-detects auth and uses appropriate default
+      Gemini.generate("Hello")
+
+      # Get models available for specific API
+      Config.models_for(:vertex_ai)
+
+      # Check if a model works with an API
+      Config.model_available?(:flash_lite_latest, :vertex_ai)
+      #=> false
+
+      # Get auth-aware embedding model
+      Config.default_embedding_model()
   """
+
+  require Logger
 
   @type auth_config :: %{
           type: :gemini | :vertex_ai,
           credentials: map()
         }
 
-  @default_model "gemini-flash-lite-latest"
+  @type api_type :: :gemini | :vertex_ai | :both
+  @type model_category :: :generation | :embedding | :thinking | :image | :live | :tts
 
-  # Model definitions
-  @models %{
-    # Gemini 3 models
+  # ===========================================================================
+  # Model Registry - Organized by API Compatibility
+  # ===========================================================================
+
+  # Universal models - work identically in both Gemini API and Vertex AI
+  @universal_models %{
+    # Gemini 3 models (preview)
     pro_3_preview: "gemini-3-pro-preview",
     pro_3_image_preview: "gemini-3-pro-image-preview",
 
-    # Gemini 2.5 models
+    # Gemini 2.5 models (GA)
     pro_2_5: "gemini-2.5-pro",
     flash_2_5: "gemini-2.5-flash",
     flash_2_5_lite: "gemini-2.5-flash-lite",
+
+    # Gemini 2.5 preview/specialized
     live_2_5_flash_preview: "gemini-live-2.5-flash-preview",
     flash_2_5_preview_native_audio_dialog: "gemini-2.5-flash-preview-native-audio-dialog",
     flash_2_5_exp_native_audio_thinking_dialog:
@@ -37,12 +80,98 @@ defmodule Gemini.Config do
     flash_2_0_lite: "gemini-2.0-flash-lite",
     flash_2_0_live_001: "gemini-2.0-flash-live-001",
 
-    # Common aliases
-    flash_lite_latest: "gemini-flash-lite-latest",
-    default: "gemini-flash-lite-latest",
+    # Universal aliases (use these for cross-platform compatibility)
+    default_universal: "gemini-2.0-flash-lite",
     latest: "gemini-3-pro-preview",
     stable: "gemini-2.5-pro"
   }
+
+  # Gemini API (AI Studio) only models - convenience aliases that don't work on Vertex AI
+  @gemini_api_models %{
+    # Convenience aliases (AI Studio only - Vertex AI doesn't support -latest suffix)
+    flash_lite_latest: "gemini-flash-lite-latest",
+    flash_latest: "gemini-flash-latest",
+    pro_latest: "gemini-pro-latest",
+
+    # Embedding model for AI Studio
+    embedding: "gemini-embedding-001",
+    embedding_exp: "gemini-embedding-exp-03-07",
+
+    # Legacy default alias (AI Studio only)
+    default: "gemini-flash-lite-latest"
+  }
+
+  # Vertex AI only models - not available in Gemini API (AI Studio)
+  @vertex_ai_models %{
+    # EmbeddingGemma - Vertex AI's embedding model
+    # 300M parameters, 768 dimensions (supports MRL: 128, 256, 512, 768)
+    embedding_gemma: "embeddinggemma",
+    embedding_gemma_300m: "embeddinggemma-300m",
+
+    # Vertex AI default alias
+    default: "gemini-2.0-flash-lite"
+  }
+
+  # Default models per API type
+  @default_generation_models %{
+    gemini: "gemini-flash-lite-latest",
+    vertex_ai: "gemini-2.0-flash-lite"
+  }
+
+  @default_embedding_models %{
+    gemini: "gemini-embedding-001",
+    vertex_ai: "embeddinggemma"
+  }
+
+  # Embedding configuration per model
+  @embedding_config %{
+    "gemini-embedding-001" => %{
+      default_dimensions: 3072,
+      supported_dimensions: [128, 256, 512, 768, 1536, 3072],
+      recommended_dimensions: [768, 1536, 3072],
+      uses_task_type_param: true,
+      requires_normalization_below: 3072
+    },
+    "gemini-embedding-exp-03-07" => %{
+      default_dimensions: 3072,
+      supported_dimensions: [128, 256, 512, 768, 1536, 3072],
+      recommended_dimensions: [768, 1536, 3072],
+      uses_task_type_param: true,
+      requires_normalization_below: 3072
+    },
+    "embeddinggemma" => %{
+      default_dimensions: 768,
+      supported_dimensions: [128, 256, 512, 768],
+      recommended_dimensions: [768],
+      uses_task_type_param: false,
+      uses_prompt_prefix: true,
+      # All dimensions are normalized
+      requires_normalization_below: nil
+    },
+    "embeddinggemma-300m" => %{
+      default_dimensions: 768,
+      supported_dimensions: [128, 256, 512, 768],
+      recommended_dimensions: [768],
+      uses_task_type_param: false,
+      uses_prompt_prefix: true,
+      requires_normalization_below: nil
+    }
+  }
+
+  # EmbeddingGemma task type to prompt prefix mapping
+  @embedding_gemma_prompts %{
+    retrieval_query: "task: search result | query: ",
+    retrieval_document: "title: {title} | text: ",
+    question_answering: "task: question answering | query: ",
+    fact_verification: "task: fact checking | query: ",
+    classification: "task: classification | query: ",
+    clustering: "task: clustering | query: ",
+    semantic_similarity: "task: sentence similarity | query: ",
+    code_retrieval_query: "task: code retrieval | query: "
+  }
+
+  # Combined models map for backward compatibility (prioritizes universal)
+  @models Map.merge(@universal_models, @gemini_api_models)
 
   @doc """
   Get configuration based on environment variables and application config.
@@ -129,7 +258,7 @@ defmodule Gemini.Config do
           credentials: %{api_key: gemini_api_key()}
         }
 
-      vertex_access_token() ->
+      vertex_access_token() && vertex_project_id() ->
         %{
           type: :vertex_ai,
           credentials: %{
@@ -139,7 +268,9 @@ defmodule Gemini.Config do
           }
         }
 
-      vertex_service_account() ->
+      vertex_service_account() &&
+          (vertex_project_id() ||
+             load_project_from_service_account(vertex_service_account()) |> elem_or_nil()) ->
         service_account_path = vertex_service_account()
 
         # Load and parse the service account file to get project_id if not provided
@@ -155,21 +286,28 @@ defmodule Gemini.Config do
               project
           end
 
-        %{
-          type: :vertex_ai,
-          credentials: %{
-            service_account_key: service_account_path,
-            project_id: project_id,
-            location: vertex_location()
+        if project_id do
+          %{
+            type: :vertex_ai,
+            credentials: %{
+              service_account_key: service_account_path,
+              project_id: project_id,
+              location: vertex_location()
+            }
           }
-        }
+        else
+          nil
+        end
 
       true ->
         # Check application config
-        case Application.get_env(:gemini_ex, :auth) do
+        app_auth = Application.get_env(:gemini, :auth) || Application.get_env(:gemini_ex, :auth)
+
+        case app_auth do
           nil ->
             # Default to looking for basic API key config
-            case Application.get_env(:gemini_ex, :api_key) do
+            case Application.get_env(:gemini_ex, :api_key) ||
+                   Application.get_env(:gemini, :api_key) do
               nil -> nil
               api_key -> %{type: :gemini, credentials: %{api_key: api_key}}
             end
@@ -188,15 +326,148 @@ defmodule Gemini.Config do
     gemini_api_key() || Application.get_env(:gemini_ex, :api_key)
   end
 
+  # ===========================================================================
+  # Auth-Aware Default Model Functions
+  # ===========================================================================
+
   @doc """
-  Get the default model to use.
+  Get the default generation model for the current authentication type.
+
+  Returns different defaults based on detected auth:
+  - Gemini API (AI Studio): `"gemini-flash-lite-latest"` (convenience alias)
+  - Vertex AI: `"gemini-2.0-flash-lite"` (universal name)
+
+  Can be overridden via application config:
+
+      config :gemini_ex, :default_model, "your-model"
+
+  ## Examples
+
+      # With GEMINI_API_KEY set
+      Config.default_model()
+      #=> "gemini-flash-lite-latest"
+
+      # With VERTEX_PROJECT_ID set
+      Config.default_model()
+      #=> "gemini-2.0-flash-lite"
   """
+  @spec default_model() :: String.t()
   def default_model do
-    Application.get_env(:gemini_ex, :default_model, @default_model)
+    case Application.get_env(:gemini_ex, :default_model) do
+      nil -> default_model_for_auth()
+      model -> model
+    end
   end
 
   @doc """
+  Get the default model for a specific API type.
+
+  ## Parameters
+  - `api_type`: `:gemini` or `:vertex_ai`
+
+  ## Examples
+
+      Config.default_model_for(:gemini)
+      #=> "gemini-flash-lite-latest"
+
+      Config.default_model_for(:vertex_ai)
+      #=> "gemini-2.0-flash-lite"
+  """
+  @spec default_model_for(api_type()) :: String.t()
+  def default_model_for(:gemini), do: @default_generation_models[:gemini]
+  def default_model_for(:vertex_ai), do: @default_generation_models[:vertex_ai]
+  def default_model_for(:both), do: @default_generation_models[:vertex_ai]
+
+  @doc """
+  Get the default embedding model for the current authentication type.
+
+  Returns different defaults based on detected auth:
+  - Gemini API (AI Studio): `"gemini-embedding-001"` (3072 dimensions)
+  - Vertex AI: `"embeddinggemma"` (768 dimensions)
+
+  Can be overridden via application config:
+
+      config :gemini_ex, :default_embedding_model, "your-model"
+
+  ## Examples
+
+      # With GEMINI_API_KEY set
+      Config.default_embedding_model()
+      #=> "gemini-embedding-001"
+
+      # With VERTEX_PROJECT_ID set
+      Config.default_embedding_model()
+      #=> "embeddinggemma"
+  """
+  @spec default_embedding_model() :: String.t()
+  def default_embedding_model do
+    case Application.get_env(:gemini_ex, :default_embedding_model) do
+      nil -> default_embedding_model_for_auth()
+      model -> model
+    end
+  end
+
+  @doc """
+  Get the default embedding model for a specific API type.
+
+  ## Parameters
+  - `api_type`: `:gemini` or `:vertex_ai`
+
+  ## Examples
+
+      Config.default_embedding_model_for(:gemini)
+      #=> "gemini-embedding-001"
+
+      Config.default_embedding_model_for(:vertex_ai)
+      #=> "embeddinggemma"
+  """
+  @spec default_embedding_model_for(api_type()) :: String.t()
+  def default_embedding_model_for(:gemini), do: @default_embedding_models[:gemini]
+  def default_embedding_model_for(:vertex_ai), do: @default_embedding_models[:vertex_ai]
+  def default_embedding_model_for(:both), do: @default_embedding_models[:gemini]
+
+  # Private helpers for auth-aware defaults
+  defp default_model_for_auth do
+    case current_api_type() do
+      :vertex_ai -> @default_generation_models[:vertex_ai]
+      :gemini -> @default_generation_models[:gemini]
+    end
+  end
+
+  defp default_embedding_model_for_auth do
+    case current_api_type() do
+      :vertex_ai -> @default_embedding_models[:vertex_ai]
+      :gemini -> @default_embedding_models[:gemini]
+    end
+  end
+
+  @doc """
+  Get the current API type based on detected authentication.
+
+  Returns `:gemini` or `:vertex_ai` based on which credentials are configured.
+  """
+  @spec current_api_type() :: :gemini | :vertex_ai
+  def current_api_type do
+    case detect_auth_type() do
+      :vertex -> :vertex_ai
+      :gemini -> :gemini
+    end
+  end
+
+  # ===========================================================================
+  # Model Lookup and Validation
+  # ===========================================================================
+
+  @doc """
   Get a model name by its key or return the string if it's already a model name.
+
+  Optionally validates that the model is available for a specific API.
+
+  ## Parameters
+  - `model_key`: Atom key or string model name
+  - `opts`: Optional keyword list
+    - `:api` - Validate model works with `:gemini` or `:vertex_ai`
+    - `:strict` - If true, raise on incompatible model (default: false, warns)
 
   ## Examples
 
@@ -206,30 +477,90 @@ defmodule Gemini.Config do
       iex> Gemini.Config.get_model("gemini-1.5-pro")
       "gemini-1.5-pro"
 
-      iex> Gemini.Config.get_model(:default)
+      iex> Gemini.Config.get_model(:flash_lite_latest, api: :vertex_ai)
+      # Logs warning: Model flash_lite_latest (gemini-flash-lite-latest) may not be available on vertex_ai
       "gemini-flash-lite-latest"
-  """
-  @spec get_model(atom() | String.t()) :: String.t()
-  def get_model(model_key) when is_atom(model_key) do
-    case Map.get(@models, model_key) do
-      nil ->
-        raise "Unknown model key: #{model_key}. Available keys: #{inspect(Map.keys(@models))}"
 
-      model_name ->
+      iex> Gemini.Config.get_model(:flash_lite_latest, api: :vertex_ai, strict: true)
+      # ** (ArgumentError) Model :flash_lite_latest not available on vertex_ai
+  """
+  @spec get_model(atom() | String.t(), keyword()) :: String.t()
+  def get_model(model_key, opts \\ [])
+
+  def get_model(model_name, _opts) when is_binary(model_name), do: model_name
+
+  def get_model(model_key, opts) when is_atom(model_key) do
+    case lookup_model(model_key) do
+      {model_name, api_compat} ->
+        if api = Keyword.get(opts, :api) do
+          validate_model_compat(model_key, model_name, api_compat, api, opts)
+        end
+
         model_name
+
+      :not_found ->
+        all_keys =
+          Map.keys(@universal_models) ++
+            Map.keys(@gemini_api_models) ++ Map.keys(@vertex_ai_models)
+
+        raise ArgumentError,
+              "Unknown model key: #{model_key}. Available keys: #{inspect(Enum.uniq(all_keys))}"
     end
   end
 
-  def get_model(model_name) when is_binary(model_name) do
-    model_name
+  @doc """
+  List all models available for a specific API type.
+
+  ## Parameters
+  - `api_type`: `:gemini`, `:vertex_ai`, or `:both` (universal only)
+
+  ## Examples
+
+      Config.models_for(:gemini)
+      #=> %{flash_lite_latest: "gemini-flash-lite-latest", flash_2_0: "gemini-2.0-flash", ...}
+
+      Config.models_for(:vertex_ai)
+      #=> %{embedding_gemma: "embeddinggemma", flash_2_0: "gemini-2.0-flash", ...}
+
+      Config.models_for(:both)
+      #=> %{flash_2_0: "gemini-2.0-flash", ...}  # Only universal models
+  """
+  @spec models_for(api_type()) :: map()
+  def models_for(:gemini), do: Map.merge(@universal_models, @gemini_api_models)
+  def models_for(:vertex_ai), do: Map.merge(@universal_models, @vertex_ai_models)
+  def models_for(:both), do: @universal_models
+
+  @doc """
+  Check if a model key is available for a specific API type.
+
+  ## Parameters
+  - `model_key`: Atom model key to check
+  - `api_type`: `:gemini` or `:vertex_ai`
+
+  ## Examples
+
+      Config.model_available?(:flash_2_0, :vertex_ai)
+      #=> true
+
+      Config.model_available?(:flash_lite_latest, :vertex_ai)
+      #=> false
+
+      Config.model_available?(:embedding_gemma, :gemini)
+      #=> false
+  """
+  @spec model_available?(atom(), api_type()) :: boolean()
+  def model_available?(model_key, api_type) when is_atom(model_key) do
+    models_for(api_type) |> Map.has_key?(model_key)
   end
 
   @doc """
-  Get all available model definitions.
+  Get all available model definitions (combined for backward compatibility).
+
+  For API-specific models, use `models_for/1` instead.
 
   ## Returns
 
-  A map of model keys to model names.
+  A map of model keys to model names (universal + Gemini API models).
   """
   @spec models() :: map()
   def models do
@@ -237,7 +568,7 @@ defmodule Gemini.Config do
   end
 
   @doc """
-  Check if a model key exists.
+  Check if a model key exists in the combined model registry.
 
   ## Examples
 
@@ -249,8 +580,217 @@ defmodule Gemini.Config do
   """
   @spec has_model?(atom()) :: boolean()
   def has_model?(model_key) when is_atom(model_key) do
-    Map.has_key?(@models, model_key)
+    Map.has_key?(@universal_models, model_key) or
+      Map.has_key?(@gemini_api_models, model_key) or
+      Map.has_key?(@vertex_ai_models, model_key)
   end
+
+  @doc """
+  Get the API compatibility of a model key.
+
+  ## Returns
+  - `:both` - Model works in both Gemini API and Vertex AI
+  - `:gemini` - Model only works in Gemini API (AI Studio)
+  - `:vertex_ai` - Model only works in Vertex AI
+
+  ## Examples
+
+      Config.model_api(:flash_2_0)
+      #=> :both
+
+      Config.model_api(:flash_lite_latest)
+      #=> :gemini
+
+      Config.model_api(:embedding_gemma)
+      #=> :vertex_ai
+  """
+  @spec model_api(atom()) :: api_type() | nil
+  def model_api(model_key) when is_atom(model_key) do
+    cond do
+      Map.has_key?(@universal_models, model_key) -> :both
+      Map.has_key?(@gemini_api_models, model_key) -> :gemini
+      Map.has_key?(@vertex_ai_models, model_key) -> :vertex_ai
+      true -> nil
+    end
+  end
+
+  # ===========================================================================
+  # Embedding Configuration
+  # ===========================================================================
+
+  @doc """
+  Get embedding configuration for a specific model.
+
+  Returns configuration including supported dimensions, task type handling, etc.
+
+  ## Parameters
+  - `model`: Model name string
+
+  ## Returns
+  Map with embedding configuration or nil if not an embedding model.
+
+  ## Examples
+
+      Config.embedding_config("gemini-embedding-001")
+      #=> %{
+      #=>   default_dimensions: 3072,
+      #=>   supported_dimensions: [128, 256, 512, 768, 1536, 3072],
+      #=>   recommended_dimensions: [768, 1536, 3072],
+      #=>   uses_task_type_param: true,
+      #=>   requires_normalization_below: 3072
+      #=> }
+
+      Config.embedding_config("embeddinggemma")
+      #=> %{
+      #=>   default_dimensions: 768,
+      #=>   supported_dimensions: [128, 256, 512, 768],
+      #=>   uses_task_type_param: false,
+      #=>   uses_prompt_prefix: true,
+      #=>   ...
+      #=> }
+  """
+  @spec embedding_config(String.t()) :: map() | nil
+  def embedding_config(model) when is_binary(model) do
+    Map.get(@embedding_config, model)
+  end
+
+  @doc """
+  Check if an embedding model uses prompt prefixes for task types.
+
+  EmbeddingGemma uses prompt prefixes like "task: search result | query: "
+  while Gemini embedding models use a taskType parameter.
+
+  ## Examples
+
+      Config.uses_prompt_prefix?("embeddinggemma")
+      #=> true
+
+      Config.uses_prompt_prefix?("gemini-embedding-001")
+      #=> false
+  """
+  @spec uses_prompt_prefix?(String.t()) :: boolean()
+  def uses_prompt_prefix?(model) when is_binary(model) do
+    case embedding_config(model) do
+      %{uses_prompt_prefix: true} -> true
+      _ -> false
+    end
+  end
+
+  @doc """
+  Get the prompt prefix for an EmbeddingGemma task type.
+
+  ## Parameters
+  - `task_type`: Task type atom (e.g., `:retrieval_query`, `:semantic_similarity`)
+  - `opts`: Optional keyword list
+    - `:title` - Document title for `:retrieval_document` task type
+
+  ## Examples
+
+      Config.embedding_prompt_prefix(:retrieval_query)
+      #=> "task: search result | query: "
+
+      Config.embedding_prompt_prefix(:retrieval_document, title: "My Document")
+      #=> "title: My Document | text: "
+
+      Config.embedding_prompt_prefix(:retrieval_document)
+      #=> "title: none | text: "
+  """
+  @spec embedding_prompt_prefix(atom(), keyword()) :: String.t()
+  def embedding_prompt_prefix(task_type, opts \\ []) do
+    case Map.get(@embedding_gemma_prompts, task_type) do
+      nil ->
+        # Default to retrieval query if unknown task type
+        "task: search result | query: "
+
+      prefix when task_type == :retrieval_document ->
+        title = Keyword.get(opts, :title, "none")
+        String.replace(prefix, "{title}", title)
+
+      prefix ->
+        prefix
+    end
+  end
+
+  @doc """
+  Get the default output dimensionality for an embedding model.
+
+  ## Examples
+
+      Config.default_embedding_dimensions("gemini-embedding-001")
+      #=> 3072
+
+      Config.default_embedding_dimensions("embeddinggemma")
+      #=> 768
+  """
+  @spec default_embedding_dimensions(String.t()) :: pos_integer() | nil
+  def default_embedding_dimensions(model) when is_binary(model) do
+    case embedding_config(model) do
+      %{default_dimensions: dims} -> dims
+      _ -> nil
+    end
+  end
+
+  @doc """
+  Check if an embedding needs normalization for a given dimensionality.
+
+  Gemini embedding models only return normalized embeddings at full dimensionality.
+  Lower dimensions need manual normalization. EmbeddingGemma is always normalized.
+
+  ## Examples
+
+      Config.needs_normalization?("gemini-embedding-001", 768)
+      #=> true
+
+      Config.needs_normalization?("gemini-embedding-001", 3072)
+      #=> false
+
+      Config.needs_normalization?("embeddinggemma", 256)
+      #=> false  # EmbeddingGemma is always normalized
+  """
+  @spec needs_normalization?(String.t(), pos_integer()) :: boolean()
+  def needs_normalization?(model, dimensions) when is_binary(model) and is_integer(dimensions) do
+    case embedding_config(model) do
+      %{requires_normalization_below: nil} -> false
+      %{requires_normalization_below: threshold} -> dimensions < threshold
+      _ -> false
+    end
+  end
+
+  # Private helper to look up model with its API compatibility
+  defp lookup_model(key) do
+    cond do
+      model = Map.get(@universal_models, key) -> {model, :both}
+      model = Map.get(@gemini_api_models, key) -> {model, :gemini}
+      model = Map.get(@vertex_ai_models, key) -> {model, :vertex_ai}
+      true -> :not_found
+    end
+  end
+
+  defp validate_model_compat(key, name, model_api, requested_api, opts) do
+    compatible? = model_api == :both or model_api == requested_api
+
+    unless compatible? do
+      msg = "Model #{key} (#{name}) may not be available on #{requested_api}"
+
+      if Keyword.get(opts, :strict, false) do
+        suggestion = suggest_alternative(key, requested_api)
+
+        raise ArgumentError,
+              msg <>
+                ". Use a universal model or one specific to #{requested_api}." <>
+                if(suggestion, do: " Suggested alternative: #{suggestion}", else: "")
+      else
+        Logger.warning("[Gemini.Config] #{msg}")
+      end
+    end
+  end
+
+  # Suggest alternative models when using incompatible model
+  defp suggest_alternative(:flash_lite_latest, :vertex_ai), do: ":flash_2_0_lite"
+  defp suggest_alternative(:flash_latest, :vertex_ai), do: ":flash_2_0"
+  defp suggest_alternative(:embedding, :vertex_ai), do: ":embedding_gemma"
+  defp suggest_alternative(:embedding_gemma, :gemini), do: ":embedding"
+  defp suggest_alternative(_, _), do: nil
 
   @doc """
   Get HTTP timeout in milliseconds.
@@ -375,45 +915,56 @@ defmodule Gemini.Config do
   """
   @spec get_auth_config(:gemini | :vertex_ai) :: map()
   def get_auth_config(:gemini) do
-    case gemini_api_key() do
-      nil ->
-        # Check application config
-        case Application.get_env(:gemini_ex, :api_key) do
-          nil -> %{}
-          api_key -> %{api_key: api_key}
-        end
-
-      api_key ->
+    cond do
+      # App env via configure/2
+      match?(%{type: :gemini, credentials: %{api_key: _}}, Application.get_env(:gemini, :auth)) ->
+        %{credentials: %{api_key: api_key}} = Application.get_env(:gemini, :auth)
         %{api_key: api_key}
+
+      # Legacy app env
+      is_binary(Application.get_env(:gemini_ex, :api_key)) ->
+        %{api_key: Application.get_env(:gemini_ex, :api_key)}
+
+      # Direct env var
+      is_binary(gemini_api_key()) ->
+        %{api_key: gemini_api_key()}
+
+      true ->
+        %{}
     end
   end
 
   def get_auth_config(:vertex_ai) do
-    config = %{}
+    base =
+      %{}
+      |> maybe_put(:project_id, vertex_project_id())
+      |> Map.put(:location, vertex_location())
 
-    # Add project_id if available
-    config =
-      case vertex_project_id() do
-        nil -> config
-        project_id -> Map.put(config, :project_id, project_id)
+    app_auth = Application.get_env(:gemini, :auth)
+    legacy_app_auth = Application.get_env(:gemini_ex, :auth)
+    legacy_vertex = Application.get_env(:gemini_ex, :vertex_ai, %{})
+
+    creds_from_app =
+      cond do
+        match?(%{type: :vertex_ai, credentials: %{}}, app_auth) ->
+          app_auth.credentials
+
+        match?(%{type: :vertex_ai, credentials: %{}}, legacy_app_auth) ->
+          legacy_app_auth.credentials
+
+        true ->
+          legacy_vertex
       end
 
-    # Add location
-    config = Map.put(config, :location, vertex_location())
+    config =
+      base
+      |> Map.merge(creds_from_app || %{})
+      |> maybe_put(:project_id, vertex_project_id())
+      |> maybe_put(:location, vertex_location())
+      |> maybe_put(:access_token, vertex_access_token())
+      |> maybe_put(:service_account_key, vertex_service_account())
 
-    # Add authentication method
-    cond do
-      vertex_access_token() ->
-        Map.put(config, :access_token, vertex_access_token())
-
-      vertex_service_account() ->
-        Map.put(config, :service_account_key, vertex_service_account())
-
-      true ->
-        # Check application config
-        app_config = Application.get_env(:gemini_ex, :vertex_ai, %{})
-        Map.merge(config, app_config)
-    end
+    config
   end
 
   def get_auth_config(_strategy) do
@@ -423,24 +974,40 @@ defmodule Gemini.Config do
   # Private functions for environment variable access
 
   defp gemini_api_key do
-    System.get_env("GEMINI_API_KEY")
+    get_env_non_empty("GEMINI_API_KEY")
   end
 
   defp vertex_access_token do
-    System.get_env("VERTEX_ACCESS_TOKEN")
+    get_env_non_empty("VERTEX_ACCESS_TOKEN")
   end
 
   defp vertex_service_account do
-    System.get_env("VERTEX_SERVICE_ACCOUNT") || System.get_env("VERTEX_JSON_FILE")
+    get_env_non_empty("VERTEX_SERVICE_ACCOUNT") || get_env_non_empty("VERTEX_JSON_FILE")
   end
 
   defp vertex_project_id do
-    System.get_env("VERTEX_PROJECT_ID") || System.get_env("GOOGLE_CLOUD_PROJECT")
+    get_env_non_empty("VERTEX_PROJECT_ID") || get_env_non_empty("GOOGLE_CLOUD_PROJECT")
   end
 
   defp vertex_location do
-    System.get_env("VERTEX_LOCATION") || System.get_env("GOOGLE_CLOUD_LOCATION") || "us-central1"
+    get_env_non_empty("VERTEX_LOCATION") || get_env_non_empty("GOOGLE_CLOUD_LOCATION") ||
+      "us-central1"
   end
+
+  # Returns nil for empty strings, so "" is treated as "not set"
+  defp get_env_non_empty(var) do
+    case System.get_env(var) do
+      nil -> nil
+      "" -> nil
+      value -> value
+    end
+  end
+
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, key, value), do: Map.put(map, key, value)
+
+  defp elem_or_nil({:ok, value}), do: value
+  defp elem_or_nil(_), do: nil
 
   defp validate_vertex_config!(%{access_token: token, project_id: project, location: location})
        when is_binary(token) and is_binary(project) and is_binary(location) do

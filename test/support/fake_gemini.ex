@@ -74,13 +74,13 @@ defmodule Gemini.Test.FakeGemini do
 
   - `:retry_delay` - Retry delay string (default: "60s")
   - `:quota_metric` - Quota metric name (default: "TokensPerMinute")
-  - `:quota_id` - Quota ID (default: "gemini-flash-lite-latest")
+  - `:quota_id` - Quota ID (default: Gemini.Config.default_model())
   - `:times` - Number of times to respond with 429 (default: 1)
   """
   def setup_429_response(bypass, opts \\ []) do
     retry_delay = Keyword.get(opts, :retry_delay, "60s")
     quota_metric = Keyword.get(opts, :quota_metric, "TokensPerMinute")
-    quota_id = Keyword.get(opts, :quota_id, "gemini-flash-lite-latest")
+    quota_id = Keyword.get(opts, :quota_id, Gemini.Config.default_model())
     times = Keyword.get(opts, :times, 1)
 
     error_body = %{

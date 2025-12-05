@@ -11,24 +11,18 @@ defmodule Gemini.ThoughtSignaturesLiveTest do
 
   alias Gemini.Chat
 
+  import Gemini.Test.ModelHelpers
+
   setup_all do
     Application.ensure_all_started(:gemini)
-
-    case System.get_env("GEMINI_API_KEY") do
-      nil ->
-        {:ok, skip: true}
-
-      api_key ->
-        Gemini.configure(:gemini, %{api_key: api_key})
-        {:ok, skip: false}
-    end
+    {:ok, skip: not auth_available?()}
   end
 
   describe "thought signature extraction" do
     @tag :live_api
     test "extracts thought signatures from Gemini 3 Pro response", context do
       if context[:skip] do
-        IO.puts("Skipping: GEMINI_API_KEY not set")
+        IO.puts("Skipping: No auth configured")
         :ok
       else
         # Use Gemini 3 Pro which returns thought signatures
@@ -37,7 +31,7 @@ defmodule Gemini.ThoughtSignaturesLiveTest do
         result =
           Gemini.generate(
             "Explain briefly why the sky is blue.",
-            model: "gemini-3-pro-preview",
+            model: Gemini.Config.get_model(:pro_3_preview),
             generation_config: config
           )
 
@@ -71,11 +65,11 @@ defmodule Gemini.ThoughtSignaturesLiveTest do
     @tag :live_api
     test "multi-turn chat maintains context with signature echoing", context do
       if context[:skip] do
-        IO.puts("Skipping: GEMINI_API_KEY not set")
+        IO.puts("Skipping: No auth configured")
         :ok
       else
         # Start a chat session
-        chat = Chat.new(model: "gemini-flash-lite-latest")
+        chat = Chat.new(model: default_model())
 
         # First turn - user asks a question
         chat = Chat.add_turn(chat, "user", "What is the capital of France?")
@@ -126,7 +120,7 @@ defmodule Gemini.ThoughtSignaturesLiveTest do
     @tag :live_api
     test "sends requests with thought signature attached to parts", context do
       if context[:skip] do
-        IO.puts("Skipping: GEMINI_API_KEY not set")
+        IO.puts("Skipping: No auth configured")
         :ok
       else
         # Create a part with a thought signature
@@ -137,7 +131,7 @@ defmodule Gemini.ThoughtSignaturesLiveTest do
         content = %Gemini.Types.Content{role: "user", parts: [part]}
 
         # Try to generate with this content
-        result = Gemini.generate([content], model: "gemini-flash-lite-latest")
+        result = Gemini.generate([content], model: default_model())
 
         case result do
           {:ok, response} ->

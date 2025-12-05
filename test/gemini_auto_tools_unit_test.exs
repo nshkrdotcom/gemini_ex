@@ -7,6 +7,8 @@ defmodule Gemini.AutoToolsUnitTest do
   alias Gemini.Types.Response.GenerateContentResponse
   alias Altar.ADM
 
+  import Gemini.Test.ModelHelpers
+
   describe "generate_content_with_auto_tools/2" do
     test "creates proper chat structure" do
       # Test that the function properly sets up the chat structure
@@ -31,7 +33,7 @@ defmodule Gemini.AutoToolsUnitTest do
       # Test with valid options
       opts = [
         tools: [declaration],
-        model: "gemini-flash-lite-latest",
+        model: default_model(),
         temperature: 0.1,
         turn_limit: 5
       ]
@@ -59,7 +61,7 @@ defmodule Gemini.AutoToolsUnitTest do
 
       opts = [
         tools: [declaration],
-        model: "gemini-flash-lite-latest",
+        model: default_model(),
         turn_limit: 3
       ]
 

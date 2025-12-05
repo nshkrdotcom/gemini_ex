@@ -71,6 +71,18 @@ defmodule Gemini.Error do
   end
 
   @doc """
+  Create an authentication error.
+
+  This error type is used when authentication fails, such as:
+  - Invalid API keys
+  - Service account token generation failures
+  - Missing or invalid credentials
+  """
+  def auth_error(message, details \\ %{}) do
+    new(:auth_error, message, details: details)
+  end
+
+  @doc """
   Create a request validation error.
   """
   def validation_error(message, details \\ %{}) do

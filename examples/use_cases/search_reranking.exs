@@ -19,6 +19,7 @@
 require Logger
 
 alias Gemini.APIs.Coordinator
+alias Gemini.Config
 alias Gemini.Types.Response.{EmbedContentResponse, ContentEmbedding}
 
 IO.puts("\n" <> String.duplicate("=", 80))
@@ -141,7 +142,7 @@ IO.puts("Embedding user query...")
 {:ok, %EmbedContentResponse{embedding: query_embedding}} =
   Coordinator.embed_content(
     user_query,
-    model: "gemini-embedding-001",
+    model: Config.get_model(:embedding),
     task_type: :retrieval_query,
     output_dimensionality: 768
   )
@@ -160,7 +161,7 @@ embedded_products =
     {:ok, %EmbedContentResponse{embedding: embedding}} =
       Coordinator.embed_content(
         text,
-        model: "gemini-embedding-001",
+        model: Config.get_model(:embedding),
         task_type: :retrieval_document,
         title: product.name,
         output_dimensionality: 768
@@ -291,7 +292,7 @@ Enum.each(additional_queries, fn query ->
   {:ok, %EmbedContentResponse{embedding: q_emb}} =
     Coordinator.embed_content(
       query,
-      model: "gemini-embedding-001",
+      model: Config.get_model(:embedding),
       task_type: :retrieval_query,
       output_dimensionality: 768
     )

@@ -263,7 +263,10 @@ defmodule LiveAutoToolTest do
     IO.puts("📝 Prompt: #{String.slice(test_prompt, 0, 100)}...")
 
     # Step 3: Execute automatic tool calling
-    IO.puts("\n🚀 Step 3: Executing automatic tool-calling with gemini-flash-lite-latest...")
+    IO.puts(
+      "\n🚀 Step 3: Executing automatic tool-calling with #{Gemini.Config.default_model()}..."
+    )
+
     IO.puts("⏳ This may take a few moments as the system:")
     IO.puts("   • Sends the prompt to Gemini")
     IO.puts("   • Receives function call instructions")
@@ -281,7 +284,7 @@ defmodule LiveAutoToolTest do
       Gemini.generate_content_with_auto_tools(
         test_prompt,
         tools: [tool_declaration],
-        model: "gemini-flash-lite-latest",
+        model: Gemini.Config.default_model(),
         temperature: 0.1,
         turn_limit: 10
       )

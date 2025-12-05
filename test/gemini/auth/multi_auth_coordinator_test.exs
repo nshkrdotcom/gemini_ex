@@ -6,29 +6,47 @@ defmodule Gemini.Auth.MultiAuthCoordinatorTest do
   in the same application instance.
   """
 
-  use ExUnit.Case, async: true
+  # async: false because these tests rely on environment variables which are global
+  use ExUnit.Case, async: false
 
   alias Gemini.Auth.MultiAuthCoordinator
+  alias Gemini.Test.AuthHelpers
 
   describe "coordinate_auth/2" do
     @tag :live_api
     test "coordinates gemini auth strategy successfully" do
-      opts = [auth: :gemini]
+      case AuthHelpers.detect_auth() do
+        {:ok, :gemini, _} ->
+          opts = [auth: :gemini]
 
-      assert {:ok, :gemini, headers} = MultiAuthCoordinator.coordinate_auth(:gemini, opts)
-      assert is_list(headers)
-      assert {"Content-Type", "application/json"} in headers
-      assert Enum.any?(headers, fn {key, _value} -> key == "x-goog-api-key" end)
+          assert {:ok, :gemini, headers} = MultiAuthCoordinator.coordinate_auth(:gemini, opts)
+          assert is_list(headers)
+          assert {"Content-Type", "application/json"} in headers
+          assert Enum.any?(headers, fn {key, _value} -> key == "x-goog-api-key" end)
+
+        _ ->
+          IO.puts("Skipping Gemini live test: missing auth")
+          assert true
+      end
     end
 
     @tag :live_api
     test "coordinates vertex_ai auth strategy successfully" do
-      opts = [auth: :vertex_ai]
+      case AuthHelpers.detect_auth() do
+        {:ok, :vertex_ai, _} ->
+          opts = [auth: :vertex_ai]
 
-      assert {:ok, :vertex_ai, headers} = MultiAuthCoordinator.coordinate_auth(:vertex_ai, opts)
-      assert is_list(headers)
-      assert {"Content-Type", "application/json"} in headers
-      assert Enum.any?(headers, fn {key, _value} -> key == "Authorization" end)
+          assert {:ok, :vertex_ai, headers} =
+                   MultiAuthCoordinator.coordinate_auth(:vertex_ai, opts)
+
+          assert is_list(headers)
+          assert {"Content-Type", "application/json"} in headers
+          assert Enum.any?(headers, fn {key, _value} -> key == "Authorization" end)
+
+        _ ->
+          IO.puts("Skipping Vertex live test: missing project/location/token")
+          :ok
+      end
     end
 
     test "returns error for unknown auth strategy" do
@@ -50,14 +68,28 @@ defmodule Gemini.Auth.MultiAuthCoordinatorTest do
   describe "get_credentials/1" do
     @tag :live_api
     test "retrieves gemini credentials from config" do
-      assert {:ok, credentials} = MultiAuthCoordinator.get_credentials(:gemini)
-      assert is_map(credentials)
+      case AuthHelpers.detect_auth() do
+        {:ok, :gemini, _} ->
+          assert {:ok, credentials} = MultiAuthCoordinator.get_credentials(:gemini)
+          assert is_map(credentials)
+
+        _ ->
+          IO.puts("Skipping Gemini live test: missing auth")
+          assert true
+      end
     end
 
     @tag :live_api
     test "retrieves vertex_ai credentials from config" do
-      assert {:ok, credentials} = MultiAuthCoordinator.get_credentials(:vertex_ai)
-      assert is_map(credentials)
+      case AuthHelpers.detect_auth() do
+        {:ok, :vertex_ai, _} ->
+          assert {:ok, credentials} = MultiAuthCoordinator.get_credentials(:vertex_ai)
+          assert is_map(credentials)
+
+        _ ->
+          IO.puts("Skipping Vertex live test: missing project/location/token")
+          :ok
+      end
     end
 
     test "returns error for unknown strategy" do
@@ -86,8 +118,15 @@ defmodule Gemini.Auth.MultiAuthCoordinatorTest do
   describe "refresh_credentials/1" do
     @tag :live_api
     test "refreshes gemini credentials (no-op)" do
-      assert {:ok, credentials} = MultiAuthCoordinator.refresh_credentials(:gemini)
-      assert is_map(credentials)
+      case AuthHelpers.detect_auth() do
+        {:ok, :gemini, _} ->
+          assert {:ok, credentials} = MultiAuthCoordinator.refresh_credentials(:gemini)
+          assert is_map(credentials)
+
+        _ ->
+          IO.puts("Skipping Gemini live test: missing auth")
+          assert true
+      end
     end
 
     test "refreshes vertex_ai credentials" do

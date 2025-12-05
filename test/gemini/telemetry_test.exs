@@ -3,6 +3,8 @@ defmodule Gemini.TelemetryTest do
 
   @moduletag :capture_log
 
+  import Gemini.Test.ModelHelpers
+
   setup do
     # Install telemetry test handler
     :telemetry_test.attach_event_handlers(self(), [
@@ -57,7 +59,7 @@ defmodule Gemini.TelemetryTest do
 
     test "build_request_metadata/3 creates proper metadata" do
       opts = [
-        model: "gemini-flash-lite-latest",
+        model: default_model(),
         function: :generate_content,
         contents_type: :text
       ]
@@ -66,7 +68,7 @@ defmodule Gemini.TelemetryTest do
 
       assert metadata.url == "https://example.com"
       assert metadata.method == :post
-      assert metadata.model == "gemini-flash-lite-latest"
+      assert metadata.model == default_model()
       assert metadata.function == :generate_content
       assert metadata.contents_type == :text
       assert is_integer(metadata.system_time)

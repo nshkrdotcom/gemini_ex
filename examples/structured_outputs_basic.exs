@@ -2,6 +2,7 @@
 # Run with: mix run examples/structured_outputs_basic.exs
 
 defmodule BasicExample do
+  alias Gemini.Config
   alias Gemini.Types.GenerationConfig
 
   def run do
@@ -20,7 +21,7 @@ defmodule BasicExample do
 
     case Gemini.generate(
            "What is 2+2? Rate confidence.",
-           model: "gemini-2.5-flash",
+           model: Config.default_model(),
            generation_config: config
          ) do
       {:ok, response} ->
@@ -31,11 +32,13 @@ defmodule BasicExample do
 
         # Handle both integer and float confidence values
         confidence = data["confidence"]
-        confidence_str = if is_float(confidence) do
-          Float.round(confidence, 2)
-        else
-          confidence
-        end
+
+        confidence_str =
+          if is_float(confidence) do
+            Float.round(confidence, 2)
+          else
+            confidence
+          end
 
         IO.puts("   Confidence: #{confidence_str}")
 

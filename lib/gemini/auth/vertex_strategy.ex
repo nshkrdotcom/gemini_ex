@@ -13,10 +13,25 @@ defmodule Gemini.Auth.VertexStrategy do
 
   @behaviour Gemini.Auth.Strategy
 
+  require Logger
+
   alias Gemini.Auth.JWT
 
   @vertex_ai_scopes [
     "https://www.googleapis.com/auth/cloud-platform"
+  ]
+
+  @required_service_account_keys [
+    :type,
+    :project_id,
+    :private_key_id,
+    :private_key,
+    :client_email,
+    :client_id,
+    :auth_uri,
+    :token_uri,
+    :auth_provider_x509_cert_url,
+    :client_x509_cert_url
   ]
 
   @doc """
@@ -27,60 +42,74 @@ defmodule Gemini.Auth.VertexStrategy do
   - %{service_account_key: path} - Service account JSON file path
   - %{service_account_data: data} - Service account JSON data
   - %{jwt_token: token} - Pre-signed JWT token
+
+  Returns `{:ok, headers}` on success, or `{:error, reason}` if authentication fails.
   """
   @impl true
-  def headers(%{access_token: access_token}) do
-    [
-      {"Content-Type", "application/json"},
-      {"Authorization", "Bearer #{access_token}"}
-    ]
+  def headers(%{access_token: access_token})
+      when is_binary(access_token) and access_token != "" do
+    {:ok,
+     [
+       {"Content-Type", "application/json"},
+       {"Authorization", "Bearer #{access_token}"}
+     ]}
   end
 
-  def headers(%{jwt_token: jwt_token}) do
-    [
-      {"Content-Type", "application/json"},
-      {"Authorization", "Bearer #{jwt_token}"}
-    ]
+  def headers(%{access_token: nil}) do
+    {:error, "Access token is nil"}
   end
 
-  def headers(%{service_account_key: _key_path} = credentials) do
+  def headers(%{access_token: ""}) do
+    {:error, "Access token is empty"}
+  end
+
+  def headers(%{jwt_token: jwt_token}) when is_binary(jwt_token) and jwt_token != "" do
+    {:ok,
+     [
+       {"Content-Type", "application/json"},
+       {"Authorization", "Bearer #{jwt_token}"}
+     ]}
+  end
+
+  def headers(%{service_account_key: key_path} = credentials) when is_binary(key_path) do
     case generate_access_token(credentials) do
       {:ok, access_token} ->
-        [
-          {"Content-Type", "application/json"},
-          {"Authorization", "Bearer #{access_token}"}
-        ]
+        {:ok,
+         [
+           {"Content-Type", "application/json"},
+           {"Authorization", "Bearer #{access_token}"}
+         ]}
 
-      {:error, _reason} ->
-        # Fallback to placeholder - in production this should be handled properly
-        [
-          {"Content-Type", "application/json"},
-          {"Authorization", "Bearer service-account-error-token"}
-        ]
+      {:error, reason} = error ->
+        Logger.error(
+          "[VertexStrategy] Failed to generate access token from service account key: #{inspect(reason)}"
+        )
+
+        error
     end
   end
 
-  def headers(%{service_account_data: _data} = credentials) do
+  def headers(%{service_account_data: data} = credentials) when is_map(data) do
     case generate_access_token(credentials) do
       {:ok, access_token} ->
-        [
-          {"Content-Type", "application/json"},
-          {"Authorization", "Bearer #{access_token}"}
-        ]
+        {:ok,
+         [
+           {"Content-Type", "application/json"},
+           {"Authorization", "Bearer #{access_token}"}
+         ]}
 
-      {:error, _reason} ->
-        [
-          {"Content-Type", "application/json"},
-          {"Authorization", "Bearer service-account-error-token"}
-        ]
+      {:error, reason} = error ->
+        Logger.error(
+          "[VertexStrategy] Failed to generate access token from service account data: #{inspect(reason)}"
+        )
+
+        error
     end
   end
 
-  def headers(_credentials) do
-    [
-      {"Content-Type", "application/json"},
-      {"Authorization", "Bearer default-credentials-token"}
-    ]
+  def headers(%{} = credentials) do
+    {:error,
+     "No valid Vertex AI credentials found. Expected :access_token, :jwt_token, :service_account_key, or :service_account_data. Got: #{inspect(Map.keys(credentials))}"}
   end
 
   @impl true
@@ -291,57 +320,100 @@ defmodule Gemini.Auth.VertexStrategy do
   # Private helper functions
 
   defp generate_access_token(%{service_account_key: key_path}) do
-    case JWT.load_service_account_key(key_path) do
-      {:ok, key_data} ->
-        generate_access_token_from_key(key_data)
-
+    with {:ok, key_data} <- JWT.load_service_account_key(key_path) do
+      generate_access_token(%{service_account_data: key_data})
+    else
       {:error, reason} ->
         {:error, "Failed to load service account key: #{reason}"}
     end
   end
 
   defp generate_access_token(%{service_account_data: key_data}) do
-    generate_access_token_from_key(key_data)
+    with {:ok, normalized_key} <- normalize_service_account_key(key_data) do
+      generate_access_token_from_key(normalized_key)
+    end
   end
 
   defp generate_access_token(_credentials) do
     {:error, "No service account credentials available"}
   end
 
-  defp generate_access_token_from_key(key_data) do
+  @spec normalize_service_account_key(map()) ::
+          {:ok, JWT.service_account_key()} | {:error, String.t()}
+  defp normalize_service_account_key(key_data) when is_map(key_data) do
+    normalized_key_data =
+      if has_string_service_account_keys?(key_data) do
+        for key <- @required_service_account_keys, into: %{} do
+          {key, Map.get(key_data, Atom.to_string(key))}
+        end
+      else
+        key_data
+      end
+
+    if valid_service_account_key?(normalized_key_data) do
+      {:ok, Map.take(normalized_key_data, @required_service_account_keys)}
+    else
+      {:error, "Invalid service account data: missing required fields"}
+    end
+  end
+
+  defp normalize_service_account_key(_),
+    do: {:error, "Invalid service account data: missing required fields"}
+
+  defp has_string_service_account_keys?(key_data) do
+    Enum.any?(@required_service_account_keys, fn key ->
+      Map.has_key?(key_data, Atom.to_string(key))
+    end)
+  end
+
+  defp valid_service_account_key?(key_data) do
+    Enum.all?(@required_service_account_keys, fn key ->
+      value = Map.get(key_data, key)
+      is_binary(value)
+    end)
+  end
+
+  @spec generate_access_token_from_key(JWT.service_account_key()) ::
+          {:ok, String.t()} | {:error, String.t()}
+  defp generate_access_token_from_key(
+         %{client_email: client_email, token_uri: token_uri} = key_data
+       ) do
     # Create OAuth2 JWT for token exchange
-    # This follows the OAuth2 service account flow
+    # This follows the OAuth2 service account flow per Google documentation:
+    # https://developers.google.com/identity/protocols/oauth2/service-account#httprest
     now = System.system_time(:second)
 
-    # Create a JWT payload (without the scope - it goes in the token exchange request)
+    # The scope MUST be included in the JWT claims for jwt-bearer grant type
     jwt_payload = %{
-      iss: key_data.client_email,
-      sub: key_data.client_email,
-      aud: key_data.token_uri,
+      iss: client_email,
+      sub: client_email,
+      aud: token_uri,
       iat: now,
-      exp: now + 3600
+      exp: now + 3600,
+      scope: Enum.join(@vertex_ai_scopes, " ")
     }
 
     case JWT.sign_with_key(jwt_payload, key_data) do
       {:ok, assertion} ->
-        # Include scope in the token exchange request
-        exchange_jwt_for_access_token(assertion, key_data.token_uri)
+        exchange_jwt_for_access_token(assertion, token_uri)
 
       {:error, reason} ->
         {:error, "Failed to sign OAuth2 JWT: #{inspect(reason)}"}
     end
   end
 
+  @spec exchange_jwt_for_access_token(String.t(), String.t()) ::
+          {:ok, String.t()} | {:error, String.t()}
   defp exchange_jwt_for_access_token(assertion, token_uri) do
     headers = [
       {"Content-Type", "application/x-www-form-urlencoded"}
     ]
 
+    # Note: scope is NOT included here - it's in the JWT assertion itself
     body =
       URI.encode_query(%{
         "grant_type" => "urn:ietf:params:oauth:grant-type:jwt-bearer",
-        "assertion" => assertion,
-        "scope" => Enum.join(@vertex_ai_scopes, " ")
+        "assertion" => assertion
       })
 
     case Req.post(token_uri, headers: headers, body: body) do

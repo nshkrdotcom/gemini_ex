@@ -208,7 +208,7 @@ defmodule TelemetryShowcase do
     IO.puts("\nModel Extraction:")
 
     test_opts = [
-      {[model: "gemini-pro"], "with explicit model"},
+      {[model: Gemini.Config.default_model()], "with explicit model"},
       {[function: :generate], "without model (uses default)"},
       {%{not: "keyword_list"}, "invalid opts (uses default)"}
     ]
@@ -225,7 +225,7 @@ defmodule TelemetryShowcase do
       Gemini.Telemetry.build_request_metadata(
         "https://api.example.com/generate",
         :post,
-        model: "gemini-flash-lite-latest",
+        model: Gemini.Config.default_model(),
         function: :generate_content,
         contents_type: :text
       )
@@ -239,7 +239,7 @@ defmodule TelemetryShowcase do
         "https://api.example.com/stream",
         :post,
         stream_id,
-        model: "gemini-flash-lite-latest"
+        model: Gemini.Config.default_model()
       )
 
     IO.puts("  • Stream metadata keys: #{Map.keys(stream_metadata) |> Enum.join(", ")}")

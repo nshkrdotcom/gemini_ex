@@ -22,7 +22,8 @@ defmodule Gemini.Auth do
     @moduledoc """
     Behavior for authentication strategies.
     """
-    @callback headers(credentials :: map()) :: [{String.t(), String.t()}]
+    @callback headers(credentials :: map()) ::
+                {:ok, [{String.t(), String.t()}]} | {:error, term()}
     @callback base_url(credentials :: map()) :: String.t()
     @callback build_path(model :: String.t(), endpoint :: String.t(), credentials :: map()) ::
                 String.t()
@@ -74,8 +75,12 @@ defmodule Gemini.Auth do
 
   @doc """
   Build authenticated headers for the given strategy and credentials.
+
+  Returns `{:ok, headers}` on success, or `{:error, reason}` if authentication fails
+  (e.g., service account token generation failure).
   """
-  @spec build_headers(auth_type(), map()) :: [{String.t(), String.t()}]
+  @spec build_headers(auth_type(), map()) ::
+          {:ok, [{String.t(), String.t()}]} | {:error, term()}
   def build_headers(auth_type, credentials) do
     strategy = get_strategy(auth_type)
     strategy.headers(credentials)

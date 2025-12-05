@@ -392,55 +392,59 @@ defmodule Gemini.Streaming.ManagerV2 do
       path =
         Auth.build_path(auth_config.type, model, "streamGenerateContent", auth_config.credentials)
 
-      headers = Auth.build_headers(auth_config.type, auth_config.credentials)
+      case Auth.build_headers(auth_config.type, auth_config.credentials) do
+        {:error, reason} ->
+          throw({:error, {:auth_failed, reason}})
 
-      full_url = "#{base_url}/#{path}"
+        {:ok, headers} ->
+          full_url = "#{base_url}/#{path}"
 
-      # Create monitor for initial subscriber
-      monitor_ref = Process.monitor(subscriber_pid)
-      subscriber_ref = {subscriber_pid, monitor_ref}
+          # Create monitor for initial subscriber
+          monitor_ref = Process.monitor(subscriber_pid)
+          subscriber_ref = {subscriber_pid, monitor_ref}
 
-      # Initialize stream state
-      stream_state = %{
-        stream_id: stream_id,
-        stream_pid: nil,
-        model: model,
-        request_body: request_body,
-        status: :starting,
-        error: nil,
-        started_at: DateTime.utc_now(),
-        subscribers: [subscriber_ref],
-        events_count: 0,
-        last_event_at: nil,
-        config: opts
-      }
+          # Initialize stream state
+          stream_state = %{
+            stream_id: stream_id,
+            stream_pid: nil,
+            model: model,
+            request_body: request_body,
+            status: :starting,
+            error: nil,
+            started_at: DateTime.utc_now(),
+            subscribers: [subscriber_ref],
+            events_count: 0,
+            last_event_at: nil,
+            config: opts
+          }
 
-      # Start HTTP streaming
-      stream_opts = [
-        timeout: Keyword.get(opts, :timeout, state.default_timeout),
-        max_retries: Keyword.get(opts, :max_retries, 3)
-      ]
+          # Start HTTP streaming
+          stream_opts = [
+            timeout: Keyword.get(opts, :timeout, state.default_timeout),
+            max_retries: Keyword.get(opts, :max_retries, 3)
+          ]
 
-      {:ok, stream_pid} =
-        HTTPStreaming.stream_to_process(
-          full_url,
-          headers,
-          request_body,
-          stream_id,
-          self(),
-          stream_opts
-        )
+          {:ok, stream_pid} =
+            HTTPStreaming.stream_to_process(
+              full_url,
+              headers,
+              request_body,
+              stream_id,
+              self(),
+              stream_opts
+            )
 
-      updated_stream = %{stream_state | stream_pid: stream_pid, status: :active}
+          updated_stream = %{stream_state | stream_pid: stream_pid, status: :active}
 
-      new_state = %{
-        state
-        | streams: Map.put(state.streams, stream_id, updated_stream),
-          stream_counter: state.stream_counter + 1
-      }
+          new_state = %{
+            state
+            | streams: Map.put(state.streams, stream_id, updated_stream),
+              stream_counter: state.stream_counter + 1
+          }
 
-      Logger.info("Started stream #{stream_id} for model #{model}")
-      {:ok, stream_id, new_state}
+          Logger.info("Started stream #{stream_id} for model #{model}")
+          {:ok, stream_id, new_state}
+      end
     rescue
       error -> {:error, {:create_stream_error, error}}
     catch

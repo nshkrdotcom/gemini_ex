@@ -3,6 +3,8 @@ defmodule Gemini.Streaming.ManagerTest do
 
   alias Gemini.Streaming.Manager
 
+  import Gemini.Test.ModelHelpers
+
   setup do
     # Start a fresh manager for each test
     if Process.whereis(Manager) do
@@ -21,7 +23,7 @@ defmodule Gemini.Streaming.ManagerTest do
   describe "start_stream/3" do
     test "creates new stream and returns stream_id" do
       contents = ["Hello, world!"]
-      opts = [model: "gemini-flash-lite-latest"]
+      opts = [model: default_model()]
 
       assert {:ok, stream_id} = Manager.start_stream(contents, opts, self())
       assert is_binary(stream_id)
@@ -41,7 +43,7 @@ defmodule Gemini.Streaming.ManagerTest do
 
     test "stores stream state correctly" do
       contents = ["Test content"]
-      opts = [model: "gemini-flash-lite-latest"]
+      opts = [model: default_model()]
 
       {:ok, stream_id} = Manager.start_stream(contents, opts, self())
 
@@ -162,7 +164,7 @@ defmodule Gemini.Streaming.ManagerTest do
   describe "get_stream_info/1" do
     test "returns stream information for existing stream" do
       contents = ["Test content"]
-      opts = [model: "gemini-flash-lite-latest"]
+      opts = [model: default_model()]
 
       {:ok, stream_id} = Manager.start_stream(contents, opts, self())
 

@@ -18,6 +18,7 @@
 require Logger
 
 alias Gemini.APIs.Coordinator
+alias Gemini.Config
 alias Gemini.Types.Response.{EmbedContentResponse, ContentEmbedding}
 
 IO.puts("\n" <> String.duplicate("=", 80))
@@ -140,7 +141,7 @@ embedded_training =
     {:ok, %EmbedContentResponse{embedding: embedding}} =
       Coordinator.embed_content(
         example.text,
-        model: "gemini-embedding-001",
+        model: Config.get_model(:embedding),
         task_type: :classification,
         output_dimensionality: 768
       )
@@ -223,7 +224,7 @@ test_results =
     {:ok, %EmbedContentResponse{embedding: embedding}} =
       Coordinator.embed_content(
         text,
-        model: "gemini-embedding-001",
+        model: Config.get_model(:embedding),
         task_type: :classification,
         output_dimensionality: 768
       )
@@ -279,7 +280,7 @@ evaluation_results =
     {:ok, %EmbedContentResponse{embedding: embedding}} =
       Coordinator.embed_content(
         test.text,
-        model: "gemini-embedding-001",
+        model: Config.get_model(:embedding),
         task_type: :classification,
         output_dimensionality: 768
       )
@@ -387,7 +388,7 @@ extended_training =
       {:ok, %EmbedContentResponse{embedding: embedding}} =
         Coordinator.embed_content(
           example.text,
-          model: "gemini-embedding-001",
+          model: Config.get_model(:embedding),
           task_type: :classification,
           output_dimensionality: 768
         )
@@ -405,7 +406,7 @@ IO.puts("Testing: \"#{test_feature}\"")
 {:ok, %EmbedContentResponse{embedding: test_emb}} =
   Coordinator.embed_content(
     test_feature,
-    model: "gemini-embedding-001",
+    model: Config.get_model(:embedding),
     task_type: :classification,
     output_dimensionality: 768
   )

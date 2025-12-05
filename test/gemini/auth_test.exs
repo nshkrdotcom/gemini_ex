@@ -25,6 +25,7 @@ defmodule Gemini.AuthTest do
       config = %{auth_type: :gemini, api_key: "test-key"}
 
       assert {:ok, headers} = Auth.authenticate(GeminiStrategy, config)
+      assert is_list(headers)
       assert {"x-goog-api-key", "test-key"} in headers
     end
 

@@ -27,11 +27,13 @@ defmodule Gemini.Auth.JWT do
         }
 
   @type jwt_payload :: %{
-          iss: String.t(),
-          aud: String.t(),
-          sub: String.t(),
-          iat: integer(),
-          exp: integer()
+          required(:iss) => String.t(),
+          required(:aud) => String.t(),
+          required(:sub) => String.t(),
+          required(:iat) => integer(),
+          required(:exp) => integer(),
+          optional(:scope) => String.t(),
+          optional(atom()) => any()
         }
 
   @doc """

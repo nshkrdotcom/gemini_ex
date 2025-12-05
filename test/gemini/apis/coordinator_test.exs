@@ -4,6 +4,8 @@ defmodule Gemini.APIs.CoordinatorTest do
   alias Gemini.APIs.Coordinator
   alias Gemini.Types.Response.GenerateContentResponse
 
+  import Gemini.Test.ModelHelpers
+
   describe "response parsing" do
     test "parse_generate_response converts string keys to atom keys" do
       # Simulate the actual API response structure (with string keys)
@@ -17,7 +19,7 @@ defmodule Gemini.APIs.CoordinatorTest do
             "finishReason" => "STOP"
           }
         ],
-        "modelVersion" => "gemini-flash-lite-latest"
+        "modelVersion" => default_model()
       }
 
       # Test the private function by calling the public interface that uses it

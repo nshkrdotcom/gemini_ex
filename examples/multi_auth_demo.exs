@@ -157,7 +157,7 @@ defmodule MultiAuthDemo do
     # Show how to explicitly choose auth strategy per request
     operations = [
       {"List models", fn -> Gemini.list_models() end},
-      {"Get specific model", fn -> Gemini.get_model("gemini-flash-lite-latest") end},
+      {"Get specific model", fn -> Gemini.get_model(Gemini.Config.default_model()) end},
       {"Count tokens", fn -> Gemini.count_tokens("Hello world") end}
     ]
 

@@ -4,6 +4,8 @@ defmodule Gemini.ToolsManualLoopTest do
   alias Gemini.{Chat, Tools}
   alias Altar.ADM
 
+  import Gemini.Test.ModelHelpers
+
   @moduletag :integration
 
   setup do
@@ -37,7 +39,7 @@ defmodule Gemini.ToolsManualLoopTest do
 
   test "completes a full manual tool-calling loop", %{declaration: _declaration} do
     # Step 1: Create a new chat session
-    chat = Chat.new(model: "gemini-flash-lite-latest", temperature: 0.1)
+    chat = Chat.new(model: default_model(), temperature: 0.1)
 
     # Step 2: Add a user turn designed to trigger the tool
     prompt = "Please use the test_processor tool to process the input 'hello_world'"

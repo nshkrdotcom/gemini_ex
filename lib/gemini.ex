@@ -245,6 +245,29 @@ defmodule Gemini do
   end
 
   @doc """
+  Create a cached content resource for reuse across requests.
+  """
+  @spec create_cache([Content.t()] | [map()] | String.t(), keyword()) ::
+          {:ok, map()} | {:error, term()}
+  defdelegate create_cache(contents, opts \\ []), to: Gemini.APIs.ContextCache, as: :create
+
+  @doc "List cached contents."
+  @spec list_caches(keyword()) :: {:ok, map()} | {:error, term()}
+  defdelegate list_caches(opts \\ []), to: Gemini.APIs.ContextCache, as: :list
+
+  @doc "Get a cached content by name."
+  @spec get_cache(String.t(), keyword()) :: {:ok, map()} | {:error, term()}
+  defdelegate get_cache(name, opts \\ []), to: Gemini.APIs.ContextCache, as: :get
+
+  @doc "Update cached content TTL/expiry."
+  @spec update_cache(String.t(), keyword()) :: {:ok, map()} | {:error, term()}
+  defdelegate update_cache(name, opts), to: Gemini.APIs.ContextCache, as: :update
+
+  @doc "Delete cached content."
+  @spec delete_cache(String.t(), keyword()) :: :ok | {:error, term()}
+  defdelegate delete_cache(name, opts \\ []), to: Gemini.APIs.ContextCache, as: :delete
+
+  @doc """
   List available models.
 
   See `t:Gemini.options/0` for available options.

@@ -439,29 +439,33 @@ defmodule Gemini.Streaming.Manager do
         stream_state.credentials
       )
 
-    headers = Gemini.Auth.build_headers(stream_state.auth_type, stream_state.credentials)
+    case Gemini.Auth.build_headers(stream_state.auth_type, stream_state.credentials) do
+      {:ok, headers} ->
+        full_url = "#{base_url}/#{path}?alt=sse"
 
-    full_url = "#{base_url}/#{path}?alt=sse"
+        # Start the HTTP stream in a separate process
+        manager_pid = self()
+        stream_id = stream_state.stream_id
 
-    # Start the HTTP stream in a separate process
-    manager_pid = self()
-    stream_id = stream_state.stream_id
+        spawn_link(fn ->
+          case HTTP.stream_post_raw(full_url, stream_state.request_body, headers) do
+            {:ok, events} ->
+              Enum.each(events, fn event ->
+                send(manager_pid, {:stream_event, stream_id, event})
+              end)
 
-    spawn_link(fn ->
-      case HTTP.stream_post_raw(full_url, stream_state.request_body, headers) do
-        {:ok, events} ->
-          Enum.each(events, fn event ->
-            send(manager_pid, {:stream_event, stream_id, event})
-          end)
+              send(manager_pid, {:stream_complete, stream_id})
 
-          send(manager_pid, {:stream_complete, stream_id})
+            {:error, error} ->
+              send(manager_pid, {:stream_error, stream_id, error})
+          end
+        end)
 
-        {:error, error} ->
-          send(manager_pid, {:stream_error, stream_id, error})
-      end
-    end)
+        {:ok, :started}
 
-    {:ok, :started}
+      {:error, reason} ->
+        {:error, {:auth_failed, reason}}
+    end
   end
 
   defp notify_subscribers(stream_state, message) do

@@ -151,7 +151,7 @@ defmodule LiveAPITest do
     IO.puts("\n  📋 Testing Vertex AI model operations")
 
     # For Vertex AI, we test specific model existence
-    model_name = "gemini-flash-lite-latest"
+    model_name = Gemini.Config.default_model()
 
     case Gemini.model_exists?(model_name) do
       {:ok, true} ->

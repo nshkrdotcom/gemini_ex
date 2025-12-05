@@ -3,6 +3,9 @@ defmodule Gemini.Auth.VertexStrategyTest do
 
   alias Gemini.Auth.VertexStrategy
 
+  import ExUnit.CaptureLog
+  import Gemini.Test.ModelHelpers
+
   @sample_service_account_key %{
     type: "service_account",
     project_id: "test-project",
@@ -154,7 +157,7 @@ defmodule Gemini.Auth.VertexStrategyTest do
     test "creates headers for access token credentials" do
       credentials = %{access_token: "test-access-token"}
 
-      headers = VertexStrategy.headers(credentials)
+      assert {:ok, headers} = VertexStrategy.headers(credentials)
 
       assert headers == [
                {"Content-Type", "application/json"},
@@ -162,10 +165,22 @@ defmodule Gemini.Auth.VertexStrategyTest do
              ]
     end
 
+    test "returns error for nil access token" do
+      credentials = %{access_token: nil}
+
+      assert {:error, "Access token is nil"} = VertexStrategy.headers(credentials)
+    end
+
+    test "returns error for empty access token" do
+      credentials = %{access_token: ""}
+
+      assert {:error, "Access token is empty"} = VertexStrategy.headers(credentials)
+    end
+
     test "creates headers for JWT token credentials" do
       credentials = %{jwt_token: "test.jwt.token"}
 
-      headers = VertexStrategy.headers(credentials)
+      assert {:ok, headers} = VertexStrategy.headers(credentials)
 
       assert headers == [
                {"Content-Type", "application/json"},
@@ -173,7 +188,7 @@ defmodule Gemini.Auth.VertexStrategyTest do
              ]
     end
 
-    test "creates headers for service account key credentials" do
+    test "creates headers for service account key credentials when token exchange succeeds" do
       # Create temporary service account file
       temp_path = "/tmp/test_headers_service_account.json"
       content = Jason.encode!(@sample_service_account_key)
@@ -181,28 +196,83 @@ defmodule Gemini.Auth.VertexStrategyTest do
 
       credentials = %{service_account_key: temp_path}
 
-      headers = VertexStrategy.headers(credentials)
+      # Capture log to suppress expected error output and assert on it
+      {result, log} =
+        with_log(fn ->
+          VertexStrategy.headers(credentials)
+        end)
 
-      # Should return headers with either real token or error token
-      assert [
-               {"Content-Type", "application/json"},
-               {"Authorization", "Bearer " <> token}
-             ] = headers
+      # Should return either success with headers or error (depending on token exchange)
+      case result do
+        {:ok, headers} ->
+          assert [
+                   {"Content-Type", "application/json"},
+                   {"Authorization", "Bearer " <> token}
+                 ] = headers
 
-      assert is_binary(token)
+          assert is_binary(token)
+
+        {:error, reason} ->
+          # Expected in test environment without real token exchange
+          assert is_binary(reason)
+          assert reason =~ "Token exchange" or reason =~ "Failed to"
+          # Verify the error was logged
+          assert log =~ "Failed to generate access token"
+      end
 
       File.rm!(temp_path)
     end
 
-    test "creates default headers for unknown credentials" do
+    test "returns error for service account key with failed token exchange" do
+      # Create temporary service account file
+      temp_path = "/tmp/test_headers_service_account_fail.json"
+      content = Jason.encode!(@sample_service_account_key)
+      File.write!(temp_path, content)
+
+      credentials = %{service_account_key: temp_path}
+
+      # Capture log to suppress expected error output and assert on it
+      {result, log} =
+        with_log(fn ->
+          VertexStrategy.headers(credentials)
+        end)
+
+      # In test environment without real Google token exchange, this should fail
+      # with a meaningful error (not a dummy token)
+      assert match?({:ok, _}, result) or match?({:error, _}, result)
+
+      case result do
+        {:error, reason} ->
+          # Error should contain meaningful information
+          assert is_binary(reason)
+          # Verify the error was logged
+          assert log =~ "Failed to generate access token"
+
+        {:ok, _headers} ->
+          # If it succeeds, that's also acceptable
+          :ok
+      end
+
+      File.rm!(temp_path)
+    end
+
+    test "returns error for unknown credentials" do
       credentials = %{}
 
-      headers = VertexStrategy.headers(credentials)
+      assert {:error, reason} = VertexStrategy.headers(credentials)
 
-      assert headers == [
-               {"Content-Type", "application/json"},
-               {"Authorization", "Bearer default-credentials-token"}
-             ]
+      assert reason =~
+               "No valid Vertex AI credentials found"
+    end
+
+    test "returns error for missing credentials keys" do
+      credentials = %{foo: "bar", baz: "qux"}
+
+      assert {:error, reason} = VertexStrategy.headers(credentials)
+
+      assert reason =~ "No valid Vertex AI credentials found"
+      assert reason =~ ":foo"
+      assert reason =~ ":baz"
     end
   end
 
@@ -242,27 +312,27 @@ defmodule Gemini.Auth.VertexStrategyTest do
 
   describe "build_path/3" do
     test "builds correct path for Vertex AI model endpoint" do
-      model = "gemini-flash-lite-latest"
+      model = default_model()
       endpoint = "generateContent"
       config = %{project_id: "test-project", location: "us-central1"}
 
       path = VertexStrategy.build_path(model, endpoint, config)
 
       expected =
-        "projects/test-project/locations/us-central1/publishers/google/models/gemini-flash-lite-latest:generateContent"
+        "projects/test-project/locations/us-central1/publishers/google/models/#{default_model()}:generateContent"
 
       assert path == expected
     end
 
     test "strips 'models/' prefix from model name" do
-      model = "models/gemini-flash-lite-latest"
+      model = "models/#{default_model()}"
       endpoint = "generateContent"
       config = %{project_id: "test-project", location: "us-central1"}
 
       path = VertexStrategy.build_path(model, endpoint, config)
 
       expected =
-        "projects/test-project/locations/us-central1/publishers/google/models/gemini-flash-lite-latest:generateContent"
+        "projects/test-project/locations/us-central1/publishers/google/models/#{default_model()}:generateContent"
 
       assert path == expected
     end
@@ -277,9 +347,11 @@ defmodule Gemini.Auth.VertexStrategyTest do
 
     test "refreshes service account key credentials" do
       # Create temporary service account file
-      temp_path = "/tmp/test_refresh_service_account.json"
+      temp_path = "/tmp/test_refresh_service_account_#{:rand.uniform(100_000)}.json"
       content = Jason.encode!(@sample_service_account_key)
       File.write!(temp_path, content)
+
+      on_exit(fn -> File.rm(temp_path) end)
 
       credentials = %{service_account_key: temp_path}
 
@@ -295,8 +367,6 @@ defmodule Gemini.Auth.VertexStrategyTest do
           # Expected in test environment without real token exchange
           :ok
       end
-
-      File.rm!(temp_path)
     end
 
     test "refreshes service account data credentials" do

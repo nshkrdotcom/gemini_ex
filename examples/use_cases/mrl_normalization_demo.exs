@@ -12,6 +12,7 @@
 require Logger
 
 alias Gemini.APIs.Coordinator
+alias Gemini.Config
 alias Gemini.Types.Response.{EmbedContentResponse, ContentEmbedding}
 
 IO.puts("\n" <> String.duplicate("=", 80))
@@ -69,7 +70,7 @@ embeddings_by_dimension =
 
     case Coordinator.embed_content(
            sample_text,
-           model: "gemini-embedding-001",
+           model: Config.get_model(:embedding),
            output_dimensionality: dim
          ) do
       {:ok, %EmbedContentResponse{embedding: embedding}} ->
@@ -151,13 +152,13 @@ IO.puts("Dissimilar text: #{String.slice(dissimilar_text, 0..80)}...")
 # Generate embeddings for comparison texts
 {:ok, %EmbedContentResponse{embedding: similar_emb}} =
   Coordinator.embed_content(similar_text,
-    model: "gemini-embedding-001",
+    model: Config.get_model(:embedding),
     output_dimensionality: 768
   )
 
 {:ok, %EmbedContentResponse{embedding: dissimilar_emb}} =
   Coordinator.embed_content(dissimilar_text,
-    model: "gemini-embedding-001",
+    model: Config.get_model(:embedding),
     output_dimensionality: 768
   )
 

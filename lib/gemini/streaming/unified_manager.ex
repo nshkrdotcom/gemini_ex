@@ -101,7 +101,7 @@ defmodule Gemini.Streaming.UnifiedManager do
   def start_stream(contents, opts, subscriber_pid)
       when is_list(opts) and is_pid(subscriber_pid) do
     # Convert to the new API format
-    model = Keyword.get(opts, :model, Gemini.Config.get_model(:default))
+    model = Keyword.get(opts, :model, Gemini.Config.default_model())
 
     # Build request body from contents
     request_body =
@@ -220,8 +220,8 @@ defmodule Gemini.Streaming.UnifiedManager do
     if map_size(state.streams) >= state.max_streams do
       {:reply, {:error, :max_streams_reached}, state}
     else
-      # Extract auth strategy from options, default to :gemini
-      auth_strategy = Keyword.get(opts, :auth, :gemini)
+      # Extract auth strategy from options, default to detected auth type
+      auth_strategy = Keyword.get(opts, :auth, Gemini.Config.current_api_type())
 
       # Validate auth strategy
       case validate_auth_strategy(auth_strategy) do

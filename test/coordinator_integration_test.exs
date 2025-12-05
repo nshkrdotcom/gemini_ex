@@ -3,12 +3,14 @@ defmodule CoordinatorIntegrationTest do
 
   alias Gemini.APIs.Coordinator
 
+  import Gemini.Test.ModelHelpers
+
   @moduletag :live_api
 
   describe "Text generation with real API" do
     test "generate_content works and extract_text succeeds" do
-      # Skip if no API key configured
-      if System.get_env("GEMINI_API_KEY") do
+      # Works with either Gemini API or Vertex AI
+      if auth_available?() do
         prompt = "Say 'Hello World' exactly"
 
         # Test the full flow that was previously failing
@@ -31,12 +33,13 @@ defmodule CoordinatorIntegrationTest do
             flunk("generate_content failed: #{inspect(reason)}")
         end
       else
-        IO.puts("Skipping live API test - no GEMINI_API_KEY configured")
+        IO.puts("Skipping live API test - no auth configured")
       end
     end
 
     test "list_models works and returns models" do
-      if System.get_env("GEMINI_API_KEY") do
+      # list_models only works with Gemini API, not Vertex AI
+      if gemini_api_available?() do
         case Coordinator.list_models() do
           {:ok, response} ->
             IO.puts("✅ list_models succeeded")
@@ -47,7 +50,9 @@ defmodule CoordinatorIntegrationTest do
             flunk("list_models failed: #{inspect(reason)}")
         end
       else
-        IO.puts("Skipping live API test - no GEMINI_API_KEY configured")
+        IO.puts(
+          "Skipping list_models test - requires GEMINI_API_KEY (not supported on Vertex AI)"
+        )
       end
     end
   end

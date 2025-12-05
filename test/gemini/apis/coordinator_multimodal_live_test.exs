@@ -5,6 +5,8 @@ defmodule Gemini.APIs.CoordinatorMultimodalLiveTest do
   @moduletag :multimodal
   @moduletag timeout: 30_000
 
+  import Gemini.Test.ModelHelpers
+
   @moduledoc """
   Live API tests for multimodal content with real images.
 
@@ -65,7 +67,7 @@ defmodule Gemini.APIs.CoordinatorMultimodalLiveTest do
 
         IO.puts("  📤 Sending Anthropic-style multimodal request...")
 
-        case Gemini.generate(content, model: "gemini-2.5-flash") do
+        case Gemini.generate(content, model: default_model()) do
           {:ok, response} ->
             {:ok, text} = Gemini.extract_text(response)
 
@@ -110,7 +112,7 @@ defmodule Gemini.APIs.CoordinatorMultimodalLiveTest do
 
         IO.puts("  📤 Sending without explicit MIME type...")
 
-        case Gemini.generate(content, model: "gemini-2.5-flash") do
+        case Gemini.generate(content, model: default_model()) do
           {:ok, response} ->
             {:ok, text} = Gemini.extract_text(response)
             IO.puts("  ✅ Auto-detection + API processing worked: #{String.slice(text, 0, 80)}...")
@@ -153,7 +155,7 @@ defmodule Gemini.APIs.CoordinatorMultimodalLiveTest do
 
         IO.puts("  📤 Sending request with 2 images...")
 
-        case Gemini.generate(content, model: "gemini-2.5-flash") do
+        case Gemini.generate(content, model: default_model()) do
           {:ok, response} ->
             {:ok, text} = Gemini.extract_text(response)
             IO.puts("  ✅ Multiple images accepted: #{String.slice(text, 0, 80)}...")
@@ -192,7 +194,7 @@ defmodule Gemini.APIs.CoordinatorMultimodalLiveTest do
 
         IO.puts("  📤 Sending interleaved content...")
 
-        case Gemini.generate(content, model: "gemini-2.5-flash") do
+        case Gemini.generate(content, model: default_model()) do
           {:ok, response} ->
             {:ok, text} = Gemini.extract_text(response)
             IO.puts("  ✅ Interleaved format accepted: #{text}")
@@ -265,7 +267,7 @@ defmodule Gemini.APIs.CoordinatorMultimodalLiveTest do
         Enum.each(results, fn {format, name} ->
           IO.puts("  📤 Testing #{name}...")
 
-          case Gemini.generate(format, model: "gemini-2.5-flash") do
+          case Gemini.generate(format, model: default_model()) do
             {:ok, response} ->
               {:ok, text} = Gemini.extract_text(response)
               IO.puts("  ✅ #{name} worked: #{String.slice(text, 0, 50)}...")
