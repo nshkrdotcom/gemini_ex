@@ -30,6 +30,7 @@ defmodule Gemini.RateLimiter do
 
       config :gemini_ex, :rate_limiter,
         max_concurrency_per_model: 4,    # nil or 0 disables concurrency gating
+        permit_timeout_ms: :infinity,     # :infinity (default) or a number to cap wait
         max_attempts: 3,                  # Retry attempts for transient errors
         base_backoff_ms: 1000,           # Base backoff duration
         jitter_factor: 0.25,             # Jitter range (±25%)
@@ -44,7 +45,9 @@ defmodule Gemini.RateLimiter do
       Gemini.generate("Hello", [
         disable_rate_limiter: true,       # Bypass all rate limiting
         non_blocking: true,               # Return immediately if rate limited
-        max_concurrency_per_model: 8      # Override concurrency limit
+        max_concurrency_per_model: 8,     # Override concurrency limit
+        permit_timeout_ms: :infinity,     # Per-call override for permit wait
+        concurrency_key: "tenant_a"       # Optional partition key for concurrency gate
       ])
 
   ## Non-Blocking Mode
@@ -175,7 +178,7 @@ defmodule Gemini.RateLimiter do
   @spec available_permits(String.t(), keyword()) :: non_neg_integer()
   def available_permits(model, opts \\ []) do
     config = Config.build(opts)
-    ConcurrencyGate.available_permits(model, config)
+    ConcurrencyGate.available_permits(concurrency_key(model, opts), config)
   end
 
   @doc """
@@ -201,4 +204,14 @@ defmodule Gemini.RateLimiter do
   """
   @spec reset_all() :: :ok
   defdelegate reset_all(), to: Manager
+
+  defp concurrency_key(model, opts) do
+    case Keyword.get(opts, :concurrency_key) do
+      nil ->
+        model
+
+      key ->
+        "#{model}:#{to_string(key)}"
+    end
+  end
 end

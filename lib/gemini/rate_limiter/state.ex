@@ -275,7 +275,7 @@ defmodule Gemini.RateLimiter.State do
     case Map.get(retry_info, "retryDelay") do
       nil ->
         # Default fallback if no retry delay provided
-        60_000
+        default_retry_delay_ms()
 
       delay_str when is_binary(delay_str) ->
         parse_duration_string(delay_str)
@@ -301,7 +301,7 @@ defmodule Gemini.RateLimiter.State do
         # Try to parse as raw number (assume seconds)
         case Float.parse(str) do
           {secs, _} -> round(secs * 1000)
-          :error -> 60_000
+          :error -> default_retry_delay_ms()
         end
     end
   end
@@ -309,7 +309,12 @@ defmodule Gemini.RateLimiter.State do
   defp parse_number(str) do
     case Float.parse(str) do
       {num, _} -> num
-      :error -> 60.0
+      :error -> default_retry_delay_ms() / 1000
     end
+  end
+
+  defp default_retry_delay_ms do
+    rate_limiter_config = Application.get_env(:gemini_ex, :rate_limiter, [])
+    Keyword.get(rate_limiter_config, :default_retry_delay_ms, 60_000)
   end
 end

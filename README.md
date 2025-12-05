@@ -47,7 +47,7 @@ Add `gemini` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:gemini_ex, "~> 0.6.2"}
+    {:gemini_ex, "~> 0.6.3"}
   ]
 end
 ```
@@ -150,12 +150,23 @@ Gemini.Streaming.resume_stream(stream_id)
 Gemini.Streaming.stop_stream(stream_id)
 ```
 
-### Rate Limiting (built-in)
+Streaming knobs: pass `timeout:` (per attempt, default `config :gemini_ex, :timeout` = 120_000), `max_retries:` (default 3), `max_backoff_ms:` (default 10_000), and `connect_timeout:` (default 5_000). Manager cleanup delay can be tuned via `config :gemini_ex, :streaming, cleanup_delay_ms: ...`.
+
+### Rate Limiting & Concurrency (built-in)
 
 - Enabled by default: requests block when over budget; non-blocking mode returns `{:error, {:rate_limited, retry_at, details}}` with `retry_at` set to the window end.
 - Oversized requests (estimate exceeds budget) return `reason: :over_budget, request_too_large: true` immediately—no retry loop.
 - Cached context tokens are counted toward budgets. When you precompute cache size, you can pass `estimated_cached_tokens:` alongside `estimated_input_tokens:` to budget correctly before the API reports usage.
 - Optional `max_budget_wait_ms` caps how long blocking calls sleep for a full window; if the cap is hit and the window is still full, you get a `rate_limited` error with `retry_at` set to the actual window end.
+- Concurrency gate: `max_concurrency_per_model` plus `permit_timeout_ms` (default `:infinity`, per-call override). `non_blocking: true` is the fail-fast path (returns `{:error, :no_permit_available}` immediately).
+- Partition the gate with `concurrency_key:` (e.g., tenant/location) to avoid cross-tenant starvation; default key is the model name.
+- Permit leak protection: holders are monitored; if a holder dies without releasing, its permits are reclaimed automatically.
+
+### Timeouts (HTTP & Streaming)
+
+- Global HTTP/stream timeout default is 120_000ms via `config :gemini_ex, :timeout`.
+- Per-call override: `timeout:` on any request/stream.
+- Streaming extras: `max_retries`, `max_backoff_ms` (default 10_000), `connect_timeout` (default 5_000).
 
 ### Advanced Generation Configuration
 
@@ -264,6 +275,8 @@ alias Gemini.Types.Content
     model: "gemini-2.5-flash"
   )
 ```
+
+**TTL defaults:** The default cache TTL is configurable via `config :gemini_ex, :context_cache, default_ttl_seconds: ...` (defaults to 3_600). You can also override per call with `default_ttl_seconds:` or pass `:ttl`/`:expire_time` explicitly.
 
 **Models that support explicit caching:**
 - `gemini-2.5-flash`

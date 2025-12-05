@@ -41,6 +41,7 @@ Configure globally via application environment:
 ```elixir
 config :gemini_ex, :rate_limiter,
   max_concurrency_per_model: 4,    # nil or 0 disables concurrency gating
+  permit_timeout_ms: :infinity,     # default: no cap on queue wait; set a number to cap
   max_attempts: 3,                  # Retry attempts for transient errors
   base_backoff_ms: 1000,           # Base backoff duration
   jitter_factor: 0.25,             # Jitter range (±25%)
@@ -69,6 +70,16 @@ end
 
 # Override concurrency limit
 {:ok, response} = Gemini.generate("Hello", max_concurrency_per_model: 8)
+
+# Override permit wait timeout (defaults to :infinity)
+{:ok, response} = Gemini.generate("Hello", permit_timeout_ms: 600_000)
+
+# Partition the concurrency gate (e.g., by tenant/location)
+{:ok, response} = Gemini.generate("Hello", concurrency_key: "tenant_a")
+
+# Fail fast instead of waiting
+{:error, {:rate_limited, nil, %{reason: :no_permit_available}}} =
+  Gemini.generate("Hello", non_blocking: true)
 ```
 
 ## Quick Start
@@ -186,6 +197,9 @@ For most applications, start with a profile and adjust:
 - Seeing 429s? Lower both concurrency and budget
 - Underutilizing quota? Raise budget, enable adaptive concurrency
 
+### Concurrency semantics
+
+The concurrency gate is per model by default (all callers to the same model share a queue). Use `concurrency_key:` to partition by tenant/location. `permit_timeout_ms` defaults to `:infinity`; a waiter only errors if you explicitly set a finite cap and it expires. Use `non_blocking: true` to fail fast instead of queueing.
 ## Structured Errors
 
 Rate limit errors include retry information:

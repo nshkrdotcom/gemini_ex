@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.3] - 2025-12-05
+
+### Added
+- Concurrency gate is now partitionable via `concurrency_key` (e.g., per-tenant or per-location) instead of a single global queue per model.
+- Concurrency permit wait is configurable via `permit_timeout_ms`; default is now `:infinity` (no queue drop). Per-call overrides supported.
+- Per-request timeout overrides for HTTP and streaming; global default HTTP/stream timeout raised to 120_000ms.
+- Streaming knobs: `max_backoff_ms`, `connect_timeout`, and configurable cleanup delay for ManagerV2 (`config :gemini_ex, :streaming, cleanup_delay_ms: ...`).
+- Configurable context cache TTL defaults via `config :gemini_ex, :context_cache, default_ttl_seconds: ...`.
+- Configurable retry delay fallback via `config :gemini_ex, :rate_limiter, default_retry_delay_ms: ...`.
+- Permit leak protection: holders are monitored and reclaimed if the process dies without releasing.
+
+### Changed
+- Default HTTP/stream timeout increased from 30_000ms to 120_000ms.
+- Concurrency gate uses configurable `permit_timeout_ms` (default `:infinity`) instead of a fixed 60s timeout.
+
+### Fixed
+- Streaming client no longer leaks `:persistent_term` state; SSE parse errors now surface instead of being silently dropped.
+- Streaming backoff ceiling and connect timeout are tunable; SSE parsing failures return errors.
+
 ## [0.6.2] - 2025-12-05
 
 ### Fixed

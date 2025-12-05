@@ -39,7 +39,8 @@ defmodule Gemini.Streaming.ManagerV2 do
           streams: %{stream_id() => stream_state()},
           stream_counter: non_neg_integer(),
           max_streams: pos_integer(),
-          default_timeout: pos_integer()
+          default_timeout: pos_integer(),
+          cleanup_delay_ms: pos_integer()
         }
 
   # Client API
@@ -126,11 +127,16 @@ defmodule Gemini.Streaming.ManagerV2 do
 
   @impl true
   def init(opts) do
+    max_streams = Keyword.get(opts, :max_streams, 100)
+    default_timeout = Keyword.get(opts, :default_timeout, Config.timeout())
+    cleanup_delay_ms = Keyword.get(opts, :cleanup_delay_ms, default_cleanup_delay_ms())
+
     state = %{
       streams: %{},
       stream_counter: 0,
-      max_streams: Keyword.get(opts, :max_streams, 100),
-      default_timeout: Keyword.get(opts, :default_timeout, 30_000)
+      max_streams: max_streams,
+      default_timeout: default_timeout,
+      cleanup_delay_ms: cleanup_delay_ms
     }
 
     Logger.info("Streaming manager started with max_streams: #{state.max_streams}")
@@ -299,7 +305,7 @@ defmodule Gemini.Streaming.ManagerV2 do
         notify_subscribers(updated_stream.subscribers, {:stream_complete, stream_id})
 
         # Clean up after a delay
-        Process.send_after(self(), {:cleanup_stream, stream_id}, 5_000)
+        Process.send_after(self(), {:cleanup_stream, stream_id}, state.cleanup_delay_ms)
 
         new_state = put_in(state.streams[stream_id], updated_stream)
         {:noreply, new_state}
@@ -544,5 +550,10 @@ defmodule Gemini.Streaming.ManagerV2 do
     Enum.reduce(streams, 0, fn {_id, stream}, acc ->
       acc + length(stream.subscribers)
     end)
+  end
+
+  defp default_cleanup_delay_ms do
+    streaming_config = Application.get_env(:gemini_ex, :streaming, [])
+    Keyword.get(streaming_config, :cleanup_delay_ms, 5_000)
   end
 end

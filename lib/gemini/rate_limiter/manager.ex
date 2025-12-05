@@ -229,6 +229,7 @@ defmodule Gemini.RateLimiter.Manager do
   defp do_execute(request_fn, model, config, opts) do
     location = Keyword.get(opts, :location)
     state_key = State.build_key(model, location, :token_count)
+    concurrency_key = concurrency_key(model, opts)
 
     # Emit telemetry for request start
     start_time = System.monotonic_time()
@@ -237,18 +238,43 @@ defmodule Gemini.RateLimiter.Manager do
     # Check token budget
     case check_token_budget(state_key, opts, config) do
       {:ok, _budget_ctx} ->
-        execute_with_concurrency(request_fn, model, state_key, config, start_time, opts)
+        execute_with_concurrency(
+          request_fn,
+          model,
+          concurrency_key,
+          state_key,
+          config,
+          start_time,
+          opts
+        )
 
       {:over_budget, budget_ctx} ->
-        handle_over_budget(state_key, config, start_time, opts, request_fn, model, budget_ctx)
+        handle_over_budget(
+          state_key,
+          config,
+          start_time,
+          opts,
+          request_fn,
+          model,
+          concurrency_key,
+          budget_ctx
+        )
     end
   end
 
-  defp execute_with_concurrency(request_fn, model, state_key, config, start_time, opts) do
+  defp execute_with_concurrency(
+         request_fn,
+         model,
+         concurrency_key,
+         state_key,
+         config,
+         start_time,
+         opts
+       ) do
     # Acquire concurrency permit if enabled
     permit_result =
       if Config.concurrency_enabled?(config) do
-        ConcurrencyGate.acquire(model, config)
+        ConcurrencyGate.acquire(concurrency_key, config)
       else
         :ok
       end
@@ -256,12 +282,12 @@ defmodule Gemini.RateLimiter.Manager do
     case permit_result do
       :ok ->
         try do
-          result = execute_with_retry(request_fn, model, state_key, config, opts)
+          result = execute_with_retry(request_fn, model, concurrency_key, state_key, config, opts)
           emit_request_complete(model, start_time, result, opts)
           result
         after
           if Config.concurrency_enabled?(config) do
-            ConcurrencyGate.release(model)
+            ConcurrencyGate.release(concurrency_key)
           end
         end
 
@@ -271,7 +297,7 @@ defmodule Gemini.RateLimiter.Manager do
 
       {:error, :concurrency_disabled} ->
         # Concurrency disabled, proceed without permit
-        result = execute_with_retry(request_fn, model, state_key, config, opts)
+        result = execute_with_retry(request_fn, model, concurrency_key, state_key, config, opts)
         emit_request_complete(model, start_time, result, opts)
         result
 
@@ -281,17 +307,17 @@ defmodule Gemini.RateLimiter.Manager do
     end
   end
 
-  defp execute_with_retry(request_fn, model, state_key, config, opts) do
+  defp execute_with_retry(request_fn, _model, concurrency_key, state_key, config, opts) do
     wrapped_fn = fn ->
       result = request_fn.()
 
       # Signal success/429 to adaptive concurrency
       case RetryManager.classify_response(result) do
         :success ->
-          ConcurrencyGate.signal_success(model, config)
+          ConcurrencyGate.signal_success(concurrency_key, config)
 
         :rate_limited ->
-          ConcurrencyGate.signal_429(model, config)
+          ConcurrencyGate.signal_429(concurrency_key, config)
 
         _ ->
           :ok
@@ -364,7 +390,16 @@ defmodule Gemini.RateLimiter.Manager do
     end
   end
 
-  defp handle_over_budget(state_key, config, start_time, opts, request_fn, model, budget_ctx) do
+  defp handle_over_budget(
+         state_key,
+         config,
+         start_time,
+         opts,
+         request_fn,
+         model,
+         concurrency_key,
+         budget_ctx
+       ) do
     retry_at = Map.get(budget_ctx, :window_end)
     base_details = rate_limit_details(budget_ctx)
     max_wait_ms = config.max_budget_wait_ms
@@ -406,7 +441,15 @@ defmodule Gemini.RateLimiter.Manager do
 
         case check_token_budget(state_key, opts, config) do
           {:ok, _} ->
-            execute_with_concurrency(request_fn, model, state_key, config, start_time, opts)
+            execute_with_concurrency(
+              request_fn,
+              model,
+              concurrency_key,
+              state_key,
+              config,
+              start_time,
+              opts
+            )
 
           {:over_budget, %{request_too_large: true} = over_again} ->
             emit_rate_limit_error(
@@ -565,5 +608,15 @@ defmodule Gemini.RateLimiter.Manager do
       |> Map.merge(metadata)
 
     Telemetry.execute([:gemini, :rate_limit, :error], %{duration: duration}, metadata)
+  end
+
+  defp concurrency_key(model, opts) do
+    case Keyword.get(opts, :concurrency_key) do
+      nil ->
+        model
+
+      key ->
+        "#{model}:#{to_string(key)}"
+    end
   end
 end

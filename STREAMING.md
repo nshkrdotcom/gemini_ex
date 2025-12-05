@@ -308,8 +308,8 @@ defp listen_for_events do
     {:stream_complete, _stream_id} ->
       IO.puts("\n\n✅ Stream completed!")
   after
-    30_000 ->
-      IO.puts("\n⏰ Stream timeout after 30 seconds")
+    timeout ->
+      IO.puts("\n⏰ Stream timeout after #{timeout / 1000} seconds (configurable)")
   end
 end
 ```

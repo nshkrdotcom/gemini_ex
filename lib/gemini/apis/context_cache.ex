@@ -312,8 +312,8 @@ defmodule Gemini.APIs.ContextCache do
         %{ttl: "#{opts[:ttl]}s"}
 
       true ->
-        # Default 1 hour TTL
-        %{ttl: "3600s"}
+        default_ttl = Keyword.get(opts, :default_ttl_seconds, default_ttl_seconds())
+        %{ttl: "#{default_ttl}s"}
     end
   end
 
@@ -331,6 +331,11 @@ defmodule Gemini.APIs.ContextCache do
       %{} = content ->
         Map.put(map, :systemInstruction, format_content(content))
     end
+  end
+
+  defp default_ttl_seconds do
+    context_cache_config = Application.get_env(:gemini_ex, :context_cache, [])
+    Keyword.get(context_cache_config, :default_ttl_seconds, 3_600)
   end
 
   defp maybe_add_tools(map, opts) do

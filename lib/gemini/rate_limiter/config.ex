@@ -18,6 +18,7 @@ defmodule Gemini.RateLimiter.Config do
   - `:token_budget_per_window` - Maximum tokens per window (default: profile-dependent; base is 32_000, `:prod` profile sets 500_000; nil disables)
   - `:window_duration_ms` - Duration of budget window in milliseconds (default: 60_000)
   - `:max_budget_wait_ms` - Maximum time to block on over-budget windows before returning (default: nil = no cap)
+  - `:permit_timeout_ms` - Maximum time to wait for a concurrency permit before timing out (default: :infinity; set a number to cap wait)
   - `:profile` - Configuration profile (see below)
 
   ## Profiles
@@ -70,7 +71,8 @@ defmodule Gemini.RateLimiter.Config do
           # Token budget settings (ADR-0002)
           token_budget_per_window: non_neg_integer() | nil,
           window_duration_ms: pos_integer(),
-          max_budget_wait_ms: pos_integer() | nil
+          max_budget_wait_ms: pos_integer() | nil,
+          permit_timeout_ms: pos_integer() | :infinity
         }
 
   defstruct max_concurrency_per_model: 4,
@@ -86,7 +88,9 @@ defmodule Gemini.RateLimiter.Config do
             token_budget_per_window: 32_000,
             window_duration_ms: 60_000,
             # Optional cap on over-budget blocking wait (nil = no cap)
-            max_budget_wait_ms: nil
+            max_budget_wait_ms: nil,
+            # Max wait for concurrency permit before erroring (:infinity = no cap)
+            permit_timeout_ms: :infinity
 
   @profiles %{
     # Development profile - lower concurrency, more conservative

@@ -174,7 +174,7 @@ defmodule Gemini.APIs.Tokens do
   def count_batch(inputs, opts \\ []) when is_list(inputs) do
     # Use Task.async_stream for parallel processing
     max_concurrency = Keyword.get(opts, :max_concurrency, 5)
-    timeout = Keyword.get(opts, :timeout, 30_000)
+    timeout = Keyword.get(opts, :timeout, Config.timeout())
 
     try do
       results =

@@ -796,7 +796,7 @@ defmodule Gemini.Config do
   Get HTTP timeout in milliseconds.
   """
   def timeout do
-    Application.get_env(:gemini_ex, :timeout, 30_000)
+    Application.get_env(:gemini_ex, :timeout, 120_000)
   end
 
   @doc """

@@ -17,6 +17,7 @@ defmodule Gemini.Streaming.UnifiedManager do
   require Logger
 
   alias Gemini.Client.HTTPStreaming
+  alias Gemini.Config
   alias Gemini.Auth.MultiAuthCoordinator
   alias Gemini.Streaming.ToolOrchestrator
   alias Gemini.Chat
@@ -201,7 +202,7 @@ defmodule Gemini.Streaming.UnifiedManager do
   @impl true
   def init(opts) do
     max_streams = Keyword.get(opts, :max_streams, 100)
-    default_timeout = Keyword.get(opts, :default_timeout, 30_000)
+    default_timeout = Keyword.get(opts, :default_timeout, Config.timeout())
 
     Logger.info("Unified streaming manager started with max_streams: #{max_streams}")
 

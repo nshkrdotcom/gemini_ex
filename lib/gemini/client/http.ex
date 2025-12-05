@@ -106,11 +106,13 @@ defmodule Gemini.Client.HTTP do
 
     Telemetry.execute([:gemini, :request, :start], measurements, metadata)
 
+    timeout = Keyword.get(opts, :timeout, Config.timeout())
+
     req_opts = [
       method: method,
       url: url,
       headers: headers,
-      receive_timeout: Config.timeout(),
+      receive_timeout: timeout,
       json: body
     ]
 
@@ -184,10 +186,12 @@ defmodule Gemini.Client.HTTP do
 
             Telemetry.execute([:gemini, :stream, :start], measurements, metadata)
 
+            timeout = Keyword.get(opts, :timeout, Config.timeout())
+
             req_opts = [
               url: sse_url,
               headers: headers,
-              receive_timeout: Config.timeout(),
+              receive_timeout: timeout,
               json: body,
               into: :self
             ]
@@ -196,18 +200,35 @@ defmodule Gemini.Client.HTTP do
               result =
                 case Req.post(req_opts) do
                   {:ok, %Req.Response{status: status, body: body}} when status in 200..299 ->
-                    events = parse_sse_stream(body)
+                    result =
+                      case parse_sse_stream(body) do
+                        {:ok, events} ->
+                          duration = Telemetry.calculate_duration(start_time)
 
-                    duration = Telemetry.calculate_duration(start_time)
+                          stop_measurements = %{
+                            total_duration: duration,
+                            total_chunks: length(events)
+                          }
 
-                    stop_measurements = %{
-                      total_duration: duration,
-                      total_chunks: length(events)
-                    }
+                          Telemetry.execute(
+                            [:gemini, :stream, :stop],
+                            stop_measurements,
+                            metadata
+                          )
 
-                    Telemetry.execute([:gemini, :stream, :stop], stop_measurements, metadata)
+                          {:ok, events}
 
-                    {:ok, events}
+                        {:error, parse_error} ->
+                          Telemetry.execute(
+                            [:gemini, :stream, :exception],
+                            measurements,
+                            Map.put(metadata, :reason, parse_error)
+                          )
+
+                          {:error, parse_error}
+                      end
+
+                    result
 
                   {:ok, %Req.Response{status: status}} ->
                     error = {:http_error, status, "Stream request failed"}
@@ -251,19 +272,23 @@ defmodule Gemini.Client.HTTP do
   @doc """
   Raw streaming POST with full URL (used by streaming manager).
   """
-  def stream_post_raw(url, body, headers, _opts \\ []) do
+  def stream_post_raw(url, body, headers, opts \\ []) do
+    timeout = Keyword.get(opts, :timeout, Config.timeout())
+
     req_opts = [
       url: url,
       headers: headers,
-      receive_timeout: Config.timeout(),
+      receive_timeout: timeout,
       json: body,
       into: :self
     ]
 
     case Req.post(req_opts) do
       {:ok, %Req.Response{status: status, body: body}} when status in 200..299 ->
-        events = parse_sse_stream(body)
-        {:ok, events}
+        case parse_sse_stream(body) do
+          {:ok, events} -> {:ok, events}
+          {:error, parse_error} -> {:error, parse_error}
+        end
 
       {:ok, %Req.Response{status: status}} ->
         {:error, Error.http_error(status, "Stream request failed")}
@@ -369,16 +394,24 @@ defmodule Gemini.Client.HTTP do
 
   # Parse Server-Sent Events format
   defp parse_sse_stream(data) when is_binary(data) do
-    data
-    |> String.split("\n\n")
-    |> Enum.filter(&(String.trim(&1) != ""))
-    |> Enum.map(&parse_sse_event/1)
-    |> Enum.filter(&(&1 != nil))
-  rescue
-    _ -> []
+    try do
+      events =
+        data
+        |> String.split("\n\n")
+        |> Enum.filter(&(String.trim(&1) != ""))
+        |> Enum.map(&parse_sse_event/1)
+        |> Enum.filter(&(&1 != nil))
+
+      {:ok, events}
+    rescue
+      exception ->
+        {:error,
+         Error.invalid_response("Failed to parse SSE stream: #{Exception.message(exception)}")}
+    end
   end
 
-  defp parse_sse_stream(_), do: []
+  defp parse_sse_stream(_),
+    do: {:error, Error.invalid_response("Invalid SSE stream payload")}
 
   defp parse_sse_event(event_data) do
     lines = String.split(event_data, "\n")

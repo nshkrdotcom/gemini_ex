@@ -12,8 +12,12 @@ defmodule Gemini.Client.HTTPStreaming do
   alias Gemini.SSE.Parser
   alias Gemini.Error
   alias Gemini.Telemetry
+  alias Gemini.Config
 
   require Logger
+
+  @default_max_backoff_ms 10_000
+  @default_connect_timeout_ms 5_000
 
   @type stream_event :: %{
           type: :data | :error | :complete,
@@ -32,6 +36,10 @@ defmodule Gemini.Client.HTTPStreaming do
   - `body` - Request body (will be JSON encoded)
   - `callback` - Function called for each event
   - `opts` - Options including timeout, retry settings
+    - `:timeout` - Receive timeout per attempt (default: `Gemini.Config.timeout/0`)
+    - `:max_retries` - Number of retry attempts (default: 3)
+    - `:max_backoff_ms` - Max backoff between retries (default: 10_000)
+    - `:connect_timeout` - Finch connect timeout (default: 5_000)
 
   ## Examples
 
@@ -52,8 +60,10 @@ defmodule Gemini.Client.HTTPStreaming do
   @spec stream_sse(String.t(), [{String.t(), String.t()}], map(), stream_callback(), keyword()) ::
           {:ok, :completed} | {:error, term()}
   def stream_sse(url, headers, body, callback, opts \\ []) do
-    timeout = Keyword.get(opts, :timeout, 30_000)
+    timeout = Keyword.get(opts, :timeout, Config.timeout())
     max_retries = Keyword.get(opts, :max_retries, 3)
+    max_backoff_ms = Keyword.get(opts, :max_backoff_ms, @default_max_backoff_ms)
+    connect_timeout = Keyword.get(opts, :connect_timeout, @default_connect_timeout_ms)
 
     stream_id = Telemetry.generate_stream_id()
     metadata = Telemetry.build_stream_metadata(url, :post, stream_id, opts)
@@ -81,7 +91,17 @@ defmodule Gemini.Client.HTTPStreaming do
       end
 
       result =
-        stream_with_retries(url, headers, body, telemetry_callback, timeout, max_retries, 0)
+        stream_with_retries(
+          url,
+          headers,
+          body,
+          telemetry_callback,
+          timeout,
+          max_retries,
+          0,
+          max_backoff_ms,
+          connect_timeout
+        )
 
       case result do
         {:ok, :completed} ->
@@ -154,11 +174,23 @@ defmodule Gemini.Client.HTTPStreaming do
           stream_callback(),
           integer(),
           integer(),
+          integer(),
+          integer(),
           integer()
         ) ::
           {:ok, :completed} | {:error, term()}
-  defp stream_with_retries(url, headers, body, callback, timeout, max_retries, attempt) do
-    case do_stream(url, headers, body, callback, timeout) do
+  defp stream_with_retries(
+         url,
+         headers,
+         body,
+         callback,
+         timeout,
+         max_retries,
+         attempt,
+         max_backoff_ms,
+         connect_timeout
+       ) do
+    case do_stream(url, headers, body, callback, timeout, connect_timeout) do
       {:ok, :completed} ->
         {:ok, :completed}
 
@@ -166,10 +198,20 @@ defmodule Gemini.Client.HTTPStreaming do
         Logger.warning("Stream attempt #{attempt + 1} failed: #{inspect(error)}, retrying...")
 
         # Exponential backoff
-        delay = min(1000 * :math.pow(2, attempt), 10_000) |> round()
+        delay = min(1000 * :math.pow(2, attempt), max_backoff_ms) |> round()
         Process.sleep(delay)
 
-        stream_with_retries(url, headers, body, callback, timeout, max_retries, attempt + 1)
+        stream_with_retries(
+          url,
+          headers,
+          body,
+          callback,
+          timeout,
+          max_retries,
+          attempt + 1,
+          max_backoff_ms,
+          connect_timeout
+        )
 
       {:error, error} ->
         Logger.error("Stream failed after #{max_retries} retries: #{inspect(error)}")
@@ -177,17 +219,14 @@ defmodule Gemini.Client.HTTPStreaming do
     end
   end
 
-  @spec do_stream(String.t(), list(), map(), stream_callback(), integer()) ::
+  @spec do_stream(String.t(), list(), map(), stream_callback(), integer(), integer()) ::
           {:ok, :completed} | {:error, term()}
-  defp do_stream(url, headers, body, callback, timeout) do
+  defp do_stream(url, headers, body, callback, timeout, connect_timeout) do
     # Add SSE parameters to URL
     sse_url = add_sse_params(url)
 
-    # Initialize SSE parser
-    parser = Parser.new()
-
     # Use a more direct approach with custom HTTP handling
-    case stream_with_finch(sse_url, headers, body, callback, parser, timeout) do
+    case stream_with_finch(sse_url, headers, body, callback, timeout, connect_timeout) do
       {:ok, :completed} ->
         {:ok, :completed}
 
@@ -196,14 +235,10 @@ defmodule Gemini.Client.HTTPStreaming do
     end
   end
 
-  @spec stream_with_finch(String.t(), list(), map(), stream_callback(), Parser.t(), integer()) ::
+  @spec stream_with_finch(String.t(), list(), map(), stream_callback(), integer(), integer()) ::
           {:ok, :completed} | {:error, term()}
-  defp stream_with_finch(url, headers, body, callback, parser, timeout) do
+  defp stream_with_finch(url, headers, body, callback, timeout, connect_timeout) do
     Logger.debug("Starting real-time streaming with Req to #{url}")
-
-    # Track parser state for real-time processing
-    parser_ref = make_ref()
-    :persistent_term.put(parser_ref, parser)
 
     # Use Req's `:self` option for real-time streaming
     req_opts = [
@@ -212,7 +247,7 @@ defmodule Gemini.Client.HTTPStreaming do
       headers: add_sse_headers(headers),
       json: body,
       receive_timeout: timeout,
-      connect_options: [timeout: 5_000],
+      connect_options: [timeout: connect_timeout],
       # Use :self to get messages as they arrive
       into: :self
     ]
@@ -231,7 +266,8 @@ defmodule Gemini.Client.HTTPStreaming do
             {:error, error}
           else
             # Process streaming messages in real-time
-            stream_loop(response, parser_ref, callback, timeout)
+            parser = Parser.new()
+            stream_loop(response, parser, callback, timeout)
           end
 
         {:error, %{reason: reason}} ->
@@ -255,9 +291,6 @@ defmodule Gemini.Client.HTTPStreaming do
 
       {:stop_stream, error} ->
         {:error, error}
-    after
-      # Always clean up persistent term
-      :persistent_term.erase(parser_ref)
     end
   end
 
@@ -292,54 +325,33 @@ defmodule Gemini.Client.HTTPStreaming do
   end
 
   # Process streaming messages in real-time
-  defp stream_loop(response, parser_ref, callback, timeout) do
+  defp stream_loop(response, parser, callback, timeout) do
     receive do
       message ->
         case Req.parse_message(response, message) do
           {:ok, [{:data, chunk}]} ->
             Logger.debug("Received streaming chunk of size #{byte_size(chunk)}")
 
-            # Get current parser state
-            current_parser = :persistent_term.get(parser_ref)
-
-            # Process chunk immediately!
-            case Parser.parse_chunk(chunk, current_parser) do
+            case Parser.parse_chunk(chunk, parser) do
               {:ok, events, new_parser} ->
-                # Update parser state
-                :persistent_term.put(parser_ref, new_parser)
+                case deliver_events(events, new_parser, callback) do
+                  {:completed, _next_parser} ->
+                    {:ok, :completed}
 
-                # Send each event immediately - TRUE STREAMING!
-                Enum.each(events, fn event ->
-                  stream_event = %{type: :data, data: event.data, error: nil}
-
-                  case callback.(stream_event) do
-                    :ok -> :continue
-                    :stop -> throw({:stop_stream, :requested})
-                  end
-
-                  # Check if this event indicates stream completion
-                  if Parser.stream_done?(event) do
-                    completion_event = %{type: :complete, data: nil, error: nil}
-                    callback.(completion_event)
-                    throw({:stop_stream, :completed})
-                  end
-                end)
+                  {:continue, next_parser} ->
+                    stream_loop(response, next_parser, callback, timeout)
+                end
 
               {:error, error} ->
                 error_event = %{type: :error, data: nil, error: error}
                 callback.(error_event)
+                stream_loop(response, parser, callback, timeout)
             end
-
-            # Continue processing
-            stream_loop(response, parser_ref, callback, timeout)
 
           {:ok, [:done]} ->
             Logger.debug("Stream completed")
 
-            # Parse any remaining buffered data
-            final_parser = :persistent_term.get(parser_ref)
-
-            case Parser.finalize(final_parser) do
+            case Parser.finalize(parser) do
               {:ok, remaining_events} ->
                 Enum.each(remaining_events, fn event ->
                   stream_event = %{type: :data, data: event.data, error: nil}
@@ -354,11 +366,11 @@ defmodule Gemini.Client.HTTPStreaming do
 
           {:ok, other} ->
             Logger.debug("Received other message: #{inspect(other)}")
-            stream_loop(response, parser_ref, callback, timeout)
+            stream_loop(response, parser, callback, timeout)
 
           :unknown ->
             Logger.debug("Received unknown message: #{inspect(message)}")
-            stream_loop(response, parser_ref, callback, timeout)
+            stream_loop(response, parser, callback, timeout)
         end
     after
       timeout ->
@@ -367,6 +379,26 @@ defmodule Gemini.Client.HTTPStreaming do
         callback.(error_event)
         {:error, :timeout}
     end
+  end
+
+  defp deliver_events(events, parser, callback) do
+    Enum.reduce_while(events, {:continue, parser}, fn event, {_status, current_parser} ->
+      stream_event = %{type: :data, data: event.data, error: nil}
+
+      case callback.(stream_event) do
+        :stop ->
+          {:halt, {:completed, current_parser}}
+
+        _ ->
+          if Parser.stream_done?(event) do
+            completion_event = %{type: :complete, data: nil, error: nil}
+            callback.(completion_event)
+            {:halt, {:completed, current_parser}}
+          else
+            {:cont, {:continue, current_parser}}
+          end
+      end
+    end)
   end
 
   @spec add_sse_params(String.t()) :: String.t()

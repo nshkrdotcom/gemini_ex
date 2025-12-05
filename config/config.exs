@@ -8,7 +8,7 @@ config :gemini_ex,
   # Uncomment to override: default_model: "your-model-name",
 
   # HTTP timeout in milliseconds
-  timeout: 30_000,
+  timeout: 120_000,
 
   # Enable telemetry events
   telemetry_enabled: true
