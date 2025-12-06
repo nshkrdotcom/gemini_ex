@@ -1,7 +1,7 @@
 defmodule Gemini.MixProject do
   use Mix.Project
 
-  @version "0.7.3"
+  @version "0.8.0"
   @source_url "https://github.com/nshkrdotcom/gemini_ex"
 
   def project do
@@ -46,6 +46,7 @@ defmodule Gemini.MixProject do
       {:typed_struct, "~> 0.3.0"},
       {:joken, "~> 2.6.2"},
       {:telemetry, "~> 1.3.0"},
+      {:gun, "~> 2.1"},
 
       # ALTAR ADM - tool contract dependency
       {:altar, "~> 0.1.2"},
@@ -95,6 +96,12 @@ defmodule Gemini.MixProject do
         "docs/guides/operations.md",
         "docs/guides/function_calling.md",
         "docs/guides/system_instructions.md",
+        "docs/guides/live_api.md",
+        "docs/guides/tunings.md",
+        "docs/guides/file_search_stores.md",
+        "docs/guides/adc.md",
+        "docs/guides/image_generation.md",
+        "docs/guides/video_generation.md",
         "CHANGELOG.md"
       ],
       groups_for_extras: [
@@ -109,7 +116,13 @@ defmodule Gemini.MixProject do
           "docs/guides/batches.md",
           "docs/guides/operations.md",
           "docs/guides/function_calling.md",
-          "docs/guides/system_instructions.md"
+          "docs/guides/system_instructions.md",
+          "docs/guides/live_api.md",
+          "docs/guides/tunings.md",
+          "docs/guides/file_search_stores.md",
+          "docs/guides/adc.md",
+          "docs/guides/image_generation.md",
+          "docs/guides/video_generation.md"
         ],
         Architecture: [
           "ARCHITECTURE.md",

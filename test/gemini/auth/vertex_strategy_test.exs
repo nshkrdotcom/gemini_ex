@@ -139,9 +139,18 @@ defmodule Gemini.Auth.VertexStrategyTest do
     end
 
     test "defaults to oauth2 auth method when not specified" do
+      # Temporarily clear ADC env vars to test fallback behavior
+      original_creds = System.get_env("GOOGLE_APPLICATION_CREDENTIALS")
+      System.delete_env("GOOGLE_APPLICATION_CREDENTIALS")
+
+      on_exit(fn ->
+        if original_creds, do: System.put_env("GOOGLE_APPLICATION_CREDENTIALS", original_creds)
+      end)
+
       config = %{project_id: "test-project", location: "us-central1"}
 
       assert {:ok, credentials} = VertexStrategy.authenticate(config)
+      # With no ADC credentials, should fallback to oauth2 placeholder
       assert credentials.access_token == "oauth2-placeholder-token"
     end
 
@@ -257,6 +266,14 @@ defmodule Gemini.Auth.VertexStrategyTest do
     end
 
     test "returns error for unknown credentials" do
+      # Temporarily clear ADC env vars to test error path
+      original_creds = System.get_env("GOOGLE_APPLICATION_CREDENTIALS")
+      System.delete_env("GOOGLE_APPLICATION_CREDENTIALS")
+
+      on_exit(fn ->
+        if original_creds, do: System.put_env("GOOGLE_APPLICATION_CREDENTIALS", original_creds)
+      end)
+
       credentials = %{}
 
       assert {:error, reason} = VertexStrategy.headers(credentials)
@@ -266,6 +283,14 @@ defmodule Gemini.Auth.VertexStrategyTest do
     end
 
     test "returns error for missing credentials keys" do
+      # Temporarily clear ADC env vars to test error path
+      original_creds = System.get_env("GOOGLE_APPLICATION_CREDENTIALS")
+      System.delete_env("GOOGLE_APPLICATION_CREDENTIALS")
+
+      on_exit(fn ->
+        if original_creds, do: System.put_env("GOOGLE_APPLICATION_CREDENTIALS", original_creds)
+      end)
+
       credentials = %{foo: "bar", baz: "qux"}
 
       assert {:error, reason} = VertexStrategy.headers(credentials)

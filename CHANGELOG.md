@@ -5,6 +5,171 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2025-12-06
+
+### 🎉 Major Feature Release: Complete API Parity with Python SDK
+
+This release brings the Elixir client to near-complete feature parity with the Python `google-genai` SDK, adding comprehensive support for Tunings (fine-tuning), FileSearchStores, Live/WebSocket API, Application Default Credentials (ADC), and Image/Video Generation APIs.
+
+### Added
+
+#### 🎛️ Tunings API - Model Fine-Tuning
+- **`Gemini.APIs.Tunings.tune/2`**: Create fine-tuning jobs with supervised learning
+- **`Gemini.APIs.Tunings.get/2`**: Get tuning job details and status
+- **`Gemini.APIs.Tunings.list/1`**: List tuning jobs with pagination
+- **`Gemini.APIs.Tunings.list_all/1`**: List all tuning jobs across pages
+- **`Gemini.APIs.Tunings.cancel/2`**: Cancel running tuning jobs
+- **`Gemini.APIs.Tunings.wait_for_completion/2`**: Wait for job completion with polling
+- **Complete type system**: `TuningJob`, `CreateTuningJobConfig`, `SupervisedTuningSpec`, `HyperParameters`
+- **Hyperparameter support**: epoch_count, learning_rate_multiplier, adapter_size
+
+#### 🔍 FileSearchStores API - Semantic Search
+- **`Gemini.APIs.FileSearchStores.create/2`**: Create semantic search stores
+- **`Gemini.APIs.FileSearchStores.get/2`**: Get store details and status
+- **`Gemini.APIs.FileSearchStores.delete/2`**: Delete search stores
+- **`Gemini.APIs.FileSearchStores.list/1`**: List stores with pagination
+- **`Gemini.APIs.FileSearchStores.list_all/1`**: List all stores
+- **`Gemini.APIs.FileSearchStores.import_file/3`**: Import files into stores
+- **`Gemini.APIs.FileSearchStores.upload_to_store/3`**: Upload and index content
+- **`Gemini.APIs.FileSearchStores.wait_for_active/2`**: Wait for store to become active
+
+#### 🌐 Live/WebSocket API - Real-time Communication
+- **`Gemini.Live.Session`**: GenServer for WebSocket session management
+- **`Gemini.Live.Session.connect/1`**: Establish WebSocket connections
+- **`Gemini.Live.Session.send/2`**: Send messages over WebSocket
+- **`Gemini.Live.Session.send_client_content/3`**: Send content with turn completion
+- **`Gemini.Live.Session.send_realtime_input/3`**: Send audio/video input streams
+- **`Gemini.Live.Session.send_tool_response/3`**: Send tool/function responses
+- **`Gemini.Live.Session.close/1`**: Gracefully close sessions
+- **`Gemini.Live.Message`**: Message parsing and building utilities
+- **Real-time streaming**: Bidirectional communication for interactive applications
+- **Audio/video input**: Support for real-time media streams
+
+#### 🔐 Application Default Credentials (ADC) - GCP Native Auth
+- **`Gemini.Auth.ADC.load_credentials/0`**: Automatic credential discovery
+- **`Gemini.Auth.ADC.get_access_token/2`**: Get OAuth2 tokens from various sources
+- **`Gemini.Auth.ADC.refresh_token/1`**: Refresh expired credentials
+- **`Gemini.Auth.ADC.get_project_id/1`**: Extract project ID from credentials
+- **Credential chain**: GOOGLE_APPLICATION_CREDENTIALS → gcloud config → metadata server
+- **`Gemini.Auth.MetadataServer`**: GCE/Cloud Run metadata server integration
+- **`Gemini.Auth.TokenCache`**: ETS-based token caching with TTL and automatic refresh
+- **Zero-config GCP deployment**: Just deploy and it works
+
+#### 🖼️ Image Generation API - Imagen Models
+- **`Gemini.APIs.Images.generate/3`**: Generate images from text prompts
+- **`Gemini.APIs.Images.edit/5`**: Edit images with inpainting and masks
+- **`Gemini.APIs.Images.upscale/3`**: Upscale images (2x, 4x factors)
+- **`ImageGenerationConfig`**: number_of_images, aspect_ratio, safety_filter_level, person_generation
+- **`EditImageConfig`**: edit_mode, mask handling, reference images
+- **`UpscaleImageConfig`**: upscale_factor, output settings
+- **Safety filtering**: Configurable content safety levels
+- **Aspect ratios**: 1:1, 16:9, 9:16, 4:3, 3:4
+
+#### 🎬 Video Generation API - Veo Models
+- **`Gemini.APIs.Videos.generate/3`**: Generate videos from prompts/images
+- **`Gemini.APIs.Videos.get_operation/2`**: Check video generation status
+- **`Gemini.APIs.Videos.wait_for_completion/2`**: Wait for video completion
+- **`Gemini.APIs.Videos.cancel/2`**: Cancel video generation
+- **`Gemini.APIs.Videos.list_operations/1`**: List video operations
+- **`VideoGenerationConfig`**: duration_seconds, number_of_videos, aspect_ratio
+- **Long-running operations**: Proper handling of async video generation
+- **Source options**: Text prompts, images, or existing videos
+
+#### 📖 New Documentation Guides
+- `docs/guides/tunings.md` - Complete fine-tuning guide
+- `docs/guides/file_search_stores.md` - Semantic search stores guide
+- `docs/guides/live_api.md` - Real-time WebSocket guide
+- `docs/guides/adc.md` - Application Default Credentials guide
+- `docs/guides/image_generation.md` - Image generation guide
+- `docs/guides/video_generation.md` - Video generation guide
+
+### Technical Implementation
+
+#### 🏛️ Architecture
+- **Vertex AI only**: Tunings, FileSearchStores, Images, Videos are Vertex AI APIs
+- **WebSocket via :gun**: HTTP/2 and WebSocket client for Live API
+- **ETS-based caching**: Thread-safe token caching with automatic refresh
+- **Long-running operations**: Proper polling with exponential backoff
+- **TypedStruct patterns**: Consistent type definitions across all new modules
+
+#### 🧪 Testing
+- **200+ new tests** for all new modules
+- **Live API tests**: Tagged with `@moduletag :live_api` for integration testing
+- **Mox-based mocking**: Proper HTTP mocking following supertester principles
+- **Zero Process.sleep**: Proper OTP synchronization in all tests
+
+#### 📈 Quality
+- **Zero compilation warnings** maintained
+- **Complete `@spec` annotations** for all public functions
+- **Comprehensive `@moduledoc` and `@doc`** documentation
+- **Follows CODE_QUALITY.md** standards
+
+### Dependencies
+
+- Added `:gun` ~> 2.1 for WebSocket support (Live API)
+
+### Migration Notes
+
+#### For Existing Users
+All changes are additive - existing code continues to work unchanged. New APIs are available immediately:
+
+```elixir
+# Fine-tune a model
+{:ok, job} = Gemini.APIs.Tunings.tune(%{
+  base_model: "gemini-2.5-flash-001",
+  tuned_model_display_name: "my-tuned-model",
+  training_dataset_uri: "gs://bucket/training.jsonl"
+}, auth: :vertex_ai)
+
+# Create semantic search store
+{:ok, store} = Gemini.APIs.FileSearchStores.create(%{
+  display_name: "Knowledge Base"
+}, auth: :vertex_ai)
+
+# Start real-time session
+{:ok, session} = Gemini.Live.Session.start_link(
+  model: "gemini-2.0-flash-exp",
+  auth: :vertex_ai
+)
+
+# Generate images
+{:ok, images} = Gemini.APIs.Images.generate(
+  "A sunset over mountains",
+  %ImageGenerationConfig{aspect_ratio: "16:9"},
+  auth: :vertex_ai
+)
+
+# Generate videos
+{:ok, op} = Gemini.APIs.Videos.generate(
+  "A cat playing piano",
+  %VideoGenerationConfig{duration_seconds: 5},
+  auth: :vertex_ai
+)
+```
+
+#### ADC Auto-Discovery
+With ADC support, credentials are automatically discovered:
+```elixir
+# On GCE/Cloud Run - no configuration needed!
+{:ok, response} = Gemini.generate("Hello", auth: :vertex_ai)
+
+# Or with service account
+export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account.json"
+{:ok, response} = Gemini.generate("Hello", auth: :vertex_ai)
+```
+
+### Gap Analysis Update
+
+This release addresses the critical gaps identified in the v0.7.3 gap analysis:
+- ✅ **Tunings Module** - 100% missing → Now implemented
+- ✅ **FileSearchStores** - 100% missing → Now implemented
+- ✅ **Live/WebSocket API** - 100% missing → Now implemented
+- ✅ **ADC Support** - Critical for GCP → Now implemented
+- ✅ **Image Generation** - Imagen models → Now implemented
+- ✅ **Video Generation** - Veo models → Now implemented
+
+**Estimated parity with Python SDK: ~95%** (up from ~85% in v0.7.3)
+
 ## [0.7.3] - 2025-12-06
 
 ### Added

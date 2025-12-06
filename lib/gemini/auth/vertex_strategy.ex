@@ -9,13 +9,23 @@ defmodule Gemini.Auth.VertexStrategy do
 
   Based on the Vertex AI documentation, this strategy can generate self-signed JWTs
   for authenticated endpoints and standard Bearer tokens for regular API calls.
+
+  ## ADC Support
+
+  If no explicit credentials are provided, this strategy will automatically
+  fall back to Application Default Credentials (ADC), which searches for
+  credentials in the following order:
+
+  1. GOOGLE_APPLICATION_CREDENTIALS environment variable
+  2. User credentials from gcloud CLI (~/.config/gcloud/application_default_credentials.json)
+  3. GCP metadata server (for Cloud Run, GKE, Compute Engine, etc.)
   """
 
   @behaviour Gemini.Auth.Strategy
 
   require Logger
 
-  alias Gemini.Auth.JWT
+  alias Gemini.Auth.{ADC, JWT}
 
   @vertex_ai_scopes [
     "https://www.googleapis.com/auth/cloud-platform"
@@ -108,8 +118,37 @@ defmodule Gemini.Auth.VertexStrategy do
   end
 
   def headers(%{} = credentials) do
-    {:error,
-     "No valid Vertex AI credentials found. Expected :access_token, :jwt_token, :service_account_key, or :service_account_data. Got: #{inspect(Map.keys(credentials))}"}
+    # If no explicit credentials provided, try ADC
+    if map_size(credentials) == 0 or
+         (Map.has_key?(credentials, :project_id) and Map.has_key?(credentials, :location) and
+            map_size(credentials) == 2) do
+      Logger.debug("[VertexStrategy] No explicit credentials, attempting ADC")
+
+      case ADC.load_credentials() do
+        {:ok, adc_creds} ->
+          case ADC.get_access_token(adc_creds) do
+            {:ok, access_token} ->
+              {:ok,
+               [
+                 {"Content-Type", "application/json"},
+                 {"Authorization", "Bearer #{access_token}"}
+               ]}
+
+            {:error, reason} ->
+              Logger.error("[VertexStrategy] Failed to get ADC token: #{inspect(reason)}")
+              {:error, "Failed to get access token from ADC: #{reason}"}
+          end
+
+        {:error, reason} ->
+          Logger.error("[VertexStrategy] ADC not available: #{inspect(reason)}")
+
+          {:error,
+           "No valid Vertex AI credentials found. Expected :access_token, :jwt_token, :service_account_key, or :service_account_data. ADC also failed: #{reason}"}
+      end
+    else
+      {:error,
+       "No valid Vertex AI credentials found. Expected :access_token, :jwt_token, :service_account_key, or :service_account_data. Got: #{inspect(Map.keys(credentials))}"}
+    end
   end
 
   @impl true
@@ -150,6 +189,18 @@ defmodule Gemini.Auth.VertexStrategy do
     # This would typically involve making a request to Google's OAuth2 token endpoint
     # For now, return the existing credentials
     {:ok, credentials}
+  end
+
+  def refresh_credentials(%{adc_credentials: adc_creds} = credentials) do
+    # Refresh ADC token
+    case ADC.refresh_token(adc_creds) do
+      {:ok, access_token} ->
+        updated_credentials = Map.put(credentials, :access_token, access_token)
+        {:ok, updated_credentials}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
 
   def refresh_credentials(%{service_account_key: _key_path} = credentials) do
@@ -305,8 +356,32 @@ defmodule Gemini.Auth.VertexStrategy do
 
   def authenticate(%{project_id: project_id, location: location})
       when is_binary(project_id) and is_binary(location) do
-    # Default to OAuth2 if no auth_method specified
-    authenticate(%{project_id: project_id, location: location, auth_method: :oauth2})
+    # Try ADC if no explicit auth method specified
+    Logger.debug("[VertexStrategy] Attempting ADC authentication")
+
+    case ADC.load_credentials() do
+      {:ok, adc_creds} ->
+        case ADC.get_access_token(adc_creds) do
+          {:ok, access_token} ->
+            {:ok,
+             %{
+               project_id: project_id,
+               location: location,
+               access_token: access_token,
+               adc_credentials: adc_creds
+             }}
+
+          {:error, reason} ->
+            Logger.warning("[VertexStrategy] ADC token failed: #{inspect(reason)}")
+            # Fall back to OAuth2
+            authenticate(%{project_id: project_id, location: location, auth_method: :oauth2})
+        end
+
+      {:error, reason} ->
+        Logger.warning("[VertexStrategy] ADC not available: #{inspect(reason)}")
+        # Fall back to OAuth2
+        authenticate(%{project_id: project_id, location: location, auth_method: :oauth2})
+    end
   end
 
   def authenticate(%{}) do
