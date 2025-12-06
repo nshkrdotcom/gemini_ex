@@ -736,6 +736,52 @@ defmodule Gemini.APIs.Coordinator do
 
   def extract_text(_), do: {:error, "No candidates found in response"}
 
+  @doc """
+  Extract function calls from a GenerateContentResponse.
+
+  Returns a list of `Altar.ADM.FunctionCall` structs if the response contains
+  function calls, or an empty list if none are found.
+
+  ## Examples
+
+      {:ok, response} = Coordinator.generate_content("What's the weather?", tools: tools)
+
+      case Coordinator.extract_function_calls(response) do
+        [] ->
+          # No function calls, extract text normally
+          {:ok, text} = Coordinator.extract_text(response)
+
+        calls ->
+          # Execute function calls and continue conversation
+          results = Executor.execute_all(calls, registry)
+      end
+  """
+  @spec extract_function_calls(GenerateContentResponse.t() | map()) :: [
+          Altar.ADM.FunctionCall.t()
+        ]
+  def extract_function_calls(response) do
+    Gemini.Tools.AutomaticFunctionCalling.extract_function_calls(response)
+  end
+
+  @doc """
+  Check if a response contains function calls.
+
+  ## Examples
+
+      {:ok, response} = Coordinator.generate_content("Calculate 2+2", tools: tools)
+
+      if Coordinator.has_function_calls?(response) do
+        calls = Coordinator.extract_function_calls(response)
+        # Handle function calls
+      else
+        {:ok, text} = Coordinator.extract_text(response)
+      end
+  """
+  @spec has_function_calls?(GenerateContentResponse.t() | map()) :: boolean()
+  def has_function_calls?(response) do
+    Gemini.Tools.AutomaticFunctionCalling.has_function_calls?(response)
+  end
+
   # Private Helper Functions
 
   # ADR-0001: Inject token estimation into opts if not already provided
@@ -814,6 +860,9 @@ defmodule Gemini.APIs.Coordinator do
     # Add cached_content reference if provided
     final_content = maybe_put_cached_content(final_content, opts)
 
+    # Add system_instruction if provided
+    final_content = maybe_put_system_instruction(final_content, opts)
+
     {:ok, final_content}
   end
 
@@ -855,6 +904,9 @@ defmodule Gemini.APIs.Coordinator do
     # Add cached_content reference if provided
     final_content = maybe_put_cached_content(final_content, opts)
 
+    # Add system_instruction if provided
+    final_content = maybe_put_system_instruction(final_content, opts)
+
     {:ok, final_content}
   end
 
@@ -883,6 +935,12 @@ defmodule Gemini.APIs.Coordinator do
 
   @doc false
   def __test_parse_generate_response__(response), do: parse_generate_response(response)
+
+  @doc false
+  def __test_build_request__(input, opts), do: build_generate_request(input, opts)
+
+  @doc false
+  def __test_format_system_instruction__(instruction), do: format_system_instruction(instruction)
 
   # Already a Content struct - pass through
   defp normalize_single_content(%Content{} = content), do: content
@@ -1104,6 +1162,56 @@ defmodule Gemini.APIs.Coordinator do
         map
     end
   end
+
+  # Add system_instruction to request if provided
+  defp maybe_put_system_instruction(map, opts) do
+    case Keyword.get(opts, :system_instruction) do
+      nil ->
+        map
+
+      instruction ->
+        formatted = format_system_instruction(instruction)
+
+        if formatted do
+          Map.put(map, :systemInstruction, formatted)
+        else
+          map
+        end
+    end
+  end
+
+  # Format system instruction for API request.
+  # Supports multiple input formats:
+  # - String: Converted to `%{parts: [%{text: "..."}]}`
+  # - Content struct: Converted to API format with role and parts
+  # - Map with parts: Passed through with formatting
+  @spec format_system_instruction(String.t() | Content.t() | map() | nil) :: map() | nil
+  defp format_system_instruction(nil), do: nil
+
+  defp format_system_instruction(text) when is_binary(text) do
+    %{parts: [%{text: text}]}
+  end
+
+  defp format_system_instruction(%Content{} = content) do
+    %{
+      role: content.role,
+      parts: Enum.map(content.parts, &format_part/1)
+    }
+  end
+
+  defp format_system_instruction(%{parts: parts} = instruction) when is_list(parts) do
+    formatted_parts = Enum.map(parts, &format_system_instruction_part/1)
+
+    instruction
+    |> Map.put(:parts, formatted_parts)
+  end
+
+  defp format_system_instruction(_), do: nil
+
+  # Helper to format parts within system instruction maps
+  defp format_system_instruction_part(%{text: _} = part), do: part
+  defp format_system_instruction_part(%Gemini.Types.Part{} = part), do: format_part(part)
+  defp format_system_instruction_part(part), do: part
 
   # Convert ThinkingConfig to API format with camelCase keys
   @doc false

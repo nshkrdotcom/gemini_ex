@@ -1,7 +1,7 @@
 defmodule Gemini.MixProject do
   use Mix.Project
 
-  @version "0.7.2"
+  @version "0.7.3"
   @source_url "https://github.com/nshkrdotcom/gemini_ex"
 
   def project do
@@ -93,6 +93,8 @@ defmodule Gemini.MixProject do
         "docs/guides/files.md",
         "docs/guides/batches.md",
         "docs/guides/operations.md",
+        "docs/guides/function_calling.md",
+        "docs/guides/system_instructions.md",
         "CHANGELOG.md"
       ],
       groups_for_extras: [
@@ -105,7 +107,9 @@ defmodule Gemini.MixProject do
           "docs/guides/rate_limiting.md",
           "docs/guides/files.md",
           "docs/guides/batches.md",
-          "docs/guides/operations.md"
+          "docs/guides/operations.md",
+          "docs/guides/function_calling.md",
+          "docs/guides/system_instructions.md"
         ],
         Architecture: [
           "ARCHITECTURE.md",
@@ -199,7 +203,7 @@ defmodule Gemini.MixProject do
       name: "gemini_ex",
       description: description(),
       files:
-        ~w(lib mix.exs README.md ALTAR_INTEGRATION.md ARCHITECTURE.md AUTHENTICATION_SYSTEM.md STREAMING.md STREAMING_ARCHITECTURE.md TELEMETRY_IMPLEMENTATION.md CHANGELOG.md LICENSE assets),
+        ~w(lib mix.exs README.md ALTAR_INTEGRATION.md ARCHITECTURE.md AUTHENTICATION_SYSTEM.md STREAMING.md STREAMING_ARCHITECTURE.md TELEMETRY_IMPLEMENTATION.md CHANGELOG.md LICENSE assets docs/guides),
       licenses: ["MIT"],
       links: %{
         "GitHub" => @source_url,

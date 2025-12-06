@@ -5,6 +5,104 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.3] - 2025-12-06
+
+### Added
+
+#### System Instruction Support
+- **`system_instruction` option**: Set persistent system prompts that guide model behavior across conversations
+- Supports multiple formats: string, Content struct, or map with parts
+- Reduces token usage compared to inline instructions in conversation history
+- Works with all content generation operations
+
+#### Enhanced Function Calling Framework
+- **`Gemini.Types.Schema`**: Complete JSON Schema type for defining function parameters
+  - All standard types: string, integer, number, boolean, array, object
+  - Support for enum, format, minimum/maximum, pattern constraints
+  - Nested object and array schemas
+  - API format conversion with `to_api_map/1` and `from_api_map/1`
+
+- **`Gemini.Tools.Executor`**: Execute function calls from Gemini responses
+  - Function registry pattern for managing implementations
+  - Sequential execution with `execute_all/2`
+  - Parallel execution with `execute_all_parallel/3` for I/O-bound operations
+  - Automatic response building with `build_responses/2`
+  - Comprehensive error handling
+
+- **`Gemini.Tools.AutomaticFunctionCalling`**: Complete AFC loop implementation
+  - Configurable with `max_calls`, `ignore_call_history`, `parallel_execution`
+  - Extract function calls from responses with `extract_function_calls/1`
+  - Check for function calls with `has_function_calls?/1`
+  - Full AFC loop with `loop/8` for autonomous multi-step execution
+  - Call history tracking
+
+- **Coordinator helpers**: `extract_function_calls/1` and `has_function_calls?/1` convenience functions
+
+#### Documentation
+- New guide: `docs/guides/function_calling.md` - Complete function calling guide
+- New guide: `docs/guides/system_instructions.md` - System instruction usage guide
+- Added guides to Hex documentation
+
+#### Comprehensive Gap Analysis
+- **Python SDK Comparison**: Complete analysis of Python genai SDK (v1.53.0) vs Elixir gemini_ex implementation
+- **Executive Summary**: High-level overview with severity classifications and recommendations
+- **Feature Parity Matrix**: Detailed feature-by-feature comparison showing 55% current coverage
+- **Critical Gaps Document**: In-depth analysis of 8 critical/high-priority gaps:
+  - Live/Real-time API (WebSocket) - Not implemented
+  - Tools/Function Calling - Types only, no execution
+  - Automatic Function Calling (AFC) - Not implemented
+  - System Instruction - Missing from request building
+  - Model Tuning API - Not implemented
+  - Grounding/Retrieval - Not implemented
+  - Code Execution Tool - Not implemented
+  - Image/Video Generation - Not implemented
+- **Implementation Priorities**: Tiered roadmap with code examples for closing gaps
+- **Implementation Prompt**: Detailed TDD-based prompt for implementing identified gaps
+
+### Documentation
+
+- New gap analysis documents in `docs/20251206/gap_analysis/`:
+  - `README.md` - Navigation index and methodology
+  - `00_executive_summary.md` - High-level overview
+  - `01_critical_gaps.md` - Detailed critical gaps
+  - `02_feature_parity_matrix.md` - Complete feature comparison
+  - `03_implementation_priorities.md` - Implementation roadmap
+  - `IMPLEMENTATION_PROMPT.md` - TDD implementation guide
+
+- Added gap analysis documents to Hex documentation:
+  - New "Gap Analysis" group in documentation navigation
+  - All gap analysis docs included in package
+
+### Technical
+
+- Analysis conducted using 21 parallel subagent deep-dive reports
+- Covers all major Python SDK components:
+  - Client structure, Models API, Chat sessions
+  - Authentication, Streaming, Files API
+  - Context caching, Batch processing
+  - Type definitions, Tools/Function calling
+  - Safety settings, Embeddings, Live API
+  - Multimodal, Grounding, Async patterns
+  - Model tuning, Permissions, Pagination
+  - Error handling, Request/Response transformation
+
+### Quantitative Findings
+
+| Metric | Python SDK | Elixir Port | Coverage |
+|--------|------------|-------------|----------|
+| Total Lines (types) | 18,205 | ~3,000 | ~16% |
+| API Modules | 12 | 7 | 58% |
+| Type Definitions | 200+ | ~50 | ~25% |
+| Overall Parity | - | - | 55% |
+
+### Recommended Priority Actions
+
+1. **System Instruction** (2-4 hours) - Quick win, high impact
+2. **Function Calling Types** (1 week) - Foundation for AI agents
+3. **Function Execution** (1 week) - Enable tool integration
+4. **Automatic FC Loop** (1 week) - Complete the agent loop
+5. **Live API** (3 weeks) - WebSocket for real-time apps
+
 ## [0.7.2] - 2025-12-06
 
 ### Fixed
@@ -1367,6 +1465,9 @@ config :gemini_ex,
 - Minimal latency overhead
 - Concurrent request processing
 
+[0.7.3]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.7.3
+[0.7.2]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.7.2
+[0.7.1]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.7.1
 [0.7.0]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.7.0
 [0.6.4]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.6.4
 [0.6.3]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.6.3
