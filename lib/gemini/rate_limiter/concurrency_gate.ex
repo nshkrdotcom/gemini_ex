@@ -16,6 +16,7 @@ defmodule Gemini.RateLimiter.ConcurrencyGate do
   alias Gemini.RateLimiter.Config
 
   @ets_table :gemini_concurrency_permits
+  @lock_table :gemini_concurrency_locks
   @adaptive_backoff_factor 0.75
   @adaptive_raise_amount 1
 
@@ -37,16 +38,28 @@ defmodule Gemini.RateLimiter.ConcurrencyGate do
   """
   @spec init() :: :ok
   def init do
-    ensure_table_exists()
+    ensure_tables_exist()
     :ok
   end
 
   # Lazy initialization - ensures table exists before any operation
-  defp ensure_table_exists do
+  defp ensure_tables_exist do
     case :ets.whereis(@ets_table) do
       :undefined ->
         try do
           :ets.new(@ets_table, [:named_table, :public, :set, read_concurrency: true])
+        catch
+          :error, :badarg -> :ok
+        end
+
+      _ref ->
+        :ok
+    end
+
+    case :ets.whereis(@lock_table) do
+      :undefined ->
+        try do
+          :ets.new(@lock_table, [:named_table, :public, :set, write_concurrency: true])
         catch
           :error, :badarg -> :ok
         end
@@ -76,7 +89,7 @@ defmodule Gemini.RateLimiter.ConcurrencyGate do
   """
   @spec acquire(model_key(), Config.t()) :: :ok | {:error, atom()}
   def acquire(model, %Config{} = config) do
-    ensure_table_exists()
+    ensure_tables_exist()
 
     unless Config.concurrency_enabled?(config) do
       {:error, :concurrency_disabled}
@@ -93,7 +106,7 @@ defmodule Gemini.RateLimiter.ConcurrencyGate do
   """
   @spec release(model_key()) :: :ok
   def release(model) do
-    ensure_table_exists()
+    ensure_tables_exist()
 
     with_lock(model, fn ->
       case :ets.lookup(@ets_table, model) do
@@ -118,7 +131,7 @@ defmodule Gemini.RateLimiter.ConcurrencyGate do
   """
   @spec signal_429(model_key(), Config.t()) :: :ok
   def signal_429(model, %Config{adaptive_concurrency: true} = config) do
-    ensure_table_exists()
+    ensure_tables_exist()
 
     case :ets.lookup(@ets_table, model) do
       [{^model, state}] ->
@@ -149,7 +162,7 @@ defmodule Gemini.RateLimiter.ConcurrencyGate do
   """
   @spec signal_success(model_key(), Config.t()) :: :ok
   def signal_success(model, %Config{adaptive_concurrency: true} = config) do
-    ensure_table_exists()
+    ensure_tables_exist()
 
     case :ets.lookup(@ets_table, model) do
       [{^model, state}] when not is_nil(state.adaptive_max) ->
@@ -173,7 +186,7 @@ defmodule Gemini.RateLimiter.ConcurrencyGate do
   """
   @spec get_state(model_key()) :: permit_state() | nil
   def get_state(model) do
-    ensure_table_exists()
+    ensure_tables_exist()
 
     case :ets.lookup(@ets_table, model) do
       [{^model, state}] -> state
@@ -186,7 +199,7 @@ defmodule Gemini.RateLimiter.ConcurrencyGate do
   """
   @spec available_permits(model_key(), Config.t()) :: non_neg_integer()
   def available_permits(model, %Config{} = config) do
-    ensure_table_exists()
+    ensure_tables_exist()
 
     case :ets.lookup(@ets_table, model) do
       [{^model, state}] ->
@@ -215,6 +228,11 @@ defmodule Gemini.RateLimiter.ConcurrencyGate do
     case :ets.whereis(@ets_table) do
       :undefined -> :ok
       _ref -> :ets.delete_all_objects(@ets_table)
+    end
+
+    case :ets.whereis(@lock_table) do
+      :undefined -> :ok
+      _ref -> :ets.delete_all_objects(@lock_table)
     end
 
     :ok
@@ -335,7 +353,7 @@ defmodule Gemini.RateLimiter.ConcurrencyGate do
   end
 
   def handle_holder_down(model, holder_pid) do
-    ensure_table_exists()
+    ensure_tables_exist()
 
     with_lock(model, fn ->
       case :ets.lookup(@ets_table, model) do
@@ -371,6 +389,45 @@ defmodule Gemini.RateLimiter.ConcurrencyGate do
   end
 
   defp with_lock(model, fun) do
-    :global.trans({@ets_table, model}, fun)
+    acquire_lock(model)
+
+    try do
+      fun.()
+    after
+      release_lock(model)
+    end
+  end
+
+  defp acquire_lock(model) do
+    ensure_tables_exist()
+
+    case :ets.insert_new(@lock_table, {model, self()}) do
+      true ->
+        :ok
+
+      false ->
+        cleanup_dead_lock_holder(model)
+        Process.sleep(5)
+        acquire_lock(model)
+    end
+  end
+
+  defp release_lock(model) do
+    :ets.delete(@lock_table, model)
+    :ok
+  end
+
+  defp cleanup_dead_lock_holder(model) do
+    case :ets.lookup(@lock_table, model) do
+      [{^model, pid}] ->
+        unless Process.alive?(pid) do
+          # Use delete_object to atomically delete only if PID still matches
+          # This prevents TOCTOU race where another process acquired the lock
+          :ets.delete_object(@lock_table, {model, pid})
+        end
+
+      _ ->
+        :ok
+    end
   end
 end

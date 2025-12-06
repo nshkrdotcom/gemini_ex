@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.2] - 2025-12-06
+
+### Fixed
+- **Rate limiter race condition**: Replaced `:global.trans/2` with ETS-based spinlock using `:ets.insert_new/2` for proper single-node mutex semantics in both `ConcurrencyGate` and `State` modules
+- **TOCTOU race in lock cleanup**: Use `:ets.delete_object/2` instead of `:ets.delete/2` to atomically delete only if PID still matches, preventing lock theft
+- **ETS table options**: Changed lock tables to use `write_concurrency: true` instead of `read_concurrency: true` for write-heavy workloads
+- **Test synchronization**: Removed flaky `Process.sleep` from atomic reservation test; now awaits non-blocking task2 before releasing task1 for deterministic synchronization
+
+### Changed
+- Lock acquisition retry sleep increased from 1ms to 5ms to reduce CPU usage under contention
+
 ## [0.7.1] - 2025-12-05
 
 ### Added

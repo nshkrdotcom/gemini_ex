@@ -821,12 +821,18 @@ defmodule Gemini.RateLimiterTest do
       assert_receive {:executing, pid1}
 
       # Start second request while first reservation is still held
+      # In non_blocking mode, this will return immediately with rate_limited error
       task2 = Task.async(fn -> Manager.execute(request_fn, model, opts) end)
 
-      # Release the first request after the second attempt has been initiated
-      send(pid1, {:proceed, pid1})
+      # Await task2 first - in non_blocking mode it returns immediately when over-budget
+      # This ensures task2 has attempted reservation before we release task1
+      result2 = Task.await(task2, 1_000)
 
-      results = Task.await_many([task1, task2], 2_000)
+      # Now release task1
+      send(pid1, {:proceed, pid1})
+      result1 = Task.await(task1, 1_000)
+
+      results = [result1, result2]
 
       assert Enum.count(results, &match?({:ok, _}, &1)) == 1
 

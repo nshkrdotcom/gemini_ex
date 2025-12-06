@@ -36,6 +36,7 @@ defmodule Gemini.RateLimiter.State do
         }
 
   @ets_table :gemini_rate_limit_state
+  @lock_table :gemini_rate_limit_locks
   @default_window_duration_ms 60_000
   @default_location "us-central1"
 
@@ -52,13 +53,25 @@ defmodule Gemini.RateLimiter.State do
     :ok
   end
 
-  # Lazy initialization - ensures table exists before any operation
+  # Lazy initialization - ensures tables exist before any operation
   defp ensure_table_exists do
     case :ets.whereis(@ets_table) do
       :undefined ->
         # Use try/catch to handle race condition where another process creates the table
         try do
           :ets.new(@ets_table, [:named_table, :public, :set, read_concurrency: true])
+        catch
+          :error, :badarg -> :ok
+        end
+
+      _ref ->
+        :ok
+    end
+
+    case :ets.whereis(@lock_table) do
+      :undefined ->
+        try do
+          :ets.new(@lock_table, [:named_table, :public, :set, write_concurrency: true])
         catch
           :error, :badarg -> :ok
         end
@@ -181,7 +194,7 @@ defmodule Gemini.RateLimiter.State do
     now = DateTime.utc_now()
     window_duration = Keyword.get(opts, :window_duration_ms, @default_window_duration_ms)
 
-    :global.trans({@ets_table, {:budget, key}}, fn ->
+    with_lock({:budget, key}, fn ->
       current_window = current_or_new_window(key, now, window_duration)
 
       updated =
@@ -273,7 +286,7 @@ defmodule Gemini.RateLimiter.State do
     window_duration = Keyword.get(opts, :window_duration_ms, @default_window_duration_ms)
     reserved_tokens = scaled_tokens(estimated_total_tokens, multiplier)
 
-    :global.trans({@ets_table, {:budget, key}}, fn ->
+    with_lock({:budget, key}, fn ->
       now = DateTime.utc_now()
       window = current_or_new_window(key, now, window_duration)
       window_end = DateTime.add(window.window_start, window.window_duration_ms, :millisecond)
@@ -334,7 +347,7 @@ defmodule Gemini.RateLimiter.State do
     actual_input = Map.get(usage_map || %{}, :input_tokens, 0)
     actual_output = Map.get(usage_map || %{}, :output_tokens, 0)
 
-    :global.trans({@ets_table, {:budget, key}}, fn ->
+    with_lock({:budget, key}, fn ->
       now = DateTime.utc_now()
       window = current_or_new_window(key, now, window_duration)
 
@@ -367,6 +380,11 @@ defmodule Gemini.RateLimiter.State do
     case :ets.whereis(@ets_table) do
       :undefined -> :ok
       _ref -> :ets.delete_all_objects(@ets_table)
+    end
+
+    case :ets.whereis(@lock_table) do
+      :undefined -> :ok
+      _ref -> :ets.delete_all_objects(@lock_table)
     end
 
     :ok
@@ -457,5 +475,49 @@ defmodule Gemini.RateLimiter.State do
   defp default_retry_delay_ms do
     rate_limiter_config = Application.get_env(:gemini_ex, :rate_limiter, [])
     Keyword.get(rate_limiter_config, :default_retry_delay_ms, 60_000)
+  end
+
+  # ETS-based locking to replace :global.trans
+  defp with_lock(lock_key, fun) do
+    acquire_lock(lock_key)
+
+    try do
+      fun.()
+    after
+      release_lock(lock_key)
+    end
+  end
+
+  defp acquire_lock(lock_key) do
+    ensure_table_exists()
+
+    case :ets.insert_new(@lock_table, {lock_key, self()}) do
+      true ->
+        :ok
+
+      false ->
+        cleanup_dead_lock_holder(lock_key)
+        Process.sleep(5)
+        acquire_lock(lock_key)
+    end
+  end
+
+  defp release_lock(lock_key) do
+    :ets.delete(@lock_table, lock_key)
+    :ok
+  end
+
+  defp cleanup_dead_lock_holder(lock_key) do
+    case :ets.lookup(@lock_table, lock_key) do
+      [{^lock_key, pid}] ->
+        unless Process.alive?(pid) do
+          # Use delete_object to atomically delete only if PID still matches
+          # This prevents TOCTOU race where another process acquired the lock
+          :ets.delete_object(@lock_table, {lock_key, pid})
+        end
+
+      _ ->
+        :ok
+    end
   end
 end
