@@ -140,6 +140,16 @@ defmodule Gemini.RateLimiter do
   defdelegate execute_with_usage_tracking(request_fn, model, opts \\ []), to: Manager
 
   @doc """
+  Execute a long-lived streaming request through the rate limiter.
+
+  Holds the concurrency permit and budget reservation until the returned
+  `release_fn` is invoked (typically on stream completion/error/stop).
+  """
+  @spec execute_streaming((-> {:ok, term()} | {:error, term()}), String.t(), keyword()) ::
+          {:ok, {term(), (atom(), map() | nil -> :ok)}} | {:error, term()}
+  defdelegate execute_streaming(start_fn, model, opts \\ []), to: Manager
+
+  @doc """
   Check if a request would be rate limited without executing.
 
   Useful for preflight checks before submitting requests.

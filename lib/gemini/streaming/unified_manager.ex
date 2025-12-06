@@ -38,7 +38,8 @@ defmodule Gemini.Streaming.UnifiedManager do
           events_count: non_neg_integer(),
           last_event_at: DateTime.t() | nil,
           config: keyword(),
-          auth_strategy: auth_strategy()
+          auth_strategy: auth_strategy(),
+          release_fn: nil | (atom(), map() | nil -> :ok)
         }
 
   @type manager_state :: %{
@@ -243,7 +244,8 @@ defmodule Gemini.Streaming.UnifiedManager do
             events_count: 0,
             last_event_at: nil,
             config: opts,
-            auth_strategy: auth_strategy
+            auth_strategy: auth_strategy,
+            release_fn: nil
           }
 
           # Check if this is an automatic tool calling stream
@@ -251,8 +253,13 @@ defmodule Gemini.Streaming.UnifiedManager do
             true ->
               # Start tool orchestrator for automatic tool calling
               case start_auto_tool_stream(stream_state) do
-                {:ok, orchestrator_pid} ->
-                  updated_stream = %{stream_state | stream_pid: orchestrator_pid, status: :active}
+                {:ok, orchestrator_pid, release_fn} ->
+                  updated_stream = %{
+                    stream_state
+                    | stream_pid: orchestrator_pid,
+                      status: :active,
+                      release_fn: release_fn
+                  }
 
                   new_state = %{
                     state
@@ -269,8 +276,13 @@ defmodule Gemini.Streaming.UnifiedManager do
             false ->
               # Start regular streaming process
               case start_stream_process(stream_state) do
-                {:ok, stream_pid} ->
-                  updated_stream = %{stream_state | stream_pid: stream_pid, status: :active}
+                {:ok, stream_pid, release_fn} ->
+                  updated_stream = %{
+                    stream_state
+                    | stream_pid: stream_pid,
+                      status: :active,
+                      release_fn: release_fn
+                  }
 
                   new_state = %{
                     state
@@ -348,8 +360,7 @@ defmodule Gemini.Streaming.UnifiedManager do
         # If no subscribers left, stop the stream
         new_state =
           if updated_subscribers == [] do
-            stop_stream_process(stream_state.stream_pid)
-            %{state | streams: Map.delete(state.streams, stream_id)}
+            finalize_stream(stream_state, state, :stopped)
           else
             put_in(state.streams[stream_id], updated_stream)
           end
@@ -365,20 +376,7 @@ defmodule Gemini.Streaming.UnifiedManager do
         {:reply, {:error, :stream_not_found}, state}
 
       stream_state ->
-        # Stop the stream process
-        stop_stream_process(stream_state.stream_pid)
-
-        # Demonitor all subscribers (ignore if already removed)
-        Enum.each(stream_state.subscribers, fn {_pid, ref} ->
-          try do
-            Process.demonitor(ref, [:flush])
-          catch
-            :error, :noproc -> :ok
-          end
-        end)
-
-        # Remove from state
-        new_state = %{state | streams: Map.delete(state.streams, stream_id)}
+        new_state = finalize_stream(stream_state, state, :stopped)
         {:reply, :ok, new_state}
     end
   end
@@ -452,8 +450,8 @@ defmodule Gemini.Streaming.UnifiedManager do
 
         # If no subscribers left and not the stream process itself, stop the stream
         if updated_subscribers == [] and stream_state.stream_pid != pid do
-          stop_stream_process(stream_state.stream_pid)
-          {acc_streams, [stream_id | acc_removed]}
+          new_state = finalize_stream(stream_state, %{state | streams: acc_streams}, :stopped)
+          {new_state.streams, [stream_id | acc_removed]}
         else
           {Map.put(acc_streams, stream_id, updated_stream), acc_removed}
         end
@@ -501,8 +499,10 @@ defmodule Gemini.Streaming.UnifiedManager do
         {:noreply, state}
 
       stream_state ->
+        updated_stream = release_stream_resources(stream_state, :completed)
+
         # Update status and notify subscribers
-        updated_stream = %{stream_state | status: :completed}
+        updated_stream = %{updated_stream | status: :completed}
 
         Enum.each(stream_state.subscribers, fn {subscriber_pid, _ref} ->
           send(subscriber_pid, {:stream_complete, stream_id})
@@ -520,8 +520,10 @@ defmodule Gemini.Streaming.UnifiedManager do
         {:noreply, state}
 
       stream_state ->
+        updated_stream = release_stream_resources(stream_state, :error)
+
         # Update status and notify subscribers
-        updated_stream = %{stream_state | status: :error, error: error}
+        updated_stream = %{updated_stream | status: :error, error: error}
 
         Enum.each(stream_state.subscribers, fn {subscriber_pid, _ref} ->
           send(subscriber_pid, {:stream_error, stream_id, error})
@@ -547,33 +549,45 @@ defmodule Gemini.Streaming.UnifiedManager do
     "stream_#{counter}_#{timestamp}"
   end
 
-  @spec start_stream_process(stream_state()) :: {:ok, pid()} | {:error, term()}
+  @spec start_stream_process(stream_state()) :: {:ok, pid(), function()} | {:error, term()}
   defp start_stream_process(stream_state) do
-    # Use MultiAuthCoordinator to get authentication for the specified strategy
-    case MultiAuthCoordinator.coordinate_auth(stream_state.auth_strategy, stream_state.config) do
-      {:ok, auth_strategy, headers} ->
-        # Get base URL and path using the auth strategy
-        case get_streaming_url_and_headers(stream_state, auth_strategy, headers) do
-          {:ok, url, final_headers} ->
-            # Start HTTP streaming process
-            HTTPStreaming.stream_to_process(
-              url,
-              final_headers,
-              stream_state.request_body,
-              stream_state.stream_id,
-              self()
-            )
+    start_fn = fn ->
+      case MultiAuthCoordinator.coordinate_auth(stream_state.auth_strategy, stream_state.config) do
+        {:ok, auth_strategy, headers} ->
+          case get_streaming_url_and_headers(stream_state, auth_strategy, headers) do
+            {:ok, url, final_headers} ->
+              HTTPStreaming.stream_to_process(
+                url,
+                final_headers,
+                stream_state.request_body,
+                stream_state.stream_id,
+                self()
+              )
 
-          {:error, reason} ->
-            {:error, reason}
-        end
+            {:error, reason} ->
+              {:error, reason}
+          end
 
-      {:error, reason} ->
-        {:error, "Auth failed: #{reason}"}
+        {:error, reason} ->
+          {:error, "Auth failed: #{reason}"}
+      end
+    end
+
+    with {:ok, {result, release_fn}} <-
+           Gemini.RateLimiter.execute_streaming(
+             start_fn,
+             stream_state.model,
+             stream_state.config
+           ) do
+      case result do
+        {:ok, stream_pid} -> {:ok, stream_pid, release_fn}
+        {:error, reason} -> {:error, reason}
+        other -> {:ok, other, release_fn}
+      end
     end
   end
 
-  @spec start_auto_tool_stream(stream_state()) :: {:ok, pid()} | {:error, term()}
+  @spec start_auto_tool_stream(stream_state()) :: {:ok, pid(), function()} | {:error, term()}
   defp start_auto_tool_stream(stream_state) do
     # Convert request body to Chat struct for the orchestrator
     chat = request_body_to_chat(stream_state.request_body, stream_state.config)
@@ -581,18 +595,27 @@ defmodule Gemini.Streaming.UnifiedManager do
     # Start the tool orchestrator
     # Note: The orchestrator will send events to self() (UnifiedManager)
     # which will then forward them to subscribers
-    case ToolOrchestrator.start_link(
-           stream_state.stream_id,
-           self(),
-           chat,
-           stream_state.auth_strategy,
-           stream_state.config
-         ) do
-      {:ok, orchestrator_pid} ->
-        {:ok, orchestrator_pid}
+    start_fn = fn ->
+      ToolOrchestrator.start_link(
+        stream_state.stream_id,
+        self(),
+        chat,
+        stream_state.auth_strategy,
+        stream_state.config
+      )
+    end
 
-      {:error, reason} ->
-        {:error, reason}
+    with {:ok, {result, release_fn}} <-
+           Gemini.RateLimiter.execute_streaming(
+             start_fn,
+             stream_state.model,
+             stream_state.config
+           ) do
+      case result do
+        {:ok, orchestrator_pid} -> {:ok, orchestrator_pid, release_fn}
+        {:error, reason} -> {:error, reason}
+        other -> {:ok, other, release_fn}
+      end
     end
   end
 
@@ -683,6 +706,34 @@ defmodule Gemini.Streaming.UnifiedManager do
 
       {:error, reason} ->
         {:error, reason}
+    end
+  end
+
+  defp finalize_stream(stream_state, state, status) do
+    stop_stream_process(stream_state.stream_pid)
+
+    _ = release_stream_resources(stream_state, status)
+
+    # Demonitor all subscribers (ignore if already removed)
+    Enum.each(stream_state.subscribers, fn {_pid, ref} ->
+      try do
+        Process.demonitor(ref, [:flush])
+      catch
+        :error, :noproc -> :ok
+      end
+    end)
+
+    %{state | streams: Map.delete(state.streams, stream_state.stream_id)}
+  end
+
+  defp release_stream_resources(stream_state, status, usage \\ nil) do
+    case Map.get(stream_state, :release_fn) do
+      nil ->
+        stream_state
+
+      release_fn ->
+        release_fn.(status, usage)
+        %{stream_state | release_fn: nil}
     end
   end
 

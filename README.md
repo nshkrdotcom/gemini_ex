@@ -51,7 +51,7 @@ Add `gemini` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:gemini_ex, "~> 0.7.0"}
+    {:gemini_ex, "~> 0.7.1"}
   ]
 end
 ```
@@ -158,13 +158,17 @@ Streaming knobs: pass `timeout:` (per attempt, default `config :gemini_ex, :time
 
 ### Rate Limiting & Concurrency (built-in)
 
-- Enabled by default: requests block when over budget; non-blocking mode returns `{:error, {:rate_limited, retry_at, details}}` with `retry_at` set to the window end.
-- Oversized requests (estimate exceeds budget) return `reason: :over_budget, request_too_large: true` immediately—no retry loop.
+- Enabled by default: atomic budget reservations happen before dispatch; non-blocking mode returns `{:error, {:rate_limited, retry_at, details}}` with `retry_at` set to the window end.
+- Oversized requests (estimate exceeds budget) return `reason: :over_budget, request_too_large: true` immediately—no retry loop; surplus budget is returned after responses, shortfalls are charged.
+- Shared retry window with jittered release for 429s; telemetry fires `retry_window_set/hit/release` so callers can fan out retries safely.
 - Cached context tokens are counted toward budgets. When you precompute cache size, you can pass `estimated_cached_tokens:` alongside `estimated_input_tokens:` to budget correctly before the API reports usage.
 - Optional `max_budget_wait_ms` caps how long blocking calls sleep for a full window; if the cap is hit and the window is still full, you get a `rate_limited` error with `retry_at` set to the actual window end.
-- Concurrency gate: `max_concurrency_per_model` plus `permit_timeout_ms` (default `:infinity`, per-call override). `non_blocking: true` is the fail-fast path (returns `{:error, :no_permit_available}` immediately).
+- Concurrency gate: serialized permits via `max_concurrency_per_model` plus `permit_timeout_ms` (default `:infinity`, per-call override). `non_blocking: true` is the fail-fast path (returns `{:error, :no_permit_available}` immediately).
+- Streaming uses the same limiter: permits are held for the full stream, and streams may return `{:error, {:rate_limited, retry_at, details}}` if over budget or out of permits.
 - Partition the gate with `concurrency_key:` (e.g., tenant/location) to avoid cross-tenant starvation; default key is the model name.
 - Permit leak protection: holders are monitored; if a holder dies without releasing, its permits are reclaimed automatically.
+
+Model aliases: resolve the built-in use-case aliases via `Gemini.Config.model_for_use_case/2` (e.g., `:cache_context`, `:report_section`, `:fast_path`) to avoid scattering raw model strings and to respect the recommended token minima for each use case.
 
 ### Timeouts (HTTP & Streaming)
 

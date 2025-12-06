@@ -289,6 +289,27 @@ defmodule Gemini.RateLimiterTest do
       retry_info = RetryManager.extract_retry_info(error)
       assert Map.has_key?(retry_info, "retryDelay")
     end
+
+    test "waits with jitter inside retry window" do
+      model = "retry-jitter-#{System.unique_integer()}"
+      state_key = State.build_key(model, nil, :token_count)
+
+      # Pre-set a short retry window
+      State.set_retry_state(state_key, %{"retryDelay" => "30ms"})
+
+      config = Config.build(base_backoff_ms: 5, jitter_factor: 0.2)
+
+      start = System.monotonic_time(:millisecond)
+
+      {:ok, :done} =
+        RetryManager.execute_with_retry(fn -> {:ok, :done} end, state_key, config, attempt: 1)
+
+      elapsed = System.monotonic_time(:millisecond) - start
+
+      # Should wait at least near the retry window, with a small jitter cushion
+      assert elapsed >= 25
+      assert elapsed < 120
+    end
   end
 
   describe "Manager integration" do
@@ -454,6 +475,37 @@ defmodule Gemini.RateLimiterTest do
       # Clean up
       :ets.delete(order_list)
       Manager.reset_all()
+    end
+  end
+
+  describe "ConcurrencyGate race hardening" do
+    test "simultaneous callers with max_concurrency=1 never overlap permits" do
+      model = "race-gate-#{System.unique_integer()}"
+      # isolate gate state
+      Manager.reset_all()
+
+      counter = :atomics.new(1, [])
+      max_seen_ref = :atomics.new(1, [])
+
+      request_fn = fn ->
+        current = :atomics.add_get(counter, 1, 1)
+        bump_max(max_seen_ref, current)
+        Process.sleep(20)
+        :atomics.add(counter, 1, -1)
+        {:ok, :done}
+      end
+
+      tasks =
+        for _ <- 1..5 do
+          Task.async(fn ->
+            Manager.execute(request_fn, model, max_concurrency_per_model: 1)
+          end)
+        end
+
+      results = Task.await_many(tasks, 5_000)
+      assert Enum.all?(results, &match?({:ok, _}, &1))
+
+      assert :atomics.get(max_seen_ref, 1) == 1
     end
   end
 
@@ -741,6 +793,82 @@ defmodule Gemini.RateLimiterTest do
       assert is_integer(wait_ms)
       :telemetry.detach(handler_id)
     end
+
+    test "atomic reservation rejects concurrent over-budget launches" do
+      model = "atomic-budget-#{System.unique_integer()}"
+      parent = self()
+
+      request_fn = fn ->
+        send(parent, {:executing, self()})
+
+        receive do
+          {:proceed, _} -> {:ok, %{text: "ok"}}
+        after
+          500 -> {:ok, %{text: "ok"}}
+        end
+      end
+
+      opts = [
+        token_budget_per_window: 10,
+        estimated_input_tokens: 6,
+        window_duration_ms: 200,
+        non_blocking: true,
+        max_concurrency_per_model: 10
+      ]
+
+      # Start first request and hold it until we instruct it to finish
+      task1 = Task.async(fn -> Manager.execute(request_fn, model, opts) end)
+      assert_receive {:executing, pid1}
+
+      # Start second request while first reservation is still held
+      task2 = Task.async(fn -> Manager.execute(request_fn, model, opts) end)
+
+      # Release the first request after the second attempt has been initiated
+      send(pid1, {:proceed, pid1})
+
+      results = Task.await_many([task1, task2], 2_000)
+
+      assert Enum.count(results, &match?({:ok, _}, &1)) == 1
+
+      assert Enum.count(results, fn
+               {:error, {:rate_limited, _retry_at, %{reason: :over_budget}}} -> true
+               _ -> false
+             end) == 1
+    end
+
+    test "reconciliation returns surplus for later requests" do
+      model = "budget-reconcile-#{System.unique_integer()}"
+
+      small_usage = %{
+        "usageMetadata" => %{
+          "promptTokenCount" => 1,
+          "candidatesTokenCount" => 1,
+          "cachedContentTokenCount" => 0
+        }
+      }
+
+      {:ok, _} =
+        Manager.execute_with_usage_tracking(
+          fn -> {:ok, small_usage} end,
+          model,
+          token_budget_per_window: 10,
+          estimated_input_tokens: 8,
+          max_concurrency_per_model: nil
+        )
+
+      # Should succeed because surplus from the first reservation is returned
+      result =
+        Manager.execute(
+          fn -> {:ok, %{text: "ok"}} end,
+          model,
+          token_budget_per_window: 10,
+          estimated_input_tokens: 6,
+          non_blocking: true,
+          max_concurrency_per_model: nil
+        )
+
+      assert {:ok, _} = result
+    end
   end
 
   # ADR-0002: Window duration tests
@@ -879,4 +1007,14 @@ defmodule Gemini.RateLimiterTest do
   end
 
   def telemetry_handler(_event, _measurements, _metadata, _config), do: :ok
+
+  defp bump_max(ref, value) do
+    current = :atomics.get(ref, 1)
+
+    if value > current do
+      :atomics.compare_exchange(ref, 1, current, value)
+    end
+
+    :ok
+  end
 end

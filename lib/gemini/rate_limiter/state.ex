@@ -23,8 +23,16 @@ defmodule Gemini.RateLimiter.State do
   @type usage_window :: %{
           input_tokens: non_neg_integer(),
           output_tokens: non_neg_integer(),
+          reserved_tokens: non_neg_integer(),
           window_start: DateTime.t(),
           window_duration_ms: pos_integer()
+        }
+  @type reservation_ctx :: %{
+          reserved_tokens: non_neg_integer(),
+          estimated_tokens: non_neg_integer(),
+          window_start: DateTime.t() | nil,
+          window_end: DateTime.t() | nil,
+          budget: non_neg_integer() | nil
         }
 
   @ets_table :gemini_rate_limit_state
@@ -171,33 +179,21 @@ defmodule Gemini.RateLimiter.State do
   def record_usage(key, input_tokens, output_tokens, opts \\ []) do
     ensure_table_exists()
     now = DateTime.utc_now()
-    # ADR-0002: Use configurable window duration
     window_duration = Keyword.get(opts, :window_duration_ms, @default_window_duration_ms)
 
-    current_window =
-      case :ets.lookup(@ets_table, {:usage, key}) do
-        [{_key, window}] ->
-          window_age_ms =
-            DateTime.diff(now, window.window_start, :millisecond)
+    :global.trans({@ets_table, {:budget, key}}, fn ->
+      current_window = current_or_new_window(key, now, window_duration)
 
-          if window_age_ms < window.window_duration_ms do
-            # Within current window, accumulate
-            %{
-              window
-              | input_tokens: window.input_tokens + input_tokens,
-                output_tokens: window.output_tokens + output_tokens
-            }
-          else
-            # Window expired, start new one with configured duration
-            new_window(input_tokens, output_tokens, now, window_duration)
-          end
+      updated =
+        %{
+          current_window
+          | input_tokens: current_window.input_tokens + input_tokens,
+            output_tokens: current_window.output_tokens + output_tokens
+        }
 
-        [] ->
-          new_window(input_tokens, output_tokens, now, window_duration)
-      end
-
-    :ets.insert(@ets_table, {{:usage, key}, current_window})
-    :ok
+      :ets.insert(@ets_table, {{:usage, key}, updated})
+      :ok
+    end)
   end
 
   @doc """
@@ -210,10 +206,11 @@ defmodule Gemini.RateLimiter.State do
 
     case :ets.lookup(@ets_table, {:usage, key}) do
       [{_key, window}] ->
-        window_age_ms = DateTime.diff(now, window.window_start, :millisecond)
+        normalized = normalize_window(window)
+        window_age_ms = DateTime.diff(now, normalized.window_start, :millisecond)
 
-        if window_age_ms < window.window_duration_ms do
-          window
+        if window_age_ms < normalized.window_duration_ms do
+          normalized
         else
           nil
         end
@@ -241,9 +238,125 @@ defmodule Gemini.RateLimiter.State do
         estimated_input_tokens > token_budget_per_window
 
       window ->
-        total = window.input_tokens + window.output_tokens + estimated_input_tokens
+        total =
+          window.input_tokens + window.output_tokens + window.reserved_tokens +
+            estimated_input_tokens
+
         total > token_budget_per_window
     end
+  end
+
+  @doc """
+  Atomically reserve tokens in the current window.
+
+  Returns `{:ok, reservation_ctx}` when the reservation fits, or
+  `{:error, {:over_budget, details}}` when it would exceed the configured budget.
+  """
+  @spec try_reserve_budget(state_key(), non_neg_integer(), non_neg_integer() | nil, keyword()) ::
+          {:ok, reservation_ctx()} | {:error, {:over_budget, map()}}
+  def try_reserve_budget(key, estimated_total_tokens, budget, opts \\ [])
+
+  def try_reserve_budget(_key, estimated_total_tokens, nil, _opts) do
+    {:ok,
+     %{
+       reserved_tokens: 0,
+       estimated_tokens: estimated_total_tokens,
+       window_start: nil,
+       window_end: nil,
+       budget: nil
+     }}
+  end
+
+  def try_reserve_budget(key, estimated_total_tokens, budget, opts) do
+    ensure_table_exists()
+    multiplier = Keyword.get(opts, :safety_multiplier, 1.0)
+    window_duration = Keyword.get(opts, :window_duration_ms, @default_window_duration_ms)
+    reserved_tokens = scaled_tokens(estimated_total_tokens, multiplier)
+
+    :global.trans({@ets_table, {:budget, key}}, fn ->
+      now = DateTime.utc_now()
+      window = current_or_new_window(key, now, window_duration)
+      window_end = DateTime.add(window.window_start, window.window_duration_ms, :millisecond)
+
+      cond do
+        reserved_tokens > budget ->
+          {:error,
+           {:over_budget,
+            %{
+              reason: :over_budget,
+              request_too_large: true,
+              estimated_total_tokens: estimated_total_tokens,
+              reserved_tokens: reserved_tokens,
+              token_budget: budget,
+              window_end: window_end
+            }}}
+
+        window.input_tokens + window.output_tokens + window.reserved_tokens + reserved_tokens >
+            budget ->
+          {:error,
+           {:over_budget,
+            %{
+              reason: :over_budget,
+              request_too_large: false,
+              estimated_total_tokens: estimated_total_tokens,
+              reserved_tokens: reserved_tokens,
+              token_budget: budget,
+              usage: window,
+              window_end: window_end
+            }}}
+
+        true ->
+          updated = %{window | reserved_tokens: window.reserved_tokens + reserved_tokens}
+          :ets.insert(@ets_table, {{:usage, key}, updated})
+
+          {:ok,
+           %{
+             reserved_tokens: reserved_tokens,
+             estimated_tokens: estimated_total_tokens,
+             window_start: updated.window_start,
+             window_end: window_end,
+             budget: budget
+           }}
+      end
+    end)
+  end
+
+  @doc """
+  Reconcile a reservation with actual usage, returning surplus or charging shortfall.
+  """
+  @spec reconcile_reservation(state_key(), reservation_ctx(), map() | nil, keyword()) ::
+          usage_window()
+  def reconcile_reservation(key, reservation_ctx, usage_map, opts \\ []) do
+    ensure_table_exists()
+    window_duration = Keyword.get(opts, :window_duration_ms, @default_window_duration_ms)
+
+    reserved = Map.get(reservation_ctx || %{}, :reserved_tokens, 0)
+    actual_input = Map.get(usage_map || %{}, :input_tokens, 0)
+    actual_output = Map.get(usage_map || %{}, :output_tokens, 0)
+
+    :global.trans({@ets_table, {:budget, key}}, fn ->
+      now = DateTime.utc_now()
+      window = current_or_new_window(key, now, window_duration)
+
+      updated =
+        %{
+          window
+          | reserved_tokens: max(window.reserved_tokens - reserved, 0),
+            input_tokens: window.input_tokens + actual_input,
+            output_tokens: window.output_tokens + actual_output
+        }
+
+      :ets.insert(@ets_table, {{:usage, key}, updated})
+      updated
+    end)
+  end
+
+  @doc """
+  Remove a reservation without adding usage (e.g., when the request never executed).
+  """
+  @spec release_reservation(state_key(), reservation_ctx(), keyword()) :: usage_window()
+  def release_reservation(key, reservation_ctx, opts \\ []) do
+    reconcile_reservation(key, reservation_ctx, %{}, opts)
   end
 
   @doc """
@@ -265,10 +378,38 @@ defmodule Gemini.RateLimiter.State do
     %{
       input_tokens: input_tokens,
       output_tokens: output_tokens,
+      reserved_tokens: 0,
       window_start: now,
       window_duration_ms: window_duration_ms
     }
   end
+
+  defp current_or_new_window(key, now, window_duration_ms) do
+    case :ets.lookup(@ets_table, {:usage, key}) do
+      [{_key, window}] ->
+        normalized = normalize_window(window)
+        window_age_ms = DateTime.diff(now, normalized.window_start, :millisecond)
+
+        if window_age_ms < normalized.window_duration_ms do
+          normalized
+        else
+          new_window(0, 0, now, window_duration_ms)
+        end
+
+      [] ->
+        new_window(0, 0, now, window_duration_ms)
+    end
+  end
+
+  defp normalize_window(window) do
+    window
+    |> Map.put_new(:reserved_tokens, 0)
+  end
+
+  defp scaled_tokens(tokens, multiplier) when multiplier == 1.0, do: tokens
+
+  defp scaled_tokens(tokens, multiplier),
+    do: tokens |> Kernel.*(multiplier) |> Float.ceil() |> trunc()
 
   @doc false
   def parse_retry_delay(retry_info) do

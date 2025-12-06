@@ -112,6 +112,18 @@ defmodule Gemini.Config do
     default: "gemini-2.0-flash-lite"
   }
 
+  @use_case_models %{
+    cache_context: :flash_2_5,
+    report_section: :pro_2_5,
+    fast_path: :flash_2_5_lite
+  }
+
+  @use_case_token_minima %{
+    cache_context: 32_000,
+    report_section: 16_000,
+    fast_path: 8_000
+  }
+
   # Default models per API type
   @default_generation_models %{
     gemini: "gemini-flash-lite-latest",
@@ -566,6 +578,45 @@ defmodule Gemini.Config do
   def models do
     @models
   end
+
+  @doc """
+  Built-in use-case aliases mapped to model keys.
+  """
+  @spec use_case_models() :: map()
+  def use_case_models, do: @use_case_models
+
+  @doc """
+  Resolve a use-case alias (e.g., `:cache_context`) to a model string.
+
+  ## Options
+  - `:api` - Validate that the resolved model is compatible with `:gemini` or `:vertex_ai`
+  - `:strict` - Raise on incompatible models instead of logging a warning
+  """
+  @spec model_for_use_case(atom(), keyword()) :: String.t()
+  def model_for_use_case(use_case, opts \\ []) do
+    model_key =
+      Map.get(@use_case_models, use_case) ||
+        raise ArgumentError,
+              "Unknown use case #{inspect(use_case)}. Available: #{inspect(Map.keys(@use_case_models))}"
+
+    get_model(model_key, opts)
+  end
+
+  @doc """
+  Return resolved model strings for all use-case aliases.
+  """
+  @spec resolved_use_case_models(keyword()) :: map()
+  def resolved_use_case_models(opts \\ []) do
+    Enum.into(@use_case_models, %{}, fn {use_case, model_key} ->
+      {use_case, get_model(model_key, opts)}
+    end)
+  end
+
+  @doc """
+  Recommended minimum token budgets per use case alias.
+  """
+  @spec use_case_token_minima() :: map()
+  def use_case_token_minima, do: @use_case_token_minima
 
   @doc """
   Check if a model key exists in the combined model registry.

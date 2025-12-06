@@ -59,6 +59,7 @@ defmodule Gemini.RateLimiter.Manager do
 
   @type execute_opts :: keyword()
   @type request_fn :: (-> {:ok, term()} | {:error, term()})
+  @type streaming_release_fn :: (atom(), map() | nil -> :ok)
 
   # Client API
 
@@ -119,16 +120,42 @@ defmodule Gemini.RateLimiter.Manager do
   def execute_with_usage_tracking(request_fn, model, opts \\ []) do
     result = execute(request_fn, model, opts)
 
-    # Record usage from successful responses
-    case result do
-      {:ok, response} when is_map(response) ->
-        record_usage_from_response(model, opts, response)
+    config = Config.build(opts)
+    location = Keyword.get(opts, :location)
+    state_key = State.build_key(model, location, :token_count)
 
-      _ ->
-        :ok
+    # When the limiter is disabled, still record usage for telemetry consumers
+    if not Config.enabled?(config) do
+      if usage = extract_usage_from_result(result) do
+        State.record_usage(
+          state_key,
+          Map.get(usage, :input_tokens, 0),
+          Map.get(usage, :output_tokens, 0),
+          window_duration_ms: config.window_duration_ms
+        )
+      end
     end
 
     result
+  end
+
+  @doc """
+  Execute a long-lived streaming request through the rate limiter.
+
+  Returns the start result and a release function that must be called once
+  the stream completes, errors, or is stopped to reconcile budget and
+  release concurrency permits.
+  """
+  @spec execute_streaming(request_fn(), String.t(), execute_opts()) ::
+          {:ok, {term(), streaming_release_fn()}} | {:error, term()}
+  def execute_streaming(start_fn, model, opts \\ []) do
+    config = Config.build(opts)
+
+    if Config.enabled?(config) do
+      do_execute_streaming(start_fn, model, config, opts)
+    else
+      {:ok, {start_fn.(), fn _status, _usage -> :ok end}}
+    end
   end
 
   @doc """
@@ -235,9 +262,8 @@ defmodule Gemini.RateLimiter.Manager do
     start_time = System.monotonic_time()
     emit_request_start(model, opts)
 
-    # Check token budget
-    case check_token_budget(state_key, opts, config) do
-      {:ok, _budget_ctx} ->
+    case reserve_budget(state_key, opts, config) do
+      {:ok, reservation_ctx, estimate_ctx} ->
         execute_with_concurrency(
           request_fn,
           model,
@@ -245,20 +271,36 @@ defmodule Gemini.RateLimiter.Manager do
           state_key,
           config,
           start_time,
+          opts,
+          reservation_ctx,
+          estimate_ctx
+        )
+
+      {:error, {:rate_limited, retry_at, details}} ->
+        emit_rate_limit_error(state_key, :over_budget, start_time, details)
+        {:error, {:rate_limited, retry_at, details}}
+    end
+  end
+
+  defp do_execute_streaming(start_fn, model, config, opts) do
+    location = Keyword.get(opts, :location)
+    state_key = State.build_key(model, location, :token_count)
+    concurrency_key = concurrency_key(model, opts)
+
+    case reserve_budget(state_key, opts, config) do
+      {:ok, reservation_ctx, _estimate_ctx} ->
+        acquire_stream_permit(
+          start_fn,
+          model,
+          concurrency_key,
+          state_key,
+          config,
+          reservation_ctx,
           opts
         )
 
-      {:over_budget, budget_ctx} ->
-        handle_over_budget(
-          state_key,
-          config,
-          start_time,
-          opts,
-          request_fn,
-          model,
-          concurrency_key,
-          budget_ctx
-        )
+      {:error, {:rate_limited, retry_at, details}} ->
+        {:error, {:rate_limited, retry_at, details}}
     end
   end
 
@@ -269,7 +311,9 @@ defmodule Gemini.RateLimiter.Manager do
          state_key,
          config,
          start_time,
-         opts
+         opts,
+         reservation_ctx,
+         estimate_ctx
        ) do
     # Acquire concurrency permit if enabled
     permit_result =
@@ -281,28 +325,120 @@ defmodule Gemini.RateLimiter.Manager do
 
     case permit_result do
       :ok ->
-        try do
-          result = execute_with_retry(request_fn, model, concurrency_key, state_key, config, opts)
-          emit_request_complete(model, start_time, result, opts)
-          result
-        after
-          if Config.concurrency_enabled?(config) do
-            ConcurrencyGate.release(concurrency_key)
+        result =
+          try do
+            execute_with_retry(request_fn, model, concurrency_key, state_key, config, opts)
+          after
+            if Config.concurrency_enabled?(config) do
+              ConcurrencyGate.release(concurrency_key)
+            end
           end
-        end
+
+        reconcile_budget(
+          state_key,
+          reservation_ctx,
+          result,
+          config,
+          opts,
+          estimate_ctx
+        )
+
+        emit_request_complete(model, start_time, result, opts)
+        result
 
       {:error, :no_permit_available} ->
+        State.release_reservation(state_key, reservation_ctx,
+          window_duration_ms: config.window_duration_ms
+        )
+
         emit_request_error(model, start_time, :no_permit_available, opts)
         {:error, {:rate_limited, nil, %{reason: :no_permit_available}}}
 
       {:error, :concurrency_disabled} ->
         # Concurrency disabled, proceed without permit
         result = execute_with_retry(request_fn, model, concurrency_key, state_key, config, opts)
+        reconcile_budget(state_key, reservation_ctx, result, config, opts, estimate_ctx)
         emit_request_complete(model, start_time, result, opts)
         result
 
       {:error, reason} ->
+        State.release_reservation(state_key, reservation_ctx,
+          window_duration_ms: config.window_duration_ms
+        )
+
         emit_request_error(model, start_time, reason, opts)
+        {:error, reason}
+    end
+  end
+
+  defp acquire_stream_permit(
+         start_fn,
+         model,
+         concurrency_key,
+         state_key,
+         config,
+         reservation_ctx,
+         opts
+       ) do
+    permit_result =
+      if Config.concurrency_enabled?(config) do
+        ConcurrencyGate.acquire(concurrency_key, config)
+      else
+        :ok
+      end
+
+    case permit_result do
+      :ok ->
+        release_fn =
+          build_release_fn(
+            state_key,
+            reservation_ctx,
+            concurrency_key,
+            config
+          )
+
+        case start_fn.() do
+          {:ok, value} ->
+            emit_stream_event(:started, model, Keyword.get(opts, :location))
+            {:ok, {value, release_fn}}
+
+          {:error, reason} ->
+            release_fn.(:error, nil)
+            {:error, reason}
+        end
+
+      {:error, :no_permit_available} ->
+        State.release_reservation(state_key, reservation_ctx,
+          window_duration_ms: config.window_duration_ms
+        )
+
+        {:error, {:rate_limited, nil, %{reason: :no_permit_available}}}
+
+      {:error, :concurrency_disabled} ->
+        release_fn =
+          build_release_fn(
+            state_key,
+            reservation_ctx,
+            concurrency_key,
+            config,
+            permit?: false
+          )
+
+        case start_fn.() do
+          {:ok, value} ->
+            emit_stream_event(:started, model, Keyword.get(opts, :location))
+            {:ok, {value, release_fn}}
+
+          {:error, reason} ->
+            release_fn.(:error, nil)
+            {:error, reason}
+        end
+
+      {:error, reason} ->
+        State.release_reservation(state_key, reservation_ctx,
+          window_duration_ms: config.window_duration_ms
+        )
+
         {:error, reason}
     end
   end
@@ -329,91 +465,54 @@ defmodule Gemini.RateLimiter.Manager do
     RetryManager.execute_with_retry(wrapped_fn, state_key, config, opts)
   end
 
-  defp check_token_budget(state_key, opts, config) do
-    # ADR-0001/0002: Use estimated tokens from opts, fall back to 0
-    estimated_input_tokens = Keyword.get(opts, :estimated_input_tokens, 0)
-    estimated_cached_tokens = Keyword.get(opts, :estimated_cached_tokens, 0)
-    estimated_total = estimated_input_tokens + estimated_cached_tokens
+  defp reserve_budget(state_key, opts, config) do
+    estimate_ctx = build_estimate_context(opts, config)
 
-    # ADR-0002: Fall back to config.token_budget_per_window when not in opts
-    budget = Keyword.get(opts, :token_budget_per_window, config.token_budget_per_window)
-    usage = State.get_current_usage(state_key)
+    attempt = fn ->
+      State.try_reserve_budget(
+        state_key,
+        estimate_ctx.estimated_total_tokens,
+        estimate_ctx.token_budget,
+        window_duration_ms: config.window_duration_ms,
+        safety_multiplier: config.budget_safety_multiplier
+      )
+    end
 
-    cond do
-      is_nil(budget) ->
-        {:ok,
-         %{
-           estimated_input_tokens: estimated_input_tokens,
-           estimated_cached_tokens: estimated_cached_tokens,
-           estimated_total_tokens: estimated_total,
-           budget: budget,
-           usage: usage
-         }}
+    case attempt.() do
+      {:ok, reservation_ctx} ->
+        emit_budget_reserved(state_key, reservation_ctx, estimate_ctx)
+        {:ok, reservation_ctx, estimate_ctx}
 
-      estimated_total > budget ->
-        {:over_budget,
-         %{
-           reason: :over_budget,
-           request_too_large: true,
-           estimated_input_tokens: estimated_input_tokens,
-           estimated_cached_tokens: estimated_cached_tokens,
-           estimated_total_tokens: estimated_total,
-           token_budget: budget,
-           usage: usage
-         }}
+      {:error, {:over_budget, ctx}} ->
+        emit_budget_rejected(state_key, ctx, estimate_ctx)
 
-      usage &&
-          usage.input_tokens + usage.output_tokens + estimated_total > budget ->
-        window_end = DateTime.add(usage.window_start, usage.window_duration_ms, :millisecond)
-
-        {:over_budget,
-         %{
-           reason: :over_budget,
-           request_too_large: false,
-           estimated_input_tokens: estimated_input_tokens,
-           estimated_cached_tokens: estimated_cached_tokens,
-           estimated_total_tokens: estimated_total,
-           token_budget: budget,
-           usage: usage,
-           window_end: window_end
-         }}
-
-      true ->
-        {:ok,
-         %{
-           estimated_input_tokens: estimated_input_tokens,
-           estimated_cached_tokens: estimated_cached_tokens,
-           estimated_total_tokens: estimated_total,
-           budget: budget,
-           usage: usage
-         }}
+        handle_reservation_over_budget(
+          state_key,
+          ctx,
+          attempt,
+          estimate_ctx,
+          config
+        )
     end
   end
 
-  defp handle_over_budget(
+  defp handle_reservation_over_budget(
          state_key,
-         config,
-         start_time,
-         opts,
-         request_fn,
-         model,
-         concurrency_key,
-         budget_ctx
+         budget_ctx,
+         attempt_fun,
+         estimate_ctx,
+         config
        ) do
     retry_at = Map.get(budget_ctx, :window_end)
-    base_details = rate_limit_details(budget_ctx)
+    details = rate_limit_details(budget_ctx, estimate_ctx)
     max_wait_ms = config.max_budget_wait_ms
 
     cond do
       Map.get(budget_ctx, :request_too_large) ->
-        emit_rate_limit_error(state_key, :over_budget, start_time, base_details)
-
-        {:error, {:rate_limited, nil, rate_limit_details(budget_ctx)}}
+        {:error, {:rate_limited, nil, details}}
 
       config.non_blocking ->
-        emit_rate_limit_error(state_key, :over_budget, start_time, base_details)
-
-        {:error, {:rate_limited, retry_at, rate_limit_details(budget_ctx)}}
+        {:error, {:rate_limited, retry_at, details}}
 
       true ->
         # Blocking mode: wait for window to clear once, then re-check
@@ -430,7 +529,7 @@ defmodule Gemini.RateLimiter.Manager do
           {actual_wait_ms, capped?} = capped_wait
 
           wait_metadata =
-            Map.merge(base_details, %{wait_ms: actual_wait_ms, wait_capped: capped?})
+            Map.merge(details, %{wait_ms: actual_wait_ms, wait_capped: capped?})
 
           emit_rate_limit_wait(state_key, retry_at, :over_budget, wait_metadata)
 
@@ -439,75 +538,145 @@ defmodule Gemini.RateLimiter.Manager do
           end
         end
 
-        case check_token_budget(state_key, opts, config) do
-          {:ok, _} ->
-            execute_with_concurrency(
-              request_fn,
-              model,
-              concurrency_key,
-              state_key,
-              config,
-              start_time,
-              opts
-            )
+        case attempt_fun.() do
+          {:ok, reservation_ctx} ->
+            emit_budget_reserved(state_key, reservation_ctx, estimate_ctx)
+            {:ok, reservation_ctx, estimate_ctx}
 
-          {:over_budget, %{request_too_large: true} = over_again} ->
-            emit_rate_limit_error(
-              state_key,
-              :over_budget,
-              start_time,
-              rate_limit_details(over_again)
-            )
-
-            {:error, {:rate_limited, nil, rate_limit_details(over_again)}}
-
-          {:over_budget, over_again} ->
+          {:error, {:over_budget, over_again}} ->
+            emit_budget_rejected(state_key, over_again, estimate_ctx)
             next_retry = Map.get(over_again, :window_end)
-
-            emit_rate_limit_error(
-              state_key,
-              :over_budget,
-              start_time,
-              rate_limit_details(over_again)
-            )
-
-            {:error, {:rate_limited, next_retry, rate_limit_details(over_again)}}
+            {:error, {:rate_limited, next_retry, rate_limit_details(over_again, estimate_ctx)}}
         end
     end
   end
 
-  defp rate_limit_details(budget_ctx) do
-    Map.merge(
-      %{reason: :over_budget},
-      Map.take(budget_ctx, [
+  defp build_estimate_context(opts, config) do
+    estimated_input_tokens = Keyword.get(opts, :estimated_input_tokens, 0)
+    estimated_cached_tokens = Keyword.get(opts, :estimated_cached_tokens, 0)
+    estimated_total_tokens = estimated_input_tokens + estimated_cached_tokens
+    budget = Keyword.get(opts, :token_budget_per_window, config.token_budget_per_window)
+
+    %{
+      estimated_input_tokens: estimated_input_tokens,
+      estimated_cached_tokens: estimated_cached_tokens,
+      estimated_total_tokens: estimated_total_tokens,
+      token_budget: budget
+    }
+  end
+
+  defp check_token_budget(state_key, opts, config) do
+    estimate_ctx = build_estimate_context(opts, config)
+    usage = State.get_current_usage(state_key)
+
+    cond do
+      is_nil(estimate_ctx.token_budget) ->
+        {:ok, Map.put(estimate_ctx, :usage, usage)}
+
+      estimate_ctx.estimated_total_tokens > estimate_ctx.token_budget ->
+        {:over_budget,
+         Map.merge(estimate_ctx, %{
+           reason: :over_budget,
+           request_too_large: true,
+           usage: usage
+         })}
+
+      usage &&
+          usage.input_tokens + usage.output_tokens + usage.reserved_tokens +
+            estimate_ctx.estimated_total_tokens > estimate_ctx.token_budget ->
+        window_end = DateTime.add(usage.window_start, usage.window_duration_ms, :millisecond)
+
+        {:over_budget,
+         Map.merge(estimate_ctx, %{
+           reason: :over_budget,
+           request_too_large: false,
+           usage: usage,
+           window_end: window_end
+         })}
+
+      true ->
+        {:ok, Map.put(estimate_ctx, :usage, usage)}
+    end
+  end
+
+  defp rate_limit_details(budget_ctx, estimate_ctx) do
+    estimate_slice =
+      Map.take(estimate_ctx, [
         :estimated_input_tokens,
         :estimated_cached_tokens,
         :estimated_total_tokens,
-        :token_budget,
-        :request_too_large
+        :token_budget
       ])
+
+    Map.merge(
+      %{reason: :over_budget},
+      estimate_slice
+    )
+    |> Map.merge(Map.take(budget_ctx, [:request_too_large, :reserved_tokens]))
+  end
+
+  defp reconcile_budget(state_key, reservation_ctx, result, config, _opts, _estimate_ctx) do
+    usage =
+      result
+      |> extract_usage_from_result()
+
+    State.reconcile_reservation(
+      state_key,
+      reservation_ctx,
+      usage,
+      window_duration_ms: config.window_duration_ms
     )
   end
 
-  defp record_usage_from_response(model, opts, response) do
-    location = Keyword.get(opts, :location)
-    state_key = State.build_key(model, location, :token_count)
+  defp build_release_fn(
+         state_key,
+         reservation_ctx,
+         concurrency_key,
+         config,
+         opts \\ []
+       ) do
+    permit? = Keyword.get(opts, :permit?, true) and Config.concurrency_enabled?(config)
+    released = :atomics.new(1, [])
+    :atomics.put(released, 1, 0)
 
-    # ADR-0002: Get window duration from config
-    config = Config.build(opts)
+    fn outcome, usage_map ->
+      case :atomics.compare_exchange(released, 1, 0, 1) do
+        :ok ->
+          if usage_map do
+            State.reconcile_reservation(
+              state_key,
+              reservation_ctx,
+              usage_map,
+              window_duration_ms: config.window_duration_ms
+            )
+          else
+            State.release_reservation(
+              state_key,
+              reservation_ctx,
+              window_duration_ms: config.window_duration_ms
+            )
+          end
 
-    # Extract usage from response
-    usage = extract_usage(response)
+          if permit?, do: ConcurrencyGate.release(concurrency_key)
 
-    if usage do
-      State.record_usage(
-        state_key,
-        Map.get(usage, :input_tokens, 0),
-        Map.get(usage, :output_tokens, 0),
-        window_duration_ms: config.window_duration_ms
-      )
+          {model, location, _metric} = state_key
+          emit_stream_event(outcome_to_stream_event(outcome), model, location)
+
+        _ ->
+          :ok
+      end
     end
   end
+
+  defp outcome_to_stream_event(:completed), do: :completed
+  defp outcome_to_stream_event(:error), do: :error
+  defp outcome_to_stream_event(:stopped), do: :stopped
+  defp outcome_to_stream_event(_), do: :completed
+
+  defp extract_usage_from_result({:ok, response}) when is_map(response),
+    do: extract_usage(response)
+
+  defp extract_usage_from_result(_), do: nil
 
   defp extract_usage(response) do
     cond do
@@ -530,6 +699,38 @@ defmodule Gemini.RateLimiter.Manager do
       true ->
         nil
     end
+  end
+
+  defp emit_budget_reserved(state_key, reservation_ctx, estimate_ctx) do
+    {model, location, _metric} = state_key
+
+    metadata =
+      %{
+        model: model,
+        location: location,
+        reserved_tokens: reservation_ctx.reserved_tokens,
+        estimated_tokens: reservation_ctx.estimated_tokens,
+        estimated_total_tokens: estimate_ctx.estimated_total_tokens,
+        estimated_input_tokens: estimate_ctx.estimated_input_tokens,
+        estimated_cached_tokens: estimate_ctx.estimated_cached_tokens,
+        token_budget: estimate_ctx.token_budget
+      }
+
+    Telemetry.execute([:gemini, :rate_limit, :budget, :reserved], %{}, metadata)
+  end
+
+  defp emit_budget_rejected(state_key, budget_ctx, estimate_ctx) do
+    {model, location, _metric} = state_key
+
+    metadata =
+      %{
+        model: model,
+        location: location,
+        retry_at: Map.get(budget_ctx, :window_end)
+      }
+      |> Map.merge(rate_limit_details(budget_ctx, estimate_ctx))
+
+    Telemetry.execute([:gemini, :rate_limit, :budget, :rejected], %{}, metadata)
   end
 
   # Telemetry helpers
@@ -608,6 +809,11 @@ defmodule Gemini.RateLimiter.Manager do
       |> Map.merge(metadata)
 
     Telemetry.execute([:gemini, :rate_limit, :error], %{duration: duration}, metadata)
+  end
+
+  defp emit_stream_event(status, model, location) do
+    metadata = %{model: model, location: location}
+    Telemetry.execute([:gemini, :rate_limit, :stream, status], %{}, metadata)
   end
 
   defp concurrency_key(model, opts) do

@@ -95,19 +95,18 @@ defmodule Gemini.RateLimiter.ConcurrencyGate do
   def release(model) do
     ensure_table_exists()
 
-    case :ets.lookup(@ets_table, model) do
-      [{^model, state}] ->
-        holders = Map.get(state, :holders, %{})
-        {new_holders, new_current} = release_holder(holders, state.current, self())
-        new_state = %{state | current: new_current, holders: new_holders}
-        :ets.insert(@ets_table, {model, new_state})
+    with_lock(model, fn ->
+      case :ets.lookup(@ets_table, model) do
+        [{^model, state}] ->
+          holders = Map.get(state, :holders, %{})
+          {new_holders, new_current} = release_holder(holders, state.current, self())
+          new_state = %{state | current: new_current, holders: new_holders}
+          :ets.insert(@ets_table, {model, new_state})
 
-        # Notify waiting processes if any
-        notify_waiters(model, new_state)
-
-      [] ->
-        :ok
-    end
+        [] ->
+          :ok
+      end
+    end)
 
     :ok
   end
@@ -224,50 +223,64 @@ defmodule Gemini.RateLimiter.ConcurrencyGate do
   # Private implementation
 
   defp do_acquire(model, max, non_blocking, permit_timeout_ms) do
+    start_time = System.monotonic_time(:millisecond)
+    do_acquire_loop(model, max, non_blocking, permit_timeout_ms, start_time)
+  end
+
+  defp do_acquire_loop(model, max, non_blocking, permit_timeout_ms, start_time) do
     case try_acquire(model, max) do
       :ok ->
         :ok
 
+      :full when non_blocking ->
+        {:error, :no_permit_available}
+
       :full ->
-        if non_blocking do
-          {:error, :no_permit_available}
+        elapsed = System.monotonic_time(:millisecond) - start_time
+
+        if permit_timeout_ms != :infinity and is_integer(permit_timeout_ms) and
+             elapsed >= permit_timeout_ms do
+          {:error, :timeout_waiting_for_permit}
         else
-          wait_for_permit(model, max, permit_timeout_ms)
+          Process.sleep(5)
+          do_acquire_loop(model, max, non_blocking, permit_timeout_ms, start_time)
         end
     end
   end
 
   defp try_acquire(model, max) do
-    case :ets.lookup(@ets_table, model) do
-      [{^model, state}] ->
-        effective = state.adaptive_max || state.max
+    with_lock(model, fn ->
+      case :ets.lookup(@ets_table, model) do
+        [{^model, state}] ->
+          effective = state.adaptive_max || state.max
 
-        if state.current < effective do
-          holders = Map.get(state, :holders, %{})
-          {new_holders, _watcher} = ensure_holder_tracking(model, self(), holders)
+          if state.current < effective do
+            holders = Map.get(state, :holders, %{})
+            {new_holders, _watcher} = ensure_holder_tracking(model, self(), holders)
 
-          new_state = %{state | current: state.current + 1, holders: new_holders}
-          :ets.insert(@ets_table, {model, new_state})
+            new_state = %{state | current: state.current + 1, holders: new_holders}
+            :ets.insert(@ets_table, {model, new_state})
+            :ok
+          else
+            :full
+          end
+
+        [] ->
+          # First request for this model, initialize and acquire
+          {new_holders, _watcher} = ensure_holder_tracking(model, self(), %{})
+
+          state = %{
+            current: 1,
+            max: max,
+            adaptive_max: nil,
+            waiting: [],
+            holders: new_holders
+          }
+
+          :ets.insert(@ets_table, {model, state})
           :ok
-        else
-          :full
-        end
-
-      [] ->
-        # First request for this model, initialize and acquire
-        {new_holders, _watcher} = ensure_holder_tracking(model, self(), %{})
-
-        state = %{
-          current: 1,
-          max: max,
-          adaptive_max: nil,
-          waiting: [],
-          holders: new_holders
-        }
-
-        :ets.insert(@ets_table, {model, state})
-        :ok
-    end
+      end
+    end)
   end
 
   defp init_state(model, max, adaptive_max) do
@@ -280,89 +293,6 @@ defmodule Gemini.RateLimiter.ConcurrencyGate do
     }
 
     :ets.insert(@ets_table, {model, state})
-  end
-
-  defp wait_for_permit(model, max, permit_timeout_ms) do
-    # Register as waiting
-    register_waiter(model)
-
-    # Try to acquire again immediately to avoid missing a release that
-    # happened before we registered as a waiter.
-    case try_acquire(model, max) do
-      :ok ->
-        unregister_waiter(model)
-        drain_permit_message(model)
-        :ok
-
-      :full ->
-        do_wait(model, max, permit_timeout_ms)
-    end
-  end
-
-  defp do_wait(model, max, permit_timeout_ms) when permit_timeout_ms in [nil, :infinity] do
-    receive do
-      {:permit_available, ^model} ->
-        case try_acquire(model, max) do
-          :ok ->
-            unregister_waiter(model)
-            :ok
-
-          :full ->
-            wait_for_permit(model, max, permit_timeout_ms)
-        end
-    end
-  end
-
-  defp do_wait(model, max, permit_timeout_ms) do
-    receive do
-      {:permit_available, ^model} ->
-        case try_acquire(model, max) do
-          :ok ->
-            unregister_waiter(model)
-            :ok
-
-          :full ->
-            wait_for_permit(model, max, permit_timeout_ms)
-        end
-    after
-      permit_timeout_ms ->
-        unregister_waiter(model)
-        {:error, :timeout_waiting_for_permit}
-    end
-  end
-
-  defp register_waiter(model) do
-    case :ets.lookup(@ets_table, model) do
-      [{^model, state}] ->
-        new_state = %{state | waiting: [self() | state.waiting]}
-        :ets.insert(@ets_table, {model, new_state})
-
-      [] ->
-        :ok
-    end
-  end
-
-  defp unregister_waiter(model) do
-    case :ets.lookup(@ets_table, model) do
-      [{^model, state}] ->
-        new_state = %{state | waiting: List.delete(state.waiting, self())}
-        :ets.insert(@ets_table, {model, new_state})
-
-      [] ->
-        :ok
-    end
-  end
-
-  defp notify_waiters(model, state) do
-    case state.waiting do
-      [waiter | rest] ->
-        new_state = %{state | waiting: rest}
-        :ets.insert(@ets_table, {model, new_state})
-        send(waiter, {:permit_available, model})
-
-      [] ->
-        :ok
-    end
   end
 
   defp ensure_holder_tracking(model, pid, holders) do
@@ -407,35 +337,27 @@ defmodule Gemini.RateLimiter.ConcurrencyGate do
   def handle_holder_down(model, holder_pid) do
     ensure_table_exists()
 
-    case :ets.lookup(@ets_table, model) do
-      [{^model, state}] ->
-        holders = Map.get(state, :holders, %{})
+    with_lock(model, fn ->
+      case :ets.lookup(@ets_table, model) do
+        [{^model, state}] ->
+          holders = Map.get(state, :holders, %{})
 
-        case Map.pop(holders, holder_pid) do
-          {nil, _} ->
-            :ok
+          case Map.pop(holders, holder_pid) do
+            {nil, _} ->
+              :ok
 
-          {{count, _watcher}, remaining_holders} ->
-            new_current = max(0, state.current - count)
-            new_state = %{state | current: new_current, holders: remaining_holders}
-            :ets.insert(@ets_table, {model, new_state})
-            notify_waiters(model, new_state)
-        end
+            {{count, _watcher}, remaining_holders} ->
+              new_current = max(0, state.current - count)
+              new_state = %{state | current: new_current, holders: remaining_holders}
+              :ets.insert(@ets_table, {model, new_state})
+          end
 
-      [] ->
-        :ok
-    end
+        [] ->
+          :ok
+      end
+    end)
 
     :ok
-  end
-
-  # Drain a stray permit message that may arrive after we already acquired.
-  defp drain_permit_message(model) do
-    receive do
-      {:permit_available, ^model} -> :ok
-    after
-      0 -> :ok
-    end
   end
 
   defp effective_max(model, config) do
@@ -446,5 +368,9 @@ defmodule Gemini.RateLimiter.ConcurrencyGate do
       [] ->
         config.max_concurrency_per_model || 4
     end
+  end
+
+  defp with_lock(model, fun) do
+    :global.trans({@ets_table, model}, fun)
   end
 end

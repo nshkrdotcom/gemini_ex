@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] - 2025-12-05
+
+### Added
+- Atomic token budget reservation (`try_reserve_budget/3`) with safety multiplier, reconciliation, and telemetry events (`budget_reserved`, `budget_rejected`)
+- Shared retry window gating with jittered release plus telemetry hooks (`retry_window_set/hit/release`)
+- Model use-case aliases (`cache_context`, `report_section`, `fast_path`) resolved through `Gemini.Config.model_for_use_case/2` with documented token minima
+- Streaming now goes through the rate limiter (UnifiedManager): permits are held for the duration of the stream, budget is reserved up front, and telemetry is emitted for stream start/completion/error/stop
+
+### Fixed
+- Concurrency gate TOCTOU race hardened with serialized permit acquisition; default non_blocking remains false for server workloads
+- Rate limiter now pre-flight rejects over-budget bursts before dispatching requests and returns surplus budget after responses
+
 ## [0.7.0] - 2025-12-05
 
 ### 🎉 Major Feature Release: Complete API Parity

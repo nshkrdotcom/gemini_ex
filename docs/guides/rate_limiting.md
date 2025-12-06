@@ -17,9 +17,9 @@ The rate limiter provides:
 
 When you make requests through the Gemini API, they automatically:
 
-1. Check against the current retry window (from previous 429s)
-2. Get gated by concurrency permits (default 4 per model)
-3. Optionally get checked against token budget
+1. Check against the shared retry window (from previous 429s) with jittered release
+2. Atomically reserve token budget for the estimated request size (optional safety multiplier)
+3. Get gated by concurrency permits (default 4 per model)
 4. Retry with backoff on transient failures
 
 ```elixir
@@ -48,6 +48,8 @@ config :gemini_ex, :rate_limiter,
   adaptive_concurrency: false,      # Enable adaptive mode
   adaptive_ceiling: 8,              # Max concurrency in adaptive mode
   profile: :prod                    # :dev, :prod, or :custom
+# Reserve with a safety multiplier (optional, default 1.0)
+# budget_safety_multiplier: 1.2
 ```
 
 ### Per-Request Options
@@ -272,6 +274,13 @@ This is useful when you're unsure of your quota limits.
 Token budgeting helps you stay within TPM (tokens per minute) limits by tracking
 token usage and preemptively blocking requests that would exceed your budget.
 
+### Atomic reservations (v0.7.1)
+
+- Reservations happen before dispatch using `try_reserve_budget/3` to avoid thundering-herd launches.
+- A safety multiplier (default `1.0`, configurable via `budget_safety_multiplier`) can over-reserve for extra safety.
+- After responses, the limiter reconciles the reservation: surplus tokens are returned, and shortfalls are charged.
+- Over-budget calls fail fast (or wait once in blocking mode) with `{:error, {:rate_limited, retry_at, %{reason: :over_budget}}}` before hitting the network.
+
 ### Automatic Token Estimation
 
 By default, the rate limiter automatically estimates input tokens for each request
@@ -311,8 +320,8 @@ Gemini.generate("Run on cached context",
 
 ### Over-budget behavior
 
-- **Request too large**: If `estimated_input_tokens + estimated_cached_tokens > token_budget_per_window`, the limiter returns `{:error, {:rate_limited, nil, %{reason: :over_budget, request_too_large: true}}}` immediately (no retries).
-- **Window full**: If the current window is full but the request fits the budget, blocking mode waits until the window ends once, then retries; non-blocking mode returns `retry_at` set to that window end.
+- **Request too large**: If `estimated_input_tokens + estimated_cached_tokens` exceeds the budget (after applying the safety multiplier), the limiter returns `{:error, {:rate_limited, nil, %{reason: :over_budget, request_too_large: true}}}` immediately (no retries).
+- **Window full**: If the current window is full but the request fits the budget, blocking mode waits once (respecting `max_budget_wait_ms`) then retries the reservation; non-blocking mode returns `retry_at` set to that window end.
 
 ### Limiting wait time
 
@@ -372,7 +381,12 @@ The rate limiter emits telemetry events for monitoring:
     [:gemini, :rate_limit, :request, :start],
     [:gemini, :rate_limit, :request, :stop],
     [:gemini, :rate_limit, :wait],
-    [:gemini, :rate_limit, :error]
+    [:gemini, :rate_limit, :error],
+    [:gemini, :rate_limit, :budget, :reserved],
+    [:gemini, :rate_limit, :budget, :rejected],
+    [:gemini, :rate_limit, :retry_window, :set],
+    [:gemini, :rate_limit, :retry_window, :hit],
+    [:gemini, :rate_limit, :retry_window, :release]
   ],
   fn event, measurements, metadata, _config ->
     IO.puts("Event: #{inspect(event)}")
@@ -391,6 +405,40 @@ The rate limiter emits telemetry events for monitoring:
 | `[:gemini, :rate_limit, :request, :stop]` | Request completed |
 | `[:gemini, :rate_limit, :wait]` | Waiting for retry window |
 | `[:gemini, :rate_limit, :error]` | Rate limit error occurred |
+| `[:gemini, :rate_limit, :budget, :reserved]` | Budget reservation made pre-flight |
+| `[:gemini, :rate_limit, :budget, :rejected]` | Reservation rejected as over-budget |
+| `[:gemini, :rate_limit, :retry_window, :set]` | Retry window set from a 429 |
+| `[:gemini, :rate_limit, :retry_window, :hit]` | Incoming request hit an active retry window |
+| `[:gemini, :rate_limit, :retry_window, :release]` | Retry window released after jittered wait |
+| `[:gemini, :rate_limit, :stream, :started]` | Streaming request acquired a permit/reservation |
+| `[:gemini, :rate_limit, :stream, :completed]` | Streaming request released permit on completion |
+| `[:gemini, :rate_limit, :stream, :error]` | Streaming request released permit on error |
+| `[:gemini, :rate_limit, :stream, :stopped]` | Streaming request released permit on manual stop |
+
+## Streaming
+
+Streaming requests now go through the same rate limiter:
+- Concurrency permits are held for the entire stream duration.
+- Budget reservations are made up-front (on estimated input) and reconciled when the stream finishes.
+- Non-blocking mode returns `{:error, {:rate_limited, retry_at, details}}` when a stream cannot acquire a permit or budget.
+
+## Model Aliases
+
+Use the built-in use-case aliases to avoid scattering model strings:
+
+| Use Case | Model Key | Recommended Token Budget |
+|----------|-----------|--------------------------|
+| `:cache_context` | `:flash_2_5` | 32,000 |
+| `:report_section` | `:pro_2_5` | 16,000 |
+| `:fast_path` | `:flash_2_5_lite` | 8,000 |
+
+```elixir
+Gemini.Config.model_for_use_case(:cache_context)
+#=> "gemini-2.5-flash"
+
+Gemini.Config.resolved_use_case_models()
+#=> %{cache_context: "gemini-2.5-flash", report_section: "gemini-2.5-pro", fast_path: "gemini-2.5-flash-lite"}
+```
 
 ## Checking Status
 
