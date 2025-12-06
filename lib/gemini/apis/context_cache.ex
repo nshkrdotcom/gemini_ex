@@ -33,6 +33,7 @@ defmodule Gemini.APIs.ContextCache do
 
   alias Gemini.Client.HTTP
   alias Gemini.Types.Content
+  alias Gemini.Types.MediaResolution
   alias Gemini.Types.Part
   alias Gemini.Types.ToolSerialization
   alias Gemini.Types.CachedContentUsageMetadata
@@ -478,19 +479,27 @@ defmodule Gemini.APIs.ContextCache do
 
   defp maybe_put_thought_signature(map, _), do: map
 
-  defp maybe_put_media_resolution(map, %Part{
-         media_resolution: %Part.MediaResolution{level: level}
-       })
-       when not is_nil(level) do
-    Map.put(map, :mediaResolution, %{level: level})
-  end
-
-  defp maybe_put_media_resolution(map, %{media_resolution: %Part.MediaResolution{level: level}})
-       when not is_nil(level) do
-    Map.put(map, :mediaResolution, %{level: level})
+  defp maybe_put_media_resolution(map, %{media_resolution: resolution}) do
+    case media_resolution_to_api(resolution) do
+      nil -> map
+      api_value -> Map.put(map, :mediaResolution, api_value)
+    end
   end
 
   defp maybe_put_media_resolution(map, _), do: map
+
+  defp media_resolution_to_api(%Part.MediaResolution{level: level}),
+    do: media_resolution_to_api(level)
+
+  defp media_resolution_to_api(atom) when is_atom(atom), do: MediaResolution.to_api(atom)
+
+  defp media_resolution_to_api(value) when is_binary(value) do
+    value
+    |> MediaResolution.from_api()
+    |> MediaResolution.to_api()
+  end
+
+  defp media_resolution_to_api(_), do: nil
 
   defp normalize_cache_response(response) when is_map(response) do
     %{

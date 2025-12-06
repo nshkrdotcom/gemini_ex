@@ -308,8 +308,47 @@ defmodule Gemini.Types.Request.CountTokensRequest do
   end
 
   def to_json_map(%__MODULE__{contents: contents}) when is_list(contents) do
-    %{contents: contents}
+    %{contents: Enum.map(contents, &format_content/1)}
   end
+
+  # Format Content struct for API, excluding nil fields
+  defp format_content(%Content{role: role, parts: parts}) do
+    %{
+      role: role,
+      parts: Enum.map(parts || [], &format_part/1)
+    }
+  end
+
+  defp format_content(other), do: other
+
+  # Format Part for API, only including non-nil fields
+  defp format_part(%Gemini.Types.Part{} = part) do
+    base = %{}
+
+    base = if part.text, do: Map.put(base, :text, part.text), else: base
+
+    base =
+      if part.inline_data do
+        Map.put(base, :inlineData, %{
+          mimeType: part.inline_data.mime_type,
+          data: part.inline_data.data
+        })
+      else
+        base
+      end
+
+    base =
+      if part.thought_signature do
+        Map.put(base, :thoughtSignature, part.thought_signature)
+      else
+        base
+      end
+
+    base
+  end
+
+  defp format_part(%{text: text}) when is_binary(text), do: %{text: text}
+  defp format_part(other), do: other
 
   # Private helper functions
 

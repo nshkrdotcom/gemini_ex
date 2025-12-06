@@ -20,6 +20,10 @@ defmodule Gemini.Types.Part do
 
   use TypedStruct
 
+  alias Gemini.Types.{Blob, FileData, FunctionResponse}
+  alias Gemini.Types.MediaResolution, as: CommonMediaResolution
+  alias __MODULE__.MediaResolution, as: PartMediaResolution
+
   defmodule MediaResolution do
     @moduledoc """
     Media resolution settings for Gemini 3 vision processing.
@@ -38,10 +42,17 @@ defmodule Gemini.Types.Part do
   @derive Jason.Encoder
   typedstruct do
     field(:text, String.t() | nil, default: nil)
-    field(:inline_data, Gemini.Types.Blob.t() | nil, default: nil)
+    field(:inline_data, Blob.t() | nil, default: nil)
     field(:function_call, Altar.ADM.FunctionCall.t() | nil, default: nil)
-    field(:media_resolution, MediaResolution.t() | nil, default: nil)
+
+    field(:media_resolution, CommonMediaResolution.t() | PartMediaResolution.t() | nil,
+      default: nil
+    )
+
     field(:thought_signature, String.t() | nil, default: nil)
+    field(:file_data, FileData.t() | nil, default: nil)
+    field(:function_response, FunctionResponse.t() | nil, default: nil)
+    field(:thought, boolean() | nil, default: nil)
   end
 
   @typedoc "Text content."
@@ -63,7 +74,7 @@ defmodule Gemini.Types.Part do
   """
   @spec inline_data(String.t(), String.t()) :: t()
   def inline_data(data, mime_type) when is_binary(data) and is_binary(mime_type) do
-    blob = Gemini.Types.Blob.new(data, mime_type)
+    blob = Blob.new(data, mime_type)
     %__MODULE__{inline_data: blob}
   end
 
@@ -72,7 +83,7 @@ defmodule Gemini.Types.Part do
   """
   @spec blob(String.t(), String.t()) :: t()
   def blob(data, mime_type) when is_binary(data) and is_binary(mime_type) do
-    blob = Gemini.Types.Blob.new(data, mime_type)
+    blob = Blob.new(data, mime_type)
     %__MODULE__{inline_data: blob}
   end
 
@@ -81,7 +92,7 @@ defmodule Gemini.Types.Part do
   """
   @spec file(String.t()) :: t()
   def file(path) when is_binary(path) do
-    case Gemini.Types.Blob.from_file(path) do
+    case Blob.from_file(path) do
       {:ok, blob} -> %__MODULE__{inline_data: blob}
       {:error, _error} -> %__MODULE__{text: "Error loading file: #{path}"}
     end
@@ -106,7 +117,7 @@ defmodule Gemini.Types.Part do
   @spec inline_data_with_resolution(String.t(), String.t(), :low | :medium | :high) :: t()
   def inline_data_with_resolution(data, mime_type, resolution)
       when is_binary(data) and is_binary(mime_type) and resolution in [:low, :medium, :high] do
-    blob = Gemini.Types.Blob.new(data, mime_type)
+    blob = Blob.new(data, mime_type)
 
     resolution_level =
       case resolution do
@@ -160,4 +171,59 @@ defmodule Gemini.Types.Part do
   def with_thought_signature(%__MODULE__{} = part, signature) when is_binary(signature) do
     %{part | thought_signature: signature}
   end
+
+  @doc """
+  Parse a part from API payload.
+  """
+  @spec from_api(map() | nil) :: t() | map() | nil
+  def from_api(nil), do: nil
+  def from_api(%__MODULE__{} = part), do: part
+
+  def from_api(%{} = data) do
+    %__MODULE__{
+      text: Map.get(data, "text") || Map.get(data, :text),
+      inline_data:
+        data
+        |> Map.get("inlineData")
+        |> Kernel.||(Map.get(data, :inline_data))
+        |> parse_inline_data(),
+      file_data:
+        data
+        |> Map.get("fileData")
+        |> Kernel.||(Map.get(data, :file_data))
+        |> FileData.from_api(),
+      function_call: Map.get(data, "functionCall") || Map.get(data, :function_call),
+      function_response:
+        data
+        |> Map.get("functionResponse")
+        |> Kernel.||(Map.get(data, :function_response))
+        |> FunctionResponse.from_api(),
+      media_resolution:
+        data
+        |> Map.get("mediaResolution")
+        |> Kernel.||(Map.get(data, :media_resolution))
+        |> parse_media_resolution(),
+      thought_signature: Map.get(data, "thoughtSignature") || Map.get(data, :thought_signature),
+      thought: Map.get(data, "thought") || Map.get(data, :thought)
+    }
+  end
+
+  defp parse_inline_data(nil), do: nil
+
+  defp parse_inline_data(%{} = data) do
+    %Blob{
+      data: Map.get(data, "data") || Map.get(data, :data),
+      mime_type: Map.get(data, "mimeType") || Map.get(data, :mime_type)
+    }
+  end
+
+  defp parse_media_resolution(%PartMediaResolution{} = resolution), do: resolution
+  defp parse_media_resolution(atom) when is_atom(atom), do: atom
+
+  defp parse_media_resolution(value) when is_binary(value) do
+    value
+    |> CommonMediaResolution.from_api()
+  end
+
+  defp parse_media_resolution(_), do: nil
 end

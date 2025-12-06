@@ -34,3 +34,4 @@ repomix*.xml
 
 # Generated content from examples (images, etc.)
 /generated/
+/debug/

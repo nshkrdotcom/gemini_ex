@@ -2,6 +2,7 @@ defmodule Gemini.IntegrationTest do
   use ExUnit.Case, async: false
 
   @moduletag :live_api
+  @moduletag timeout: 120_000
 
   import Gemini.Test.ModelHelpers
 

@@ -5,6 +5,65 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.4] - 2025-12-05
+
+### Added
+
+#### Response Type Enhancements
+- `UsageMetadata` now includes:
+  - `thoughts_token_count` - Token count for thinking models (Gemini 2.0+)
+  - `tool_use_prompt_token_count` - Tokens used in tool/function prompts
+  - `prompt_tokens_details` - Per-modality breakdown of prompt tokens
+  - `cache_tokens_details` - Per-modality breakdown of cached tokens
+  - `response_tokens_details` - Per-modality breakdown of response tokens
+  - `tool_use_prompt_tokens_details` - Per-modality breakdown of tool prompt tokens
+  - `traffic_type` - Billing traffic type (ON_DEMAND, PROVISIONED_THROUGHPUT)
+
+- `GenerateContentResponse` now includes:
+  - `response_id` - Unique response identifier for tracking
+  - `model_version` - Actual model version used (e.g., "gemini-2.0-flash-exp-001")
+  - `create_time` - Response creation timestamp
+
+- `Candidate` now includes:
+  - `finish_message` - Human-readable message explaining stop reason
+  - `avg_logprobs` - Average log probability score
+
+- `PromptFeedback` now includes:
+  - `block_reason_message` - Human-readable block explanation
+
+- `Part` now includes:
+  - `file_data` - URI-based file references (alternative to inline_data)
+  - `function_response` - Function call response data
+  - `thought` - Boolean flag for thinking model thought parts
+
+- `SafetyRating` now includes:
+  - `probability_score` - Numeric harm probability (0.0-1.0)
+  - `severity` - Harm severity level
+  - `severity_score` - Numeric severity score
+
+#### Request Type Enhancements
+- `GenerationConfig` now includes:
+  - `seed` - Deterministic generation seed for reproducible outputs
+  - `response_modalities` - Control output modalities (TEXT, IMAGE, AUDIO)
+  - `speech_config` - Audio output configuration with voice selection
+  - `media_resolution` - Input media resolution control (LOW, MEDIUM, HIGH)
+
+#### New Types
+- `ModalityTokenCount` - Per-modality token breakdown
+- `TrafficType` - Billing traffic type enum
+- `Modality` - Response modality enum (TEXT, IMAGE, AUDIO)
+- `MediaResolution` - Input media resolution enum
+- `FileData` - URI-based file data struct
+- `FunctionResponse` - Function call response struct
+- `SpeechConfig`, `VoiceConfig`, `PrebuiltVoiceConfig` - Audio output configuration
+
+### Changed
+- Response parsing now handles all new fields from Gemini API
+- GenerationConfig encoding includes new fields when present
+
+### Fixed
+- Token usage now correctly reports thinking tokens separately from output tokens
+
 ## [0.6.3] - 2025-12-05
 
 ### Added

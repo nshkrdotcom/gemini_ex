@@ -3,7 +3,12 @@
 # Requires GEMINI_API_KEY environment variable
 
 defmodule GeminiDemo do
-  alias Gemini.Types.GenerationConfig
+  alias Gemini.Types.{
+    GenerationConfig,
+    PrebuiltVoiceConfig,
+    SpeechConfig,
+    VoiceConfig
+  }
 
   defp format_error(error) do
     cond do
@@ -131,6 +136,32 @@ defmodule GeminiDemo do
     case Gemini.text("What is 15 * 23?", generation_config: config) do
       {:ok, text} ->
         IO.puts("🤖 #{text}")
+
+      {:error, error} ->
+        IO.puts("❌ Error: #{format_error(error)}")
+    end
+
+    # Deterministic + modality aware generation
+    IO.puts("\n🎲 Deterministic seed with response modalities + speech config:")
+
+    speech_config = %SpeechConfig{
+      language_code: "en-US",
+      voice_config: %VoiceConfig{
+        prebuilt_voice_config: %PrebuiltVoiceConfig{voice_name: "Puck"}
+      }
+    }
+
+    config =
+      GenerationConfig.new(
+        seed: 1234,
+        response_modalities: [:text],
+        speech_config: speech_config
+      )
+
+    case Gemini.text("Give me a short greeting", generation_config: config) do
+      {:ok, text} ->
+        IO.puts("🤖 #{text}")
+        IO.puts("    (seed=1234, response_modalities [:text], voice=Puck)")
 
       {:error, error} ->
         IO.puts("❌ Error: #{format_error(error)}")

@@ -4,6 +4,7 @@ defmodule Gemini.Types.GenerationConfig do
   """
 
   use TypedStruct
+  alias Gemini.Types.{MediaResolution, Modality, SpeechConfig}
 
   defmodule ThinkingConfig do
     @moduledoc """
@@ -92,6 +93,10 @@ defmodule Gemini.Types.GenerationConfig do
     field(:thinking_config, ThinkingConfig.t() | nil, default: nil)
     field(:property_ordering, [String.t()] | nil, default: nil)
     field(:image_config, ImageConfig.t() | nil, default: nil)
+    field(:seed, integer() | nil, default: nil)
+    field(:response_modalities, [Modality.t()] | nil, default: nil)
+    field(:speech_config, SpeechConfig.t() | nil, default: nil)
+    field(:media_resolution, MediaResolution.t() | nil, default: nil)
   end
 
   @doc """
@@ -164,6 +169,38 @@ defmodule Gemini.Types.GenerationConfig do
   """
   def text_response(config \\ %__MODULE__{}) do
     %{config | response_mime_type: "text/plain"}
+  end
+
+  @doc """
+  Set deterministic generation seed.
+  """
+  @spec seed(t(), integer()) :: t()
+  def seed(config \\ %__MODULE__{}, value) when is_integer(value) do
+    %{config | seed: value}
+  end
+
+  @doc """
+  Set response modalities for the model output.
+  """
+  @spec response_modalities(t(), [Modality.t()]) :: t()
+  def response_modalities(config \\ %__MODULE__{}, modalities) when is_list(modalities) do
+    %{config | response_modalities: modalities}
+  end
+
+  @doc """
+  Set speech generation configuration.
+  """
+  @spec speech_config(t(), SpeechConfig.t()) :: t()
+  def speech_config(config \\ %__MODULE__{}, %SpeechConfig{} = speech_config) do
+    %{config | speech_config: speech_config}
+  end
+
+  @doc """
+  Set media resolution preference.
+  """
+  @spec media_resolution(t(), MediaResolution.t()) :: t()
+  def media_resolution(config \\ %__MODULE__{}, resolution) do
+    %{config | media_resolution: resolution}
   end
 
   @doc """

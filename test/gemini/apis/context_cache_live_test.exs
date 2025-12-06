@@ -9,6 +9,7 @@ defmodule Gemini.APIs.ContextCacheLiveTest do
   is not accessible.
   """
   use ExUnit.Case
+  import ExUnit.CaptureLog
 
   @moduletag :live_api
   @moduletag timeout: 120_000
@@ -38,29 +39,13 @@ defmodule Gemini.APIs.ContextCacheLiveTest do
         IO.puts("Skipping: GEMINI_API_KEY not set")
         :ok
       else
-        # Create a test cache with some content
-        test_content = """
-        This is a test document for context caching.
-        It contains some sample text that we want to cache
-        for multiple queries without re-transmitting.
+        contents = [Content.text(long_content(), "user")]
 
-        The document covers topics like:
-        - Elixir programming
-        - Functional programming concepts
-        - The BEAM virtual machine
-        """
-
-        contents = [Content.text(test_content, "user")]
-
-        result =
-          ContextCache.create(contents,
-            display_name: "GeminiEx Test Cache #{:rand.uniform(10000)}",
-            model: default_model(),
-            ttl: 300
-          )
+        {result, log} = create_cache(contents)
 
         case result do
           {:ok, cache} ->
+            assert log == ""
             IO.puts("Created cache: #{cache.name}")
             assert cache.name != nil
             assert cache.display_name != nil
@@ -82,7 +67,8 @@ defmodule Gemini.APIs.ContextCacheLiveTest do
             IO.puts("Deleted cache successfully")
 
           {:error, error} ->
-            IO.puts("Context caching may not be available: #{inspect(error)}")
+            assert log =~ "Cached content"
+            assert error.message["message"] =~ "Cached content"
             # Don't fail - feature might not be enabled
             :ok
         end
@@ -95,41 +81,20 @@ defmodule Gemini.APIs.ContextCacheLiveTest do
         IO.puts("Skipping: GEMINI_API_KEY not set")
         :ok
       else
-        # Create a cache with some context
-        context_content = """
-        Project: ElixirWeather
-        Description: A weather application built with Elixir and Phoenix.
+        contents = [Content.text(long_content(), "user")]
 
-        Key Features:
-        1. Real-time weather updates using WebSockets
-        2. Historical weather data storage in PostgreSQL
-        3. API integration with OpenWeatherMap
-        4. Location-based alerts using GenStage
-
-        Architecture:
-        - Phoenix LiveView for the frontend
-        - Ecto for database operations
-        - Oban for background jobs
-        """
-
-        contents = [Content.text(context_content, "user")]
-
-        create_result =
-          ContextCache.create(contents,
-            display_name: "GeminiEx Project Context #{:rand.uniform(10000)}",
-            model: default_model(),
-            ttl: 300
-          )
+        {create_result, create_log} = create_cache(contents)
 
         case create_result do
           {:ok, cache} ->
+            assert create_log == ""
             IO.puts("Created context cache: #{cache.name}")
 
             # Now try to use the cached content in a generate request
             generate_result =
               Gemini.generate(
                 "Based on the project context, what database is used?",
-                model: default_model(),
+                model: caching_model(),
                 cached_content: cache.name
               )
 
@@ -141,8 +106,8 @@ defmodule Gemini.APIs.ContextCacheLiveTest do
                 # Should mention PostgreSQL based on the context
                 assert String.length(text) > 0
 
-              {:error, gen_error} ->
-                IO.puts("Generate with cache failed: #{inspect(gen_error)}")
+              {:error, _gen_error} ->
+                assert create_log =~ "Cached content"
                 # May fail if cached content format isn't right
                 :ok
             end
@@ -151,8 +116,8 @@ defmodule Gemini.APIs.ContextCacheLiveTest do
             ContextCache.delete(cache.name)
             IO.puts("Cleaned up cache")
 
-          {:error, error} ->
-            IO.puts("Context caching may not be available: #{inspect(error)}")
+          {:error, _error} ->
+            assert create_log =~ "Cached content"
             :ok
         end
       end
@@ -166,17 +131,13 @@ defmodule Gemini.APIs.ContextCacheLiveTest do
         IO.puts("Skipping: GEMINI_API_KEY not set")
         :ok
       else
-        contents = [Content.text("Test content for TTL update", "user")]
+        contents = [Content.text(long_content(), "user")]
 
-        create_result =
-          ContextCache.create(contents,
-            display_name: "TTL Test Cache #{:rand.uniform(10000)}",
-            model: default_model(),
-            ttl: 300
-          )
+        {create_result, create_log} = create_cache(contents)
 
         case create_result do
           {:ok, cache} ->
+            assert create_log == ""
             IO.puts("Created cache with 5 minute TTL: #{cache.name}")
 
             # Update TTL to 10 minutes
@@ -187,15 +148,15 @@ defmodule Gemini.APIs.ContextCacheLiveTest do
                 IO.puts("Updated cache TTL")
                 assert updated_cache.name == cache.name
 
-              {:error, update_error} ->
-                IO.puts("TTL update failed (may be expected): #{inspect(update_error)}")
+              {:error, _update_error} ->
+                assert create_log =~ "Cached content"
             end
 
             # Clean up
             ContextCache.delete(cache.name)
 
-          {:error, error} ->
-            IO.puts("Context caching may not be available: #{inspect(error)}")
+          {:error, _error} ->
+            assert create_log =~ "Cached content"
             :ok
         end
       end
@@ -211,29 +172,32 @@ defmodule Gemini.APIs.ContextCacheLiveTest do
         :ok
       else
         contents = [
-          Content.text("Include insights from the attached document.", "user"),
+          Content.text(long_content(), "user"),
           %Content{
             role: "user",
             parts: [%{file_uri: "gs://cloud-samples-data/generative-ai/pdf/scene.pdf"}]
           }
         ]
 
-        result =
-          ContextCache.create(contents,
-            display_name: "GeminiEx Enhanced Cache #{:rand.uniform(10000)}",
-            model: default_model(),
-            ttl: 300,
-            system_instruction: "Answer in one concise sentence."
-          )
+        {result, log} =
+          capture_cache(fn ->
+            ContextCache.create(contents,
+              display_name: "GeminiEx Enhanced Cache #{:rand.uniform(10000)}",
+              model: caching_model(),
+              ttl: 300,
+              system_instruction: "Answer in one concise sentence."
+            )
+          end)
 
         case result do
           {:ok, cache} ->
+            assert log == "" or String.contains?(log, "Invalid or unsupported file uri")
             IO.puts("Created enhanced cache: #{cache.name}")
 
             generate_result =
               Gemini.generate(
                 "Confirm you will use the cached file context.",
-                model: default_model(),
+                model: caching_model(),
                 cached_content: cache.name
               )
 
@@ -243,18 +207,46 @@ defmodule Gemini.APIs.ContextCacheLiveTest do
                 IO.puts("Response: #{String.slice(text, 0, 200)}")
                 assert String.length(text) > 0
 
-              {:error, gen_error} ->
-                IO.puts("Generate with enhanced cache failed: #{inspect(gen_error)}")
+              {:error, _gen_error} ->
+                assert log == "" or String.contains?(log, "Invalid or unsupported file uri")
                 :ok
             end
 
             ContextCache.delete(cache.name)
 
-          {:error, error} ->
-            IO.puts("Enhanced cache creation may not be available: #{inspect(error)}")
+          {:error, _error} ->
+            assert log == "" or String.contains?(log, "Invalid or unsupported file uri")
             :ok
         end
       end
     end
+  end
+
+  defp long_content do
+    Enum.map_join(1..1200, " ", fn i -> "token_#{i}" end)
+  end
+
+  defp capture_cache(fun) do
+    log =
+      capture_log(fn ->
+        send(self(), {:capture_result, fun.()})
+      end)
+
+    result =
+      receive do
+        {:capture_result, res} -> res
+      end
+
+    {result, log}
+  end
+
+  defp create_cache(contents) do
+    capture_cache(fn ->
+      ContextCache.create(contents,
+        display_name: "GeminiEx Test Cache #{:rand.uniform(10000)}",
+        model: caching_model(),
+        ttl: 300
+      )
+    end)
   end
 end

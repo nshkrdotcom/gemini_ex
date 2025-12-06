@@ -397,41 +397,46 @@ defmodule Gemini.StreamingIntegrationTest do
         credentials: %{api_key: "test_key_for_error_test"}
       })
 
-      try do
-        contents = "Hello"
-        opts = [model: "definitely-invalid-model-name"]
+      log =
+        capture_log(fn ->
+          try do
+            contents = "Hello"
+            opts = [model: "definitely-invalid-model-name"]
 
-        case UnifiedManager.start_stream(contents, opts, self()) do
-          {:ok, stream_id} ->
-            # Stream should start but then fail
-            assert is_binary(stream_id)
+            case UnifiedManager.start_stream(contents, opts, self()) do
+              {:ok, stream_id} ->
+                # Stream should start but then fail
+                assert is_binary(stream_id)
 
-            # Wait for error event
-            receive do
-              {:stream_error, ^stream_id, error} ->
-                # Should be an HTTP error about invalid model
-                assert %Gemini.Error{type: :http_error, http_status: 404} = error
-                assert String.contains?(error.message, "not found")
+                # Wait for error event
+                receive do
+                  {:stream_error, ^stream_id, error} ->
+                    # Should be an HTTP error about invalid model
+                    assert %Gemini.Error{type: :http_error, http_status: 404} = error
+                    assert String.contains?(error.message, "not found")
 
-              {:stream_complete, ^stream_id} ->
-                flunk("Stream should not complete with invalid model")
-            after
-              15_000 ->
-                flunk("Expected stream error within 15 seconds")
+                  {:stream_complete, ^stream_id} ->
+                    flunk("Stream should not complete with invalid model")
+                after
+                  15_000 ->
+                    flunk("Expected stream error within 15 seconds")
+                end
+
+              {:error, reason} ->
+                # Could also fail at start - that's acceptable
+                assert reason != :no_auth_config
             end
+          after
+            # Restore original config
+            if original_config do
+              Application.put_env(:gemini_ex, :auth, original_config)
+            else
+              Application.delete_env(:gemini_ex, :auth)
+            end
+          end
+        end)
 
-          {:error, reason} ->
-            # Could also fail at start - that's acceptable
-            assert reason != :no_auth_config
-        end
-      after
-        # Restore original config
-        if original_config do
-          Application.put_env(:gemini_ex, :auth, original_config)
-        else
-          Application.delete_env(:gemini_ex, :auth)
-        end
-      end
+      assert log == "" or String.contains?(log, "not found")
     end
 
     test "stops streams cleanly" do
@@ -495,18 +500,23 @@ defmodule Gemini.StreamingIntegrationTest do
           contents = "Hello"
           opts = [model: "invalid-model-name"]
 
-          case UnifiedManager.start_stream(contents, opts, self()) do
-            {:ok, stream_id} ->
-              events = collect_stream_events(stream_id, 5_000)
+          log =
+            capture_log(fn ->
+              case UnifiedManager.start_stream(contents, opts, self()) do
+                {:ok, stream_id} ->
+                  events = collect_stream_events(stream_id, 5_000)
 
-              # Should get an error event
-              error_events = Enum.filter(events, &(&1.type == :error))
-              assert length(error_events) > 0
+                  # Should get an error event
+                  error_events = Enum.filter(events, &(&1.type == :error))
+                  assert length(error_events) > 0
 
-            {:error, _reason} ->
-              # Also acceptable - error caught at start
-              :ok
-          end
+                {:error, _reason} ->
+                  # Also acceptable - error caught at start
+                  :ok
+              end
+            end)
+
+          assert log == "" or String.contains?(log, "not found")
       end
     end
   end

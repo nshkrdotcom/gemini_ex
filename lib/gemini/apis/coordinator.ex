@@ -43,6 +43,7 @@ defmodule Gemini.APIs.Coordinator do
   alias Gemini.Types.Response.{InlinedEmbedContentResponses, ContentEmbedding}
   alias Gemini.Types.Content
   alias Gemini.Types.ToolSerialization
+  alias Gemini.Types.{FileData, FunctionResponse, MediaResolution, Modality, SpeechConfig}
 
   @type auth_strategy :: :gemini | :vertex_ai
   @type request_opts :: keyword()
@@ -757,40 +758,12 @@ defmodule Gemini.APIs.Coordinator do
   end
 
   @doc false
-  @spec convert_to_camel_case(atom()) :: String.t()
-  defp convert_to_camel_case(atom_key) when is_atom(atom_key) do
-    atom_key
-    |> Atom.to_string()
-    |> String.split("_")
-    |> case do
-      [first | rest] ->
-        first <> Enum.map_join(rest, "", &String.capitalize/1)
-
-      [] ->
-        ""
-    end
-  end
-
-  @doc false
   @spec struct_to_api_map(Gemini.Types.GenerationConfig.t()) :: map()
   defp struct_to_api_map(%Gemini.Types.GenerationConfig{} = config) do
     config
     |> Map.from_struct()
-    |> Enum.reduce(%{}, fn {key, value}, acc ->
-      camel_key = convert_to_camel_case(key)
-      Map.put(acc, camel_key, value)
-    end)
-    |> filter_nil_values()
-  end
-
-  @doc false
-  @spec filter_nil_values(map()) :: map()
-  defp filter_nil_values(map) when is_map(map) do
-    map
-    |> Enum.reject(fn {_key, value} ->
-      is_nil(value) or (is_list(value) and value == [])
-    end)
-    |> Enum.into(%{})
+    |> Map.to_list()
+    |> build_generation_config()
   end
 
   @spec build_generate_request(
@@ -901,6 +874,15 @@ defmodule Gemini.APIs.Coordinator do
 
   @doc false
   def __test_format_part__(part), do: format_part(part)
+
+  @doc false
+  def __test_build_generation_config__(opts), do: build_generation_config(opts)
+
+  @doc false
+  def __test_struct_to_api_map__(config), do: struct_to_api_map(config)
+
+  @doc false
+  def __test_parse_generate_response__(response), do: parse_generate_response(response)
 
   # Already a Content struct - pass through
   defp normalize_single_content(%Content{} = content), do: content
@@ -1014,6 +996,20 @@ defmodule Gemini.APIs.Coordinator do
         base
       end
 
+    base =
+      if part.file_data do
+        Map.put(base, :fileData, FileData.to_api(part.file_data))
+      else
+        base
+      end
+
+    base =
+      if part.function_response do
+        Map.put(base, :functionResponse, FunctionResponse.to_api(part.function_response))
+      else
+        base
+      end
+
     # Include thought_signature for Gemini 3 context preservation
     base =
       if part.thought_signature do
@@ -1024,17 +1020,16 @@ defmodule Gemini.APIs.Coordinator do
 
     # Include media_resolution for Gemini 3 vision processing
     base =
-      if part.media_resolution && part.media_resolution.level do
-        level_str =
-          case part.media_resolution.level do
-            :media_resolution_low -> "MEDIA_RESOLUTION_LOW"
-            :media_resolution_medium -> "MEDIA_RESOLUTION_MEDIUM"
-            :media_resolution_high -> "MEDIA_RESOLUTION_HIGH"
-          end
+      case media_resolution_to_api(part.media_resolution) do
+        nil -> base
+        level_str -> Map.put(base, :mediaResolution, level_str)
+      end
 
-        Map.put(base, :mediaResolution, level_str)
-      else
+    base =
+      if is_nil(part.thought) do
         base
+      else
+        Map.put(base, :thought, part.thought)
       end
 
     base
@@ -1056,6 +1051,19 @@ defmodule Gemini.APIs.Coordinator do
   end
 
   defp format_part(part), do: part
+
+  defp media_resolution_to_api(%Gemini.Types.Part.MediaResolution{level: level}),
+    do: media_resolution_to_api(level)
+
+  defp media_resolution_to_api(value) when is_atom(value), do: MediaResolution.to_api(value)
+
+  defp media_resolution_to_api(value) when is_binary(value) do
+    value
+    |> MediaResolution.from_api()
+    |> MediaResolution.to_api()
+  end
+
+  defp media_resolution_to_api(_), do: nil
 
   # Tools serialization helpers
   defp maybe_put_tools(map, opts) do
@@ -1238,6 +1246,48 @@ defmodule Gemini.APIs.Coordinator do
       {:logprobs, logprobs}, acc when is_integer(logprobs) ->
         Map.put(acc, :logprobs, logprobs)
 
+      {:seed, seed}, acc when is_integer(seed) ->
+        Map.put(acc, :seed, seed)
+
+      {:response_modalities, modalities}, acc when is_list(modalities) ->
+        api_modalities =
+          modalities
+          |> Enum.map(&Modality.to_api/1)
+          |> Enum.reject(&is_nil/1)
+
+        if api_modalities == [] do
+          acc
+        else
+          Map.put(acc, :responseModalities, api_modalities)
+        end
+
+      {:speech_config, %SpeechConfig{} = speech_config}, acc ->
+        api_speech = SpeechConfig.to_api(speech_config)
+
+        if api_speech && map_size(api_speech) > 0 do
+          Map.put(acc, "speechConfig", api_speech)
+        else
+          acc
+        end
+
+      {:speech_config, speech_config}, acc when is_map(speech_config) ->
+        api_speech =
+          speech_config
+          |> SpeechConfig.from_api()
+          |> SpeechConfig.to_api()
+
+        if api_speech && map_size(api_speech) > 0 do
+          Map.put(acc, "speechConfig", api_speech)
+        else
+          acc
+        end
+
+      {:media_resolution, resolution}, acc ->
+        case media_resolution_to_api(resolution) do
+          nil -> acc
+          api_value -> Map.put(acc, :mediaResolution, api_value)
+        end
+
       # Property ordering for Gemini 2.0 models (structured outputs)
       {:property_ordering, ordering}, acc when is_list(ordering) and ordering != [] ->
         Map.put(acc, :propertyOrdering, ordering)
@@ -1288,10 +1338,10 @@ defmodule Gemini.APIs.Coordinator do
   defp build_count_tokens_request(_, _), do: {:error, "Invalid input type"}
 
   @spec parse_generate_response(map()) :: {:ok, GenerateContentResponse.t()} | {:error, term()}
+  defp parse_generate_response(%GenerateContentResponse{} = response), do: {:ok, response}
+
   defp parse_generate_response(response) when is_map(response) do
-    # Convert string keys to atom keys for struct creation
-    atomized_response = atomize_keys(response)
-    {:ok, struct(GenerateContentResponse, atomized_response)}
+    {:ok, GenerateContentResponse.from_api(response)}
   end
 
   @spec parse_models_response(map()) :: {:ok, ListModelsResponse.t()} | {:error, term()}
