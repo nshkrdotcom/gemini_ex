@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1] - 2025-12-06
+
+### Changed
+- Updated README to reference v0.8.1 and generalize v0.8.x feature callouts.
+
 ## [0.8.0] - 2025-12-06
 
 ### 🎉 Major Feature Release: Complete API Parity with Python SDK

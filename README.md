@@ -17,17 +17,22 @@ A comprehensive Elixir client for Google's Gemini AI API with dual authenticatio
 
 - **Automatic Tool Calling**: A seamless, Python-SDK-like experience that automates the entire multi-turn tool-calling loop
 - **Dual Authentication**: Seamless support for both Gemini API keys and Vertex AI OAuth/Service Accounts
+- **Application Default Credentials (ADC)**: Zero-config GCP auth with automatic discovery and token refresh (NEW in v0.8.x!)
 - **Advanced Streaming**: Production-grade Server-Sent Events streaming with real-time processing
+- **Live API (WebSocket)**: Bidirectional, low-latency sessions with real-time input/output (NEW in v0.8.x!)
 - **Automatic Rate Limiting**: Built-in rate limit handling with retries, concurrency gating, and adaptive backoff
 - **Files API**: Upload, manage, and use files with Gemini models for multimodal content (NEW in v0.7.0!)
+- **File Search Stores**: RAG store creation, ingestion, and semantic search (NEW in v0.8.x!)
+- **Documents API**: Manage indexed documents inside stores for RAG workflows (NEW in v0.7.0!)
 - **Batches API**: Submit large numbers of requests with 50% cost savings (NEW in v0.7.0!)
 - **Operations API**: Track long-running operations like video generation (NEW in v0.7.0!)
-- **Documents API**: RAG document management for semantic search (NEW in v0.7.0!)
+- **Tunings (Fine-Tuning)**: Create, monitor, and manage tuned models (NEW in v0.8.x!)
+- **Image & Video Generation**: Imagen/Veo APIs for text-to-image, editing, upscaling, and video generation (NEW in v0.8.x!)
 - **Embeddings with MRL**: Text embeddings with Matryoshka Representation Learning, normalization, and distance metrics
 - **Async Batch Embeddings**: Production-scale embedding generation with 50% cost savings
 - **Type Safety**: Complete type definitions with runtime validation
 - **Built-in Telemetry**: Comprehensive observability and metrics out of the box
-- **Chat Sessions**: Multi-turn conversation management with state persistence
+- **Chat Sessions & System Instructions**: Multi-turn conversation management with persistent guardrails
 - **Flexible Multimodal Input**: Intuitive formats for images/text with automatic MIME detection
 - **Thinking Budget Control**: Optimize costs by controlling thinking token usage
 - **Gemini 3 Support**: `thinking_level`, image generation, media resolution, thought signatures (NEW in v0.5.x!)
@@ -51,7 +56,7 @@ Add `gemini` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:gemini_ex, "~> 0.8.0"}
+    {:gemini_ex, "~> 0.8.1"}
   ]
 end
 ```
@@ -105,6 +110,20 @@ IO.puts(text)
 ])
 ```
 
+### System Instructions
+
+Set persistent guardrails that apply across an entire call or chat session without bloating your message history:
+
+```elixir
+{:ok, response} =
+  Gemini.generate("List three tips for interviewing junior engineers",
+    system_instruction: "Be concise, avoid markdown, and keep answers under 40 words."
+  )
+
+{:ok, text} = Gemini.extract_text(response)
+# Works the same with `Gemini.create_chat_session/1` and streaming calls via the `system_instruction:` option.
+```
+
 ### Simple Tool Calling
 
 ```elixir
@@ -155,6 +174,44 @@ Gemini.Streaming.stop_stream(stream_id)
 ```
 
 Streaming knobs: pass `timeout:` (per attempt, default `config :gemini_ex, :timeout` = 120_000), `max_retries:` (default 3), `max_backoff_ms:` (default 10_000), and `connect_timeout:` (default 5_000). Manager cleanup delay can be tuned via `config :gemini_ex, :streaming, cleanup_delay_ms: ...`.
+
+### Live API (WebSocket) (New in v0.8.x!)
+
+Bidirectional, low-latency sessions for voice, multimodal, and interactive apps.
+
+```elixir
+alias Gemini.Live.Session
+
+{:ok, pid} =
+  Session.start_link(
+    model: "gemini-2.0-flash-exp",
+    auth: :vertex_ai,
+    on_message: fn msg -> IO.inspect(msg, label: "live message") end,
+    on_error: fn err -> IO.inspect(err, label: "live error") end
+  )
+
+:ok = Session.connect(pid)
+
+# Send text turns or structured client content
+:ok = Session.send(pid, "Streamed hello from Elixir")
+:ok = Session.send_client_content(pid, [%{role: "user", parts: [%{text: "Add a title"}]}])
+
+# Stream real-time inputs (audio/video chunks) and tool responses
+:ok =
+  Session.send_realtime_input(pid, [
+    %{data: audio_chunk, mime_type: "audio/pcm"}
+  ])
+
+:ok =
+  Session.send_tool_response(pid, [
+    %{name: "get_weather", response: %{temperature: 72, condition: "sunny"}}
+  ])
+
+# Close when finished
+:ok = Session.close(pid)
+```
+
+Features: connection lifecycle management, automatic message parsing/building, backpressure-aware streaming, and unified telemetry. Available on Vertex AI models that expose the Live API—call `connect/1` after `start_link/1` to open the WebSocket.
 
 ### Rate Limiting & Concurrency (built-in)
 
@@ -329,6 +386,57 @@ alias Gemini.Types.File
 
 See [Files API Guide](docs/guides/files.md) for complete documentation.
 
+## File Search Stores (New in v0.8.x!)
+
+Create semantic search stores for RAG and ground model responses with your own data (Vertex AI only).
+
+```elixir
+alias Gemini.APIs.FileSearchStores
+alias Gemini.Types.CreateFileSearchStoreConfig
+
+# Create and activate a store
+config = %CreateFileSearchStoreConfig{display_name: "Support KB"}
+{:ok, store} = FileSearchStores.create(config, auth: :vertex_ai)
+{:ok, active_store} = FileSearchStores.wait_for_active(store.name)
+
+# Upload documents directly to the store and wait for indexing
+{:ok, doc} =
+  FileSearchStores.upload_to_store(active_store.name, "docs/faq.pdf",
+    display_name: "Support FAQ",
+    auth: :vertex_ai
+  )
+
+{:ok, _} = FileSearchStores.wait_for_document(doc.name, auth: :vertex_ai)
+
+# Use the store to ground a generation request
+{:ok, response} =
+  Gemini.generate_content(
+    "What is the warranty policy for the Pro model?",
+    tools: [%{file_search_stores: [active_store.name]}],
+    auth: :vertex_ai
+  )
+```
+
+Key features: automatic chunking/indexing, upload/import existing Files API uploads or GCS URIs, list/delete stores, and helpers to wait for readiness.
+
+## Documents API (New in v0.7.0!)
+
+Manage the documents inside your File Search Stores.
+
+```elixir
+alias Gemini.APIs.Documents
+
+# List and inspect documents
+{:ok, page} = Documents.list("ragStores/support-kb", auth: :vertex_ai)
+{:ok, doc} = Documents.get("ragStores/support-kb/documents/doc123", auth: :vertex_ai)
+
+# Wait for processing and clean up
+{:ok, ready_doc} = Documents.wait_for_processing(doc.name, on_status: &IO.inspect/1, auth: :vertex_ai)
+:ok = Documents.delete(ready_doc.name, auth: :vertex_ai)
+```
+
+List helpers (`list_all/2`) collapse pagination, and wait helpers make it easy to block until documents are indexed.
+
 ## Batches API (New in v0.7.0!)
 
 Submit large batches of requests with 50% cost savings. Ideal for bulk processing, overnight jobs, and high-volume workloads.
@@ -405,6 +513,31 @@ end
 - Comprehensive state helpers
 
 See [Operations API Guide](docs/guides/operations.md) for complete documentation.
+
+## Tunings API (New in v0.8.x!)
+
+Fine-tune base models with supervised datasets (Vertex AI).
+
+```elixir
+alias Gemini.APIs.Tunings
+alias Gemini.Types.Tuning.CreateTuningJobConfig
+
+config = %CreateTuningJobConfig{
+  base_model: "gemini-2.5-flash-001",
+  tuned_model_display_name: "support-bot",
+  training_dataset_uri: "gs://bucket/train.jsonl",
+  validation_dataset_uri: "gs://bucket/val.jsonl",
+  epoch_count: 3,
+  learning_rate_multiplier: 1.0,
+  adapter_size: "x1"
+}
+
+{:ok, job} = Tunings.tune(config, auth: :vertex_ai)
+{:ok, completed} = Tunings.wait_for_completion(job.name, auth: :vertex_ai)
+IO.puts("Tuned model: #{completed.tuned_model}")
+```
+
+You also get `list/1`, `list_all/1`, `get/2`, and `cancel/2` helpers plus polling and progress callbacks.
 
 ### Multi-turn Conversations
 
@@ -1036,6 +1169,21 @@ config :gemini_ex, :auth,
   }
 ```
 
+### Application Default Credentials (ADC)
+
+Zero-config GCP authentication with automatic credential discovery and token refresh.
+
+```elixir
+# Works on GCE/Cloud Run/GKE with no extra setup
+{:ok, response} = Gemini.generate("Hello from Vertex AI", auth: :vertex_ai)
+
+# Or point to a service account key
+export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service_account.json"
+{:ok, response} = Gemini.generate("Hello", auth: :vertex_ai)
+```
+
+The client checks `GOOGLE_APPLICATION_CREDENTIALS`, gcloud user credentials, and metadata server endpoints, caching access tokens for you via ETS.
+
 ## Model Configuration System
 
 The library includes an intelligent model registry that handles the differences between Gemini API (AI Studio) and Vertex AI.
@@ -1124,6 +1272,20 @@ Gemini.embed_content("Text", model: "gemini-embedding-001")
 - **[Architecture Guide](https://hexdocs.pm/gemini_ex/architecture.html)** - System design and components
 - **[Authentication System](https://hexdocs.pm/gemini_ex/authentication_system.html)** - Detailed auth configuration
 - **[Examples](https://github.com/nshkrdotcom/gemini_ex/tree/main/examples)** - Working code examples
+- **Guides (docs/guides/...)**:
+  - `adc.md` - Application Default Credentials
+  - `batches.md` - Batches API
+  - `file_search_stores.md` - RAG stores and document ingestion
+  - `files.md` - Files API
+  - `function_calling.md` - Tool/function calling patterns
+  - `image_generation.md` - Imagen text-to-image/edit/upscale
+  - `live_api.md` - WebSocket Live API
+  - `operations.md` - Long-running operations and polling
+  - `rate_limiting.md` - Limiter configuration and tuning
+  - `structured_outputs.md` - JSON schema and property ordering
+  - `system_instructions.md` - Persistent guardrails
+  - `tunings.md` - Fine-tuning jobs
+  - `video_generation.md` - Veo text-to-video
 
 ## Architecture
 
@@ -1224,7 +1386,69 @@ content = [
 
 **Supported image formats:** PNG, JPEG, GIF, WebP (auto-detected from magic bytes)
 
-### Image Generation (Gemini 3)
+### Image Generation API (Imagen, New in v0.8.x!)
+
+Use the dedicated Imagen endpoints for text-to-image, editing, and upscaling (Vertex AI).
+
+```elixir
+alias Gemini.APIs.Images
+alias Gemini.Types.Generation.Image.{ImageGenerationConfig, EditImageConfig, UpscaleImageConfig}
+
+# Text-to-image
+{:ok, images} =
+  Images.generate(
+    "An isometric illustration of a futuristic Elixir server farm",
+    %ImageGenerationConfig{
+      number_of_images: 2,
+      aspect_ratio: "16:9",
+      safety_filter_level: :standard
+    },
+    auth: :vertex_ai
+  )
+
+# Inpainting / editing with masks
+{:ok, edited} =
+  Images.edit(
+    "Remove the logos and brighten the lighting",
+    File.read!("assets/sample.png"),
+    File.read!("assets/mask.png"),
+    %EditImageConfig{edit_mode: :inpainting},
+    auth: :vertex_ai
+  )
+
+# Upscale existing images (2x or 4x)
+{:ok, sharp} =
+  Images.upscale(
+    File.read!("assets/sample.png"),
+    %UpscaleImageConfig{upscale_factor: :x4},
+    auth: :vertex_ai
+  )
+```
+
+The API returns base64 image data plus metadata; you can also pull from GCS/HTTP URIs and control person_generation, safety filters, and aspect ratios.
+
+### Video Generation API (Veo, New in v0.8.x!)
+
+Generate short-form videos with Veo via Vertex AI.
+
+```elixir
+alias Gemini.APIs.Videos
+alias Gemini.Types.Generation.Video.VideoGenerationConfig
+
+{:ok, op} =
+  Videos.generate(
+    "A cinematic drone shot over misty mountains at sunrise",
+    %VideoGenerationConfig{duration_seconds: 6, aspect_ratio: "16:9"},
+    auth: :vertex_ai
+  )
+
+{:ok, completed} = Videos.wait_for_completion(op.name, auth: :vertex_ai)
+IO.inspect(completed.response)
+```
+
+Use `get_operation/2` or `list_operations/1` to poll or enumerate jobs, and `cancel/2` to stop a run mid-flight.
+
+### Inline Image Generation (Gemini 3 models)
 
 Generate images with aspect ratio and resolution control:
 
