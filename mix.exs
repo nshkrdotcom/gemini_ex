@@ -1,7 +1,7 @@
 defmodule Gemini.MixProject do
   use Mix.Project
 
-  @version "0.6.4"
+  @version "0.7.0"
   @source_url "https://github.com/nshkrdotcom/gemini_ex"
 
   def project do
@@ -90,6 +90,9 @@ defmodule Gemini.MixProject do
         "examples/ASYNC_BATCH_EMBEDDINGS.md",
         "docs/guides/structured_outputs.md",
         "docs/guides/rate_limiting.md",
+        "docs/guides/files.md",
+        "docs/guides/batches.md",
+        "docs/guides/operations.md",
         "CHANGELOG.md"
       ],
       groups_for_extras: [
@@ -99,7 +102,10 @@ defmodule Gemini.MixProject do
           "examples/EMBEDDINGS.md",
           "examples/ASYNC_BATCH_EMBEDDINGS.md",
           "docs/guides/structured_outputs.md",
-          "docs/guides/rate_limiting.md"
+          "docs/guides/rate_limiting.md",
+          "docs/guides/files.md",
+          "docs/guides/batches.md",
+          "docs/guides/operations.md"
         ],
         Architecture: [
           "ARCHITECTURE.md",

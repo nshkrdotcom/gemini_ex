@@ -18,7 +18,11 @@ A comprehensive Elixir client for Google's Gemini AI API with dual authenticatio
 - **Automatic Tool Calling**: A seamless, Python-SDK-like experience that automates the entire multi-turn tool-calling loop
 - **Dual Authentication**: Seamless support for both Gemini API keys and Vertex AI OAuth/Service Accounts
 - **Advanced Streaming**: Production-grade Server-Sent Events streaming with real-time processing
-- **Automatic Rate Limiting**: Built-in rate limit handling with retries, concurrency gating, and adaptive backoff (NEW in v0.5.x!)
+- **Automatic Rate Limiting**: Built-in rate limit handling with retries, concurrency gating, and adaptive backoff
+- **Files API**: Upload, manage, and use files with Gemini models for multimodal content (NEW in v0.7.0!)
+- **Batches API**: Submit large numbers of requests with 50% cost savings (NEW in v0.7.0!)
+- **Operations API**: Track long-running operations like video generation (NEW in v0.7.0!)
+- **Documents API**: RAG document management for semantic search (NEW in v0.7.0!)
 - **Embeddings with MRL**: Text embeddings with Matryoshka Representation Learning, normalization, and distance metrics
 - **Async Batch Embeddings**: Production-scale embedding generation with 50% cost savings
 - **Type Safety**: Complete type definitions with runtime validation
@@ -47,7 +51,7 @@ Add `gemini` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:gemini_ex, "~> 0.6.4"}
+    {:gemini_ex, "~> 0.7.0"}
   ]
 end
 ```
@@ -285,6 +289,118 @@ alias Gemini.Types.Content
 - `gemini-3-pro-preview`
 
 You can list, get, update TTL, and delete caches via the top-level `Gemini.*cache*` helpers or `Gemini.APIs.ContextCache.*`. Vertex AI names are auto-expanded when `auth: :vertex_ai` or configured credentials are present.
+
+## Files API (New in v0.7.0!)
+
+Upload and manage files for use with Gemini models. Perfect for multimodal content generation with images, videos, audio, and documents.
+
+```elixir
+alias Gemini.APIs.Files
+alias Gemini.Types.File
+
+# Upload a file
+{:ok, file} = Files.upload("path/to/image.png")
+
+# Wait for processing (videos/large files)
+{:ok, ready} = Files.wait_for_processing(file.name)
+
+# Use in content generation
+{:ok, response} = Gemini.generate([
+  "What's in this image?",
+  %{file_uri: ready.uri, mime_type: ready.mime_type}
+])
+
+# List all files
+{:ok, files} = Files.list_all()
+
+# Clean up
+:ok = Files.delete(file.name)
+```
+
+**Key Features:**
+- Resumable uploads with progress tracking
+- Support for images, videos, audio, and documents
+- Automatic MIME type detection
+- 48-hour file expiration
+
+See [Files API Guide](docs/guides/files.md) for complete documentation.
+
+## Batches API (New in v0.7.0!)
+
+Submit large batches of requests with 50% cost savings. Ideal for bulk processing, overnight jobs, and high-volume workloads.
+
+```elixir
+alias Gemini.APIs.{Files, Batches}
+alias Gemini.Types.BatchJob
+
+# 1. Upload input file (JSONL format)
+{:ok, input} = Files.upload("requests.jsonl")
+
+# 2. Create batch job
+{:ok, batch} = Batches.create("gemini-2.0-flash",
+  file_name: input.name,
+  display_name: "My Batch"
+)
+
+# 3. Wait for completion with progress
+{:ok, completed} = Batches.wait(batch.name,
+  on_progress: fn b ->
+    if progress = BatchJob.get_progress(b) do
+      IO.puts("Progress: #{Float.round(progress, 1)}%")
+    end
+  end
+)
+
+# 4. Check results
+if BatchJob.succeeded?(completed) do
+  IO.puts("Completed #{completed.completion_stats.success_count} requests")
+end
+```
+
+**Key Features:**
+- 50% cost savings vs interactive API
+- File-based or inline request input
+- GCS and BigQuery integration (Vertex AI)
+- Comprehensive job management
+
+See [Batches API Guide](docs/guides/batches.md) for complete documentation.
+
+## Operations API (New in v0.7.0!)
+
+Track and manage long-running operations like video generation, file imports, and model tuning.
+
+```elixir
+alias Gemini.APIs.Operations
+alias Gemini.Types.Operation
+
+# Check operation status
+{:ok, op} = Operations.get("operations/abc123")
+IO.puts("Done: #{op.done}")
+
+# Wait for completion with exponential backoff
+{:ok, completed} = Operations.wait_with_backoff("operations/abc123",
+  initial_delay: 1_000,
+  max_delay: 60_000,
+  timeout: 3_600_000,
+  on_progress: fn op ->
+    if progress = Operation.get_progress(op) do
+      IO.puts("Progress: #{progress}%")
+    end
+  end
+)
+
+if Operation.succeeded?(completed) do
+  IO.inspect(completed.response)
+end
+```
+
+**Key Features:**
+- Simple and exponential backoff polling
+- Progress tracking callbacks
+- Cancel and delete operations
+- Comprehensive state helpers
+
+See [Operations API Guide](docs/guides/operations.md) for complete documentation.
 
 ### Multi-turn Conversations
 

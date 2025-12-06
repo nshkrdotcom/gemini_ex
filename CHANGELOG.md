@@ -5,6 +5,129 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2025-12-05
+
+### 🎉 Major Feature Release: Complete API Parity
+
+This release brings the Elixir client to near-complete feature parity with the Python google-genai SDK, adding comprehensive support for Files, Batches, Operations, and Documents APIs.
+
+### Added
+
+#### 📁 Files API - Complete File Management
+- **`Gemini.APIs.Files.upload/2`**: Upload files with resumable protocol, progress tracking, and automatic MIME detection
+- **`Gemini.APIs.Files.upload_data/2`**: Upload binary data directly (requires `mime_type` option)
+- **`Gemini.APIs.Files.get/2`**: Retrieve file metadata by name
+- **`Gemini.APIs.Files.list/1`**: List files with pagination support
+- **`Gemini.APIs.Files.list_all/1`**: Automatically paginate through all files
+- **`Gemini.APIs.Files.delete/2`**: Delete uploaded files
+- **`Gemini.APIs.Files.wait_for_processing/2`**: Poll until file is ready for use
+- **`Gemini.APIs.Files.download/2`**: Download generated file content
+
+#### 📦 Batches API - Bulk Processing with 50% Cost Savings
+- **`Gemini.APIs.Batches.create/2`**: Create batch content generation jobs
+- **`Gemini.APIs.Batches.create_embeddings/2`**: Create batch embedding jobs
+- **`Gemini.APIs.Batches.get/2`**: Get batch job status
+- **`Gemini.APIs.Batches.list/1`**: List batch jobs with pagination
+- **`Gemini.APIs.Batches.list_all/1`**: List all batch jobs
+- **`Gemini.APIs.Batches.cancel/2`**: Cancel running batch jobs
+- **`Gemini.APIs.Batches.delete/2`**: Delete batch jobs
+- **`Gemini.APIs.Batches.wait/2`**: Wait for batch completion with progress callback
+- **`Gemini.APIs.Batches.get_responses/1`**: Extract inlined responses from completed batches
+- Support for file-based, inlined, GCS, and BigQuery input sources
+
+#### ⏱️ Operations API - Long-Running Task Management
+- **`Gemini.APIs.Operations.get/2`**: Get operation status
+- **`Gemini.APIs.Operations.list/1`**: List operations with pagination
+- **`Gemini.APIs.Operations.list_all/1`**: List all operations
+- **`Gemini.APIs.Operations.cancel/2`**: Cancel running operations
+- **`Gemini.APIs.Operations.delete/2`**: Delete completed operations
+- **`Gemini.APIs.Operations.wait/2`**: Wait with configurable polling
+- **`Gemini.APIs.Operations.wait_with_backoff/2`**: Wait with exponential backoff
+
+#### 📄 Documents API - RAG Store Document Management
+- **`Gemini.APIs.Documents.get/2`**: Get document metadata
+- **`Gemini.APIs.Documents.list/2`**: List documents in a RAG store
+- **`Gemini.APIs.Documents.list_all/2`**: List all documents
+- **`Gemini.APIs.Documents.delete/2`**: Delete documents
+- **`Gemini.APIs.Documents.wait_for_processing/2`**: Wait for document processing
+- **`Gemini.APIs.RagStores.get/2`**: Get RAG store metadata
+- **`Gemini.APIs.RagStores.list/1`**: List RAG stores
+- **`Gemini.APIs.RagStores.create/1`**: Create new RAG stores
+- **`Gemini.APIs.RagStores.delete/2`**: Delete RAG stores
+
+#### 🏷️ Enhanced Enum Types - Comprehensive Type Safety
+New enum modules in `Gemini.Types.Enums` with `to_api/1` and `from_api/1` converters:
+- `HarmCategory` - 12 harm category values
+- `HarmBlockThreshold` - 6 threshold levels
+- `HarmProbability` - 5 probability levels
+- `BlockedReason` - 7 block reasons
+- `FinishReason` - 12 finish reasons
+- `TaskType` - 9 embedding task types
+- `FunctionCallingMode` - 3 function calling modes
+- `DynamicRetrievalMode` - 3 retrieval modes
+- `ThinkingLevel` - 3 thinking budget levels
+- `CodeExecutionOutcome` - 4 execution outcomes
+- `ExecutableCodeLanguage` - 2 code languages
+- `GroundingAttributionConfidence` - 4 confidence levels
+- `AspectRatio` - 4 image aspect ratios
+- `ImageSize` - 3 image size options
+- `VoiceName` - 6 voice options for TTS
+
+#### 📖 New Documentation Guides
+- `docs/guides/files.md` - Complete Files API guide
+- `docs/guides/batches.md` - Batch processing guide
+- `docs/guides/operations.md` - Long-running operations guide
+
+### Technical Implementation
+
+#### 🏛️ Architecture
+- Resumable upload protocol with 8MB chunks and automatic retry
+- Consistent polling patterns with configurable timeouts and progress callbacks
+- TypedStruct patterns with `@derive Jason.Encoder` for all new types
+- Full multi-auth support (`:gemini` and `:vertex_ai`) across all new APIs
+
+#### 🧪 Testing
+- 94 new tests for Files, Operations, Batches, and Documents APIs
+- Unit tests for all type parsing and helper functions
+- Live API test infrastructure for integration testing
+- Test fixtures for file uploads
+
+#### 📈 Quality
+- Zero compilation warnings
+- Complete `@spec` annotations for all public functions
+- Comprehensive `@moduledoc` and `@doc` documentation
+- Follows CODE_QUALITY.md standards
+
+### Changed
+- Updated README.md with new API sections and examples
+- Version bump from 0.6.4 to 0.7.0
+
+### Migration Notes
+
+#### For Existing Users
+All changes are additive - existing code continues to work unchanged. New APIs are available immediately:
+
+```elixir
+# Upload and use a file
+{:ok, file} = Gemini.APIs.Files.upload("image.png")
+{:ok, ready} = Gemini.APIs.Files.wait_for_processing(file.name)
+{:ok, response} = Gemini.generate([
+  "Describe this image",
+  %{file_uri: ready.uri, mime_type: ready.mime_type}
+])
+
+# Create a batch job
+{:ok, batch} = Gemini.APIs.Batches.create("gemini-2.0-flash",
+  file_name: "files/input123",
+  display_name: "My Batch"
+)
+{:ok, completed} = Gemini.APIs.Batches.wait(batch.name)
+
+# Track long-running operations
+{:ok, op} = Gemini.APIs.Operations.get("operations/abc123")
+{:ok, completed} = Gemini.APIs.Operations.wait_with_backoff(op.name)
+```
+
 ## [0.6.4] - 2025-12-05
 
 ### Added
@@ -1221,6 +1344,10 @@ config :gemini_ex,
 - Minimal latency overhead
 - Concurrent request processing
 
+[0.7.0]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.7.0
+[0.6.4]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.6.4
+[0.6.3]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.6.3
+[0.6.2]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.6.2
 [0.6.1]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.6.1
 [0.6.0]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.6.0
 [0.5.2]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.5.2
