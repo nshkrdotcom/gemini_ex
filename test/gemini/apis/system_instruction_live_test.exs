@@ -15,6 +15,7 @@ defmodule Gemini.APIs.SystemInstructionLiveTest do
   use ExUnit.Case, async: false
 
   @moduletag :live_api
+  @moduletag timeout: 120_000
 
   alias Gemini.APIs.Coordinator
 
@@ -121,6 +122,7 @@ defmodule Gemini.APIs.SystemInstructionLiveTest do
   end
 
   describe "output constraints" do
+    @tag timeout: 120_000
     test "system instruction limits response length" do
       {:ok, response} =
         Coordinator.generate_content(

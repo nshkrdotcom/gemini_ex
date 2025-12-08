@@ -42,7 +42,6 @@ defmodule Gemini.Types.FunctionResponse do
     %{
       "name" => data.name,
       "response" => data.response,
-      "id" => data.id,
       "willContinue" => data.will_continue,
       "scheduling" => scheduling_to_api(data.scheduling)
     }

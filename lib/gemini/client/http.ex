@@ -324,23 +324,20 @@ defmodule Gemini.Client.HTTP do
 
   defp extract_model_from_path(path) do
     # Extract model from paths like "models/gemini-2.0-flash:generateContent"
-    case String.split(path, ":") do
-      [model_path, _endpoint] ->
-        model_path |> String.replace_prefix("models/", "") |> String.trim_leading("/")
+    [model_path | _rest] = String.split(path, ":")
 
-      _ ->
-        # fallback
-        Config.default_model()
-    end
+    model_path
+    |> String.replace_prefix("models/", "")
+    |> String.trim_leading("/")
   end
 
   defp extract_endpoint_from_path(path) do
     # Extract endpoint from paths like "models/gemini-2.0-flash:generateContent"
-    case String.split(path, ":") do
-      [_model, endpoint] -> String.split(endpoint, "?") |> hd()
-      # fallback
-      _ -> "generateContent"
-    end
+    path
+    |> String.split(":")
+    |> List.last()
+    |> String.split("?")
+    |> hd()
   end
 
   defp handle_response({:ok, %Req.Response{status: status, body: body}})

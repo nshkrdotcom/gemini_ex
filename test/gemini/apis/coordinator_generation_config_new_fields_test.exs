@@ -34,6 +34,25 @@ defmodule Gemini.APIs.CoordinatorGenerationConfigNewFieldsTest do
                "voiceConfig" => %{"prebuiltVoiceConfig" => %{"voiceName" => "Puck"}}
              }
     end
+
+    test "includes extended image_config fields" do
+      config =
+        Coordinator.__test_build_generation_config__(
+          image_config: %{
+            aspect_ratio: "1:1",
+            image_size: "2K",
+            output_mime_type: "image/jpeg",
+            output_compression_quality: 80
+          }
+        )
+
+      assert config["imageConfig"] == %{
+               "aspectRatio" => "1:1",
+               "imageSize" => "2K",
+               "outputMimeType" => "image/jpeg",
+               "outputCompressionQuality" => 80
+             }
+    end
   end
 
   describe "__test_struct_to_api_map__/1" do
@@ -71,6 +90,28 @@ defmodule Gemini.APIs.CoordinatorGenerationConfigNewFieldsTest do
       assert speech_config == %{
                "languageCode" => "en-US",
                "voiceConfig" => %{"prebuiltVoiceConfig" => %{"voiceName" => "Aoede"}}
+             }
+    end
+
+    test "encodes extended image_config on struct" do
+      gc = %GenerationConfig{
+        image_config: %GenerationConfig.ImageConfig{
+          aspect_ratio: "1:1",
+          image_size: "4K",
+          output_mime_type: "image/png",
+          output_compression_quality: 90
+        }
+      }
+
+      result = Coordinator.__test_struct_to_api_map__(gc)
+
+      image_config = Map.get(result, "imageConfig") || Map.get(result, :imageConfig)
+
+      assert image_config == %{
+               "aspectRatio" => "1:1",
+               "imageSize" => "4K",
+               "outputMimeType" => "image/png",
+               "outputCompressionQuality" => 90
              }
     end
   end

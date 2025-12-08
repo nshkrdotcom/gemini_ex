@@ -83,8 +83,8 @@ defmodule Gemini.APIs.Coordinator do
         ) ::
           api_result(GenerateContentResponse.t())
   def generate_content(input, opts \\ []) do
-    model = Keyword.get(opts, :model, Config.default_model())
-    path = "models/#{model}:generateContent"
+    model = opts |> Keyword.get(:model, Config.default_model()) |> normalize_model_option()
+    path = "#{model}:generateContent"
 
     # ADR-0001: Estimate tokens on original input BEFORE building the request
     # This runs on supported input types (string, Content list) before normalization
@@ -143,7 +143,7 @@ defmodule Gemini.APIs.Coordinator do
   @spec stream_generate_content(String.t() | GenerateContentRequest.t(), Gemini.options()) ::
           api_result(String.t())
   def stream_generate_content(input, opts \\ []) do
-    model = Keyword.get(opts, :model, Config.default_model())
+    model = opts |> Keyword.get(:model, Config.default_model()) |> normalize_model_option()
 
     # ADR-0001: Estimate tokens on original input BEFORE building the request
     opts_with_estimation = inject_token_estimation(input, opts)
@@ -803,6 +803,46 @@ defmodule Gemini.APIs.Coordinator do
     end
   end
 
+  # Normalize and validate model strings to avoid silent fallbacks when callers
+  # pass values that already contain an endpoint suffix (e.g. "...:generateContent").
+  @doc false
+  defp normalize_model_option(model) when is_binary(model) do
+    model
+    |> strip_endpoint_suffix()
+    |> validate_model!()
+    |> ensure_model_prefix()
+  end
+
+  defp normalize_model_option(model) do
+    raise ArgumentError, "Invalid model parameter: #{inspect(model)}"
+  end
+
+  defp strip_endpoint_suffix(model) do
+    model
+    |> String.split(":", parts: 2)
+    |> hd()
+  end
+
+  defp validate_model!(model) do
+    invalid? = String.contains?(model, ["..", "?", "&"])
+
+    if invalid? do
+      raise ArgumentError, "Invalid model parameter: #{model}"
+    end
+
+    model
+  end
+
+  defp ensure_model_prefix(model) do
+    cond do
+      String.starts_with?(model, "models/") -> model
+      String.starts_with?(model, "tunedModels/") -> model
+      String.starts_with?(model, "projects/") -> model
+      String.starts_with?(model, "publishers/") -> model
+      true -> "models/#{model}"
+    end
+  end
+
   @doc false
   @spec struct_to_api_map(Gemini.Types.GenerationConfig.t()) :: map()
   defp struct_to_api_map(%Gemini.Types.GenerationConfig{} = config) do
@@ -1264,6 +1304,8 @@ defmodule Gemini.APIs.Coordinator do
     %{}
     |> maybe_put_if_not_nil("aspectRatio", config.aspect_ratio)
     |> maybe_put_if_not_nil("imageSize", config.image_size)
+    |> maybe_put_if_not_nil("outputMimeType", config.output_mime_type)
+    |> maybe_put_if_not_nil("outputCompressionQuality", config.output_compression_quality)
   end
 
   defp convert_image_config_to_api(config) when is_map(config) do
@@ -1275,11 +1317,23 @@ defmodule Gemini.APIs.Coordinator do
       {:image_size, size}, acc when is_binary(size) ->
         Map.put(acc, "imageSize", size)
 
+      {:output_mime_type, mime}, acc when is_binary(mime) ->
+        Map.put(acc, "outputMimeType", mime)
+
+      {:output_compression_quality, quality}, acc when is_integer(quality) ->
+        Map.put(acc, "outputCompressionQuality", quality)
+
       {"aspectRatio", ratio}, acc ->
         Map.put(acc, "aspectRatio", ratio)
 
       {"imageSize", size}, acc ->
         Map.put(acc, "imageSize", size)
+
+      {"outputMimeType", mime}, acc ->
+        Map.put(acc, "outputMimeType", mime)
+
+      {"outputCompressionQuality", quality}, acc ->
+        Map.put(acc, "outputCompressionQuality", quality)
 
       _, acc ->
         acc

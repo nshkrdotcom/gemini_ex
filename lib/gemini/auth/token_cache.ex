@@ -60,15 +60,31 @@ defmodule Gemini.Auth.TokenCache do
   def init do
     case :ets.whereis(@table_name) do
       :undefined ->
-        :ets.new(@table_name, [
-          :set,
-          :public,
-          :named_table,
-          read_concurrency: true,
-          write_concurrency: true
-        ])
+        # Serialize creation so concurrent callers don't crash with :already_exists
+        :global.trans({:gemini_token_cache_init, node()}, fn ->
+          case :ets.whereis(@table_name) do
+            :undefined ->
+              try do
+                :ets.new(@table_name, [
+                  :set,
+                  :public,
+                  :named_table,
+                  read_concurrency: true,
+                  write_concurrency: true
+                ])
 
-        Logger.debug("[TokenCache] Initialized token cache table")
+                Logger.debug("[TokenCache] Initialized token cache table")
+              rescue
+                ArgumentError ->
+                  # Another process created the table first
+                  :ok
+              end
+
+            _ref ->
+              :ok
+          end
+        end)
+
         :ok
 
       _ref ->

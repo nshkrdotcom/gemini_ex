@@ -54,6 +54,8 @@ defmodule Gemini.Types.GenerationConfig do
 
     - `aspect_ratio` - Output image aspect ratio (e.g., "16:9", "1:1", "4:3", "3:4", "9:16")
     - `image_size` - Output resolution ("2K" or "4K")
+    - `output_mime_type` - MIME type for the generated image (Vertex-only)
+    - `output_compression_quality` - JPEG compression quality (Vertex-only)
 
     ## Example
 
@@ -73,6 +75,8 @@ defmodule Gemini.Types.GenerationConfig do
       @typedoc "Image generation configuration"
       field(:aspect_ratio, aspect_ratio() | nil, default: nil)
       field(:image_size, image_size() | nil, default: nil)
+      field(:output_mime_type, String.t() | nil, default: nil)
+      field(:output_compression_quality, integer() | nil, default: nil)
     end
   end
 
@@ -509,7 +513,9 @@ defmodule Gemini.Types.GenerationConfig do
   def image_config(config \\ %__MODULE__{}, opts) when is_list(opts) do
     image_cfg = %ImageConfig{
       aspect_ratio: Keyword.get(opts, :aspect_ratio),
-      image_size: Keyword.get(opts, :image_size)
+      image_size: Keyword.get(opts, :image_size),
+      output_mime_type: Keyword.get(opts, :output_mime_type),
+      output_compression_quality: Keyword.get(opts, :output_compression_quality)
     }
 
     %{config | image_config: image_cfg}

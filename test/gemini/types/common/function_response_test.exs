@@ -40,7 +40,6 @@ defmodule Gemini.Types.FunctionResponseTest do
       assert FunctionResponse.to_api(struct) == %{
                "name" => "lookup",
                "response" => %{"result" => "ok"},
-               "id" => "call-1",
                "willContinue" => false,
                "scheduling" => "WHEN_IDLE"
              }

@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.2] - 2025-12-07
+
+### Fixed
+- Prevented silent model fallback and double endpoint suffixing by normalizing/validating models and using auth-aware streaming URLs.
+- Stopped double-prefixing Vertex model paths; preserved fully qualified publisher/project models.
+- Removed `id` from function_response payloads to match API contract and avoid INVALID_ARGUMENT errors.
+- Guarded live files tests to skip gracefully unless Gemini API auth is present (Files API is Gemini-only).
+
+### Added
+- Extended image_config to include Vertex-only fields (`output_mime_type`, `output_compression_quality`) and updated serialization/tests.
+- Added regression tests for model path building and live smoke test for Gemini 3 image preview (writes to gitignored `generated/`).
+
+### Changed
+- Increased system instruction live test timeout to reduce flakiness under Vertex rate limiting.
+- Improved AFC live test assertions to report errors clearly.
+
 ## [0.8.1] - 2025-12-06
 
 ### Changed
@@ -1635,6 +1651,9 @@ config :gemini_ex,
 - Minimal latency overhead
 - Concurrent request processing
 
+[0.8.2]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.8.2
+[0.8.1]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.8.1
+[0.8.0]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.8.0
 [0.7.3]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.7.3
 [0.7.2]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.7.2
 [0.7.1]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.7.1

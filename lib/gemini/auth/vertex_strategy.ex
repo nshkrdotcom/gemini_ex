@@ -172,14 +172,21 @@ defmodule Gemini.Auth.VertexStrategy do
   def build_path(model, endpoint, %{project_id: project_id, location: location}) do
     # Vertex AI uses a different path structure
     # Format: projects/{project}/locations/{location}/publishers/google/models/{model}:{endpoint}
-    normalized_model =
-      if String.starts_with?(model, "models/") do
-        String.replace_prefix(model, "models/", "")
-      else
-        model
-      end
+    cond do
+      String.starts_with?(model, "projects/") ->
+        "#{model}:#{endpoint}"
 
-    "projects/#{project_id}/locations/#{location}/publishers/google/models/#{normalized_model}:#{endpoint}"
+      String.starts_with?(model, "publishers/") ->
+        "projects/#{project_id}/locations/#{location}/#{model}:#{endpoint}"
+
+      String.starts_with?(model, "models/") ->
+        normalized_model = String.replace_prefix(model, "models/", "")
+
+        "projects/#{project_id}/locations/#{location}/publishers/google/models/#{normalized_model}:#{endpoint}"
+
+      true ->
+        "projects/#{project_id}/locations/#{location}/publishers/google/models/#{model}:#{endpoint}"
+    end
   end
 
   @impl true

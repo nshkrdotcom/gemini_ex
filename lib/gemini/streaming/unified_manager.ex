@@ -672,37 +672,30 @@ defmodule Gemini.Streaming.UnifiedManager do
     # Get credentials for URL building (we need to get them again for the URL builder)
     case MultiAuthCoordinator.get_credentials(auth_strategy, stream_state.config) do
       {:ok, credentials} ->
-        # Build the base URL using the auth strategy
-        base_url =
-          case auth_strategy do
-            :gemini ->
-              "https://generativelanguage.googleapis.com"
+        with base_url when is_binary(base_url) <-
+               Gemini.Auth.get_base_url(auth_strategy, credentials) do
+          path =
+            Gemini.Auth.build_path(
+              auth_strategy,
+              stream_state.model,
+              "streamGenerateContent",
+              credentials
+            )
 
-            :vertex_ai ->
-              project_id = Map.get(credentials, :project_id)
-              location = Map.get(credentials, :location, "us-central1")
+          url = "#{base_url}/#{path}"
 
-              "https://#{location}-aiplatform.googleapis.com/v1/projects/#{project_id}/locations/#{location}/publishers/google"
-          end
+          # Ensure content-type header is present
+          final_headers =
+            if List.keyfind(auth_headers, "Content-Type", 0) do
+              auth_headers
+            else
+              [{"Content-Type", "application/json"} | auth_headers]
+            end
 
-        # Build the streaming path
-        path =
-          case auth_strategy do
-            :gemini -> "/v1beta/models/#{stream_state.model}:streamGenerateContent"
-            :vertex_ai -> "/models/#{stream_state.model}:streamGenerateContent"
-          end
-
-        url = base_url <> path
-
-        # Ensure content-type header is present
-        final_headers =
-          if List.keyfind(auth_headers, "Content-Type", 0) do
-            auth_headers
-          else
-            [{"Content-Type", "application/json"} | auth_headers]
-          end
-
-        {:ok, url, final_headers}
+          {:ok, url, final_headers}
+        else
+          {:error, reason} -> {:error, reason}
+        end
 
       {:error, reason} ->
         {:error, reason}

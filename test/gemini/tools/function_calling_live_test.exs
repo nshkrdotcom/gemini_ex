@@ -252,7 +252,8 @@ defmodule Gemini.Tools.FunctionCallingLiveTest do
       assert length(history) >= 1, "Expected call history to have entries"
 
       # Verify the final response is not an error
-      refute match?({:error, _}, final_response)
+      refute match?({:error, _}, final_response),
+             "Final response was an error: #{inspect(final_response)}"
 
       # Verify the final response contains the answer
       {:ok, text} = Gemini.extract_text(final_response)
