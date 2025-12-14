@@ -670,6 +670,7 @@ defmodule Gemini.RateLimiterTest do
           model,
           estimated_input_tokens: 10,
           token_budget_per_window: 20,
+          window_duration_ms: 50,
           non_blocking: true
         )
 

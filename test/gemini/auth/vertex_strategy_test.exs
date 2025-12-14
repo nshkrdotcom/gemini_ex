@@ -206,8 +206,9 @@ defmodule Gemini.Auth.VertexStrategyTest do
       credentials = %{service_account_key: temp_path}
 
       # Capture log to suppress expected error output and assert on it
+      # Use level: :error to temporarily enable logging during capture (test config sets :none)
       {result, log} =
-        with_log(fn ->
+        with_log([level: :error], fn ->
           VertexStrategy.headers(credentials)
         end)
 
@@ -241,8 +242,9 @@ defmodule Gemini.Auth.VertexStrategyTest do
       credentials = %{service_account_key: temp_path}
 
       # Capture log to suppress expected error output and assert on it
+      # Use level: :error to temporarily enable logging during capture (test config sets :none)
       {result, log} =
-        with_log(fn ->
+        with_log([level: :error], fn ->
           VertexStrategy.headers(credentials)
         end)
 

@@ -595,18 +595,22 @@ defmodule Gemini do
         %{content: %{parts: parts}} ->
           parts
           |> Enum.filter(fn part ->
-            Map.has_key?(part, :function_call) and part.function_call != nil
+            fc = get_value(part, :function_call)
+            fc != nil
           end)
           |> Enum.map(fn part ->
             # Convert raw function call data to ADM FunctionCall struct
-            function_call_data = part.function_call
+            # Handle both atom and string keys from API responses
+            function_call_data = get_value(part, :function_call)
+            name = get_value(function_call_data, :name)
+            args = get_value(function_call_data, :args) || %{}
 
             {:ok, function_call} =
               Altar.ADM.new_function_call(%{
-                name: function_call_data.name,
-                args: function_call_data.args || %{},
+                name: name,
+                args: args,
                 call_id:
-                  function_call_data.name <>
+                  name <>
                     "_" <> (:crypto.strong_rand_bytes(8) |> Base.encode16(case: :lower))
               })
 
@@ -617,6 +621,11 @@ defmodule Gemini do
           []
       end
     end)
+  end
+
+  # Helper to get value from map with either atom or string key
+  defp get_value(map, key) when is_map(map) and is_atom(key) do
+    Map.get(map, key) || Map.get(map, Atom.to_string(key))
   end
 
   @doc """

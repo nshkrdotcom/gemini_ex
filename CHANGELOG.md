@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.4] - 2025-12-13
+
+### Added
+- Comprehensive examples suite: 10 numbered examples covering all major features
+  - `01_basic_generation.exs` - Simple/configured/creative vs precise generation
+  - `02_streaming.exs` - Real-time streaming with timing analysis
+  - `03_chat_session.exs` - Multi-turn conversations with context retention
+  - `04_embeddings.exs` - Single/batch embeddings, similarity, task types
+  - `05_function_calling.exs` - Tool registration and automatic execution
+  - `06_structured_outputs.exs` - JSON schema, entity extraction, classification
+  - `07_model_info.exs` - Model listing, details, comparison
+  - `08_token_counting.exs` - Token counting, code vs prose comparison
+  - `09_safety_settings.exs` - Safety categories and thresholds
+  - `10_system_instructions.exs` - Persona, formatting, domain expert instructions
+- `examples/run_all.sh` - Script to run all examples with full output
+- `examples/README.md` - Comprehensive documentation for examples
+
+### Fixed
+- Function calling now handles API responses with string keys (`"name"`, `"args"`) in addition to atom keys
+- `run_all.sh` script properly iterates through all examples (fixed `((passed++))` bash arithmetic issue)
+
 ## [0.8.3] - 2025-12-13
 
 ### Added

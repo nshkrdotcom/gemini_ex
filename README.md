@@ -19,7 +19,7 @@ A comprehensive Elixir client for Google's Gemini AI API with dual authenticatio
 - **Dual Authentication**: Seamless support for both Gemini API keys and Vertex AI OAuth/Service Accounts
 - **Application Default Credentials (ADC)**: Zero-config GCP auth with automatic discovery and token refresh (NEW in v0.8.x!)
 - **Advanced Streaming**: Production-grade Server-Sent Events streaming with real-time processing
-- **Interactions API**: Stateful interactions (CRUD), background execution, SSE streaming, and resumption (NEW in v0.8.3!)
+- **Interactions API**: Stateful interactions (CRUD), background execution, SSE streaming, and resumption
 - **Live API (WebSocket)**: Bidirectional, low-latency sessions with real-time input/output (NEW in v0.8.x!)
 - **Automatic Rate Limiting**: Built-in rate limit handling with retries, concurrency gating, and adaptive backoff
 - **Files API**: Upload, manage, and use files with Gemini models for multimodal content (NEW in v0.7.0!)
@@ -57,7 +57,7 @@ Add `gemini` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:gemini_ex, "~> 0.8.3"}
+    {:gemini_ex, "~> 0.8.4"}
   ]
 end
 ```
@@ -176,7 +176,7 @@ Gemini.Streaming.stop_stream(stream_id)
 
 Streaming knobs: pass `timeout:` (per attempt, default `config :gemini_ex, :timeout` = 120_000), `max_retries:` (default 3), `max_backoff_ms:` (default 10_000), and `connect_timeout:` (default 5_000). Manager cleanup delay can be tuned via `config :gemini_ex, :streaming, cleanup_delay_ms: ...`.
 
-### Interactions Quick Start (New in v0.8.3!)
+### Interactions Quick Start
 
 ```elixir
 alias Gemini.APIs.Interactions

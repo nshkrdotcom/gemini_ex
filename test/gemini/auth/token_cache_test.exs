@@ -65,6 +65,7 @@ defmodule Gemini.Auth.TokenCacheTest do
       assert {:ok, "token2"} = TokenCache.get("overwrite_key")
     end
 
+    @tag :slow
     test "handles very short TTL" do
       # 1 second TTL with no buffer
       TokenCache.put("short_ttl", "short_token", 1, refresh_buffer: 0)
@@ -89,6 +90,7 @@ defmodule Gemini.Auth.TokenCacheTest do
       assert :error = TokenCache.get("non_existent_key")
     end
 
+    @tag :slow
     test "returns error for expired token" do
       # Very short TTL
       TokenCache.put("expired_key", "expired_token", 1, refresh_buffer: 0)
@@ -103,6 +105,7 @@ defmodule Gemini.Auth.TokenCacheTest do
       assert :error = TokenCache.get("expired_key")
     end
 
+    @tag :slow
     test "cleans up expired entries automatically" do
       TokenCache.put("cleanup_key", "cleanup_token", 1, refresh_buffer: 0)
 
@@ -263,6 +266,7 @@ defmodule Gemini.Auth.TokenCacheTest do
       assert {:ok, "token"} = TokenCache.get("buffer_test")
     end
 
+    @tag :slow
     test "zero buffer means no early expiration" do
       TokenCache.put("no_buffer", "token", 2, refresh_buffer: 0)
 
@@ -274,6 +278,7 @@ defmodule Gemini.Auth.TokenCacheTest do
       assert :error = TokenCache.get("no_buffer")
     end
 
+    @tag :slow
     test "large buffer reduces effective TTL" do
       # 100s TTL with 90s buffer = 10s effective TTL
       TokenCache.put("large_buffer", "token", 100, refresh_buffer: 90)
