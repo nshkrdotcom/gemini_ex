@@ -57,16 +57,24 @@ defmodule Gemini.Client.HTTPStreaming do
 
       HTTPStreaming.stream_sse(url, headers, body, callback)
   """
-  @spec stream_sse(String.t(), [{String.t(), String.t()}], map(), stream_callback(), keyword()) ::
+  @spec stream_sse(
+          String.t(),
+          [{String.t(), String.t()}],
+          map() | nil,
+          stream_callback(),
+          keyword()
+        ) ::
           {:ok, :completed} | {:error, term()}
   def stream_sse(url, headers, body, callback, opts \\ []) do
     timeout = Keyword.get(opts, :timeout, Config.timeout())
     max_retries = Keyword.get(opts, :max_retries, 3)
     max_backoff_ms = Keyword.get(opts, :max_backoff_ms, @default_max_backoff_ms)
     connect_timeout = Keyword.get(opts, :connect_timeout, @default_connect_timeout_ms)
+    method = Keyword.get(opts, :method, :post)
+    add_sse_params? = Keyword.get(opts, :add_sse_params, true)
 
     stream_id = Telemetry.generate_stream_id()
-    metadata = Telemetry.build_stream_metadata(url, :post, stream_id, opts)
+    metadata = Telemetry.build_stream_metadata(url, method, stream_id, opts)
     measurements = %{system_time: System.system_time()}
 
     Telemetry.execute([:gemini, :stream, :start], measurements, metadata)
@@ -100,7 +108,9 @@ defmodule Gemini.Client.HTTPStreaming do
           max_retries,
           0,
           max_backoff_ms,
-          connect_timeout
+          connect_timeout,
+          method,
+          add_sse_params?
         )
 
       case result do
@@ -170,13 +180,15 @@ defmodule Gemini.Client.HTTPStreaming do
   @spec stream_with_retries(
           String.t(),
           list(),
-          map(),
+          map() | nil,
           stream_callback(),
           integer(),
           integer(),
           integer(),
           integer(),
-          integer()
+          integer(),
+          :get | :post,
+          boolean()
         ) ::
           {:ok, :completed} | {:error, term()}
   defp stream_with_retries(
@@ -188,9 +200,20 @@ defmodule Gemini.Client.HTTPStreaming do
          max_retries,
          attempt,
          max_backoff_ms,
-         connect_timeout
+         connect_timeout,
+         method,
+         add_sse_params?
        ) do
-    case do_stream(url, headers, body, callback, timeout, connect_timeout) do
+    case do_stream(
+           url,
+           headers,
+           body,
+           callback,
+           timeout,
+           connect_timeout,
+           method,
+           add_sse_params?
+         ) do
       {:ok, :completed} ->
         {:ok, :completed}
 
@@ -210,7 +233,9 @@ defmodule Gemini.Client.HTTPStreaming do
           max_retries,
           attempt + 1,
           max_backoff_ms,
-          connect_timeout
+          connect_timeout,
+          method,
+          add_sse_params?
         )
 
       {:error, error} ->
@@ -219,14 +244,22 @@ defmodule Gemini.Client.HTTPStreaming do
     end
   end
 
-  @spec do_stream(String.t(), list(), map(), stream_callback(), integer(), integer()) ::
+  @spec do_stream(
+          String.t(),
+          list(),
+          map() | nil,
+          stream_callback(),
+          integer(),
+          integer(),
+          :get | :post,
+          boolean()
+        ) ::
           {:ok, :completed} | {:error, term()}
-  defp do_stream(url, headers, body, callback, timeout, connect_timeout) do
-    # Add SSE parameters to URL
-    sse_url = add_sse_params(url)
+  defp do_stream(url, headers, body, callback, timeout, connect_timeout, method, add_sse_params?) do
+    sse_url = if add_sse_params?, do: add_sse_params(url), else: url
 
     # Use a more direct approach with custom HTTP handling
-    case stream_with_finch(sse_url, headers, body, callback, timeout, connect_timeout) do
+    case stream_with_finch(sse_url, headers, body, callback, timeout, connect_timeout, method) do
       {:ok, :completed} ->
         {:ok, :completed}
 
@@ -235,32 +268,51 @@ defmodule Gemini.Client.HTTPStreaming do
     end
   end
 
-  @spec stream_with_finch(String.t(), list(), map(), stream_callback(), integer(), integer()) ::
+  @spec stream_with_finch(
+          String.t(),
+          list(),
+          map() | nil,
+          stream_callback(),
+          integer(),
+          integer(),
+          :get | :post
+        ) ::
           {:ok, :completed} | {:error, term()}
-  defp stream_with_finch(url, headers, body, callback, timeout, connect_timeout) do
-    Logger.debug("Starting real-time streaming with Req to #{url}")
+  defp stream_with_finch(url, headers, body, callback, timeout, connect_timeout, method) do
+    Logger.debug("Starting real-time streaming with Req to #{url} (#{method})")
 
     # Use Req's `:self` option for real-time streaming
-    req_opts = [
-      method: :post,
-      url: url,
-      headers: add_sse_headers(headers),
-      json: body,
-      receive_timeout: timeout,
-      connect_options: [timeout: connect_timeout],
-      # Use :self to get messages as they arrive
-      into: :self
-    ]
+    req_opts =
+      [
+        method: method,
+        url: url,
+        headers: add_sse_headers(headers),
+        receive_timeout: timeout,
+        connect_options: [timeout: connect_timeout],
+        # Use :self to get messages as they arrive
+        into: :self
+      ]
+      |> maybe_put_json(body)
 
     try do
       case Req.request(req_opts) do
         {:ok, response} ->
           # Check for HTTP errors before starting to stream
           if response.status >= 400 do
-            # For error responses, we need to collect the body from streaming messages
-            error_body = collect_error_body(response, timeout)
-            error_msg = extract_error_message(error_body) || "HTTP #{response.status}"
-            error = Error.http_error(response.status, error_msg)
+            # For error responses, the body may be present in `response.body` or may arrive as
+            # streaming messages (Req `into: :self`).
+            error_body = get_error_response_body(response, timeout)
+            normalized_body = normalize_error_body(error_body)
+            error_msg = extract_error_message(normalized_body) || "HTTP #{response.status}"
+
+            error_details =
+              case normalized_body do
+                nil -> %{}
+                "" -> %{}
+                body -> %{"body" => body}
+              end
+
+            error = Error.http_error(response.status, error_msg, error_details)
             error_event = %{type: :error, data: nil, error: error}
             callback.(error_event)
             {:error, error}
@@ -323,6 +375,31 @@ defmodule Gemini.Client.HTTPStreaming do
         acc
     end
   end
+
+  defp get_error_response_body(%Req.Response{body: body} = response, timeout) do
+    cond do
+      is_map(body) and not is_struct(body) ->
+        body
+
+      is_binary(body) and body != "" ->
+        body
+
+      true ->
+        collect_error_body(response, timeout)
+    end
+  end
+
+  defp normalize_error_body(nil), do: nil
+  defp normalize_error_body(%{} = body), do: body
+
+  defp normalize_error_body(body) when is_binary(body) do
+    case Jason.decode(body) do
+      {:ok, decoded} -> decoded
+      _ -> body
+    end
+  end
+
+  defp normalize_error_body(other), do: other
 
   # Process streaming messages in real-time
   defp stream_loop(response, parser, callback, timeout) do
@@ -407,6 +484,10 @@ defmodule Gemini.Client.HTTPStreaming do
     url <> separator <> "alt=sse"
   end
 
+  @spec maybe_put_json(keyword(), map() | nil) :: keyword()
+  defp maybe_put_json(req_opts, nil), do: req_opts
+  defp maybe_put_json(req_opts, body) when is_map(body), do: Keyword.put(req_opts, :json, body)
+
   @spec add_sse_headers([{String.t(), String.t()}]) :: [{String.t(), String.t()}]
   defp add_sse_headers(headers) do
     sse_headers = [
@@ -424,14 +505,24 @@ defmodule Gemini.Client.HTTPStreaming do
     headers ++ new_headers
   end
 
-  @spec extract_error_message(binary()) :: String.t() | nil
+  @spec extract_error_message(term()) :: String.t() | nil
   defp extract_error_message(body) when is_binary(body) do
     case Jason.decode(body) do
-      {:ok, %{"error" => %{"message" => message}}} when is_binary(message) -> message
-      {:ok, %{"error" => error}} when is_binary(error) -> error
+      {:ok, decoded} -> extract_error_message(decoded)
       _ -> nil
     end
   end
+
+  defp extract_error_message(%{"error" => %{"message" => message}})
+       when is_binary(message) and message != "" do
+    message
+  end
+
+  defp extract_error_message(%{"error" => error}) when is_binary(error) and error != "" do
+    error
+  end
+
+  defp extract_error_message(_), do: nil
 
   # Helper functions for telemetry
 

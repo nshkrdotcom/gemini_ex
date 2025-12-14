@@ -1014,6 +1014,7 @@ defmodule Gemini.Config do
       |> maybe_put(:location, vertex_location())
       |> maybe_put(:access_token, vertex_access_token())
       |> maybe_put(:service_account_key, vertex_service_account())
+      |> maybe_put(:quota_project_id, vertex_quota_project_id())
 
     config
   end
@@ -1034,6 +1035,11 @@ defmodule Gemini.Config do
 
   defp vertex_service_account do
     get_env_non_empty("VERTEX_SERVICE_ACCOUNT") || get_env_non_empty("VERTEX_JSON_FILE")
+  end
+
+  defp vertex_quota_project_id do
+    get_env_non_empty("VERTEX_QUOTA_PROJECT_ID") ||
+      get_env_non_empty("GOOGLE_CLOUD_QUOTA_PROJECT")
   end
 
   defp vertex_project_id do

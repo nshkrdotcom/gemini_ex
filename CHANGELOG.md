@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.3] - 2025-12-13
+
+### Added
+- Interactions API parity: `Gemini.APIs.Interactions` with create/get/cancel/delete, background polling, and SSE streaming with resumption (`last_event_id`).
+- Full Interactions type system: `Gemini.Types.Interactions.*` (resources, content, tools, deltas, streaming events).
+- New guide: `docs/guides/interactions.md` plus new mocked unit tests and optional live tests (`@moduletag :live_api`).
+
+### Changed
+- Streaming transport supports disabling `alt=sse` injection for endpoints that enable streaming via request fields (Interactions).
+
+### Fixed
+- Vertex auth supports `x-goog-user-project` when a quota project is configured (`quota_project_id`, `VERTEX_QUOTA_PROJECT_ID`, or `GOOGLE_CLOUD_QUOTA_PROJECT`).
+
 ## [0.8.2] - 2025-12-07
 
 ### Fixed
@@ -1651,6 +1664,7 @@ config :gemini_ex,
 - Minimal latency overhead
 - Concurrent request processing
 
+[0.8.3]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.8.3
 [0.8.2]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.8.2
 [0.8.1]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.8.1
 [0.8.0]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.8.0

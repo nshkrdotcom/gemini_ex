@@ -1,7 +1,7 @@
 defmodule Gemini.MixProject do
   use Mix.Project
 
-  @version "0.8.2"
+  @version "0.8.3"
   @source_url "https://github.com/nshkrdotcom/gemini_ex"
 
   def project do
@@ -89,6 +89,7 @@ defmodule Gemini.MixProject do
         "AUTOMATIC_TOOL_EXECUTION.md",
         "examples/EMBEDDINGS.md",
         "examples/ASYNC_BATCH_EMBEDDINGS.md",
+        "docs/guides/interactions.md",
         "docs/guides/structured_outputs.md",
         "docs/guides/rate_limiting.md",
         "docs/guides/files.md",
@@ -110,6 +111,7 @@ defmodule Gemini.MixProject do
           "AUTOMATIC_TOOL_EXECUTION.md",
           "examples/EMBEDDINGS.md",
           "examples/ASYNC_BATCH_EMBEDDINGS.md",
+          "docs/guides/interactions.md",
           "docs/guides/structured_outputs.md",
           "docs/guides/rate_limiting.md",
           "docs/guides/files.md",

@@ -2,6 +2,7 @@
 
 This folder contains the primary guides for running GeminiEx in production:
 
+- `interactions.md` – stateful interactions (CRUD), streaming, and resumption
 - `rate_limiting.md` – atomic token reservations, jittered retry windows, and concurrency gating defaults
 - `structured_outputs.md` – structured JSON responses
 - `files.md`, `batches.md`, `operations.md` – working with Files, Batch jobs, and long-running operations

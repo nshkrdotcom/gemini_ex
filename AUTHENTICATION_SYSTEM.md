@@ -223,6 +223,9 @@ This is the most secure and standard way to provide credentials in production, s
     export VERTEX_SERVICE_ACCOUNT="/path/to/your/service-account.json"
     export VERTEX_PROJECT_ID="your-gcp-project-id"
     export VERTEX_LOCATION="us-central1"
+    # Optional: sets x-goog-user-project for quota/billing attribution
+    # (also supports GOOGLE_CLOUD_QUOTA_PROJECT)
+    export VERTEX_QUOTA_PROJECT_ID="your-quota-project-id"
     ```
 
 The library will automatically detect and use these variables.
@@ -251,7 +254,8 @@ Configure the library in your project's `config/runtime.exs` file. This is the c
       credentials: %{
         service_account_key: System.fetch_env!("VERTEX_SERVICE_ACCOUNT_PATH"),
         project_id: System.fetch_env!("GCP_PROJECT_ID"),
-        location: "us-central1"
+        location: "us-central1",
+        quota_project_id: System.get_env("VERTEX_QUOTA_PROJECT_ID")
       }
     ```
 

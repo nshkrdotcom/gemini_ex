@@ -124,6 +124,15 @@ defmodule Gemini.Auth.MultiAuthCoordinator do
     location = Keyword.get(opts, :location, base_config[:location] || "us-central1")
     credentials = Map.put(credentials, :location, location)
 
+    quota_project_id = Keyword.get(opts, :quota_project_id, base_config[:quota_project_id])
+
+    credentials =
+      if is_binary(quota_project_id) and quota_project_id != "" do
+        Map.put(credentials, :quota_project_id, quota_project_id)
+      else
+        credentials
+      end
+
     # Auth method - prioritize opts, then config
     cond do
       access_token = Keyword.get(opts, :access_token) ->

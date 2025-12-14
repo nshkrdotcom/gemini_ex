@@ -14,6 +14,7 @@ defmodule Gemini.Tools.FunctionCallingLiveTest do
   use ExUnit.Case, async: false
 
   @moduletag :live_api
+  @moduletag timeout: 180_000
 
   alias Gemini.APIs.Coordinator
   alias Gemini.Tools.{Executor, AutomaticFunctionCalling}

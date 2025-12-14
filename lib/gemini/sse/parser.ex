@@ -112,39 +112,70 @@ defmodule Gemini.SSE.Parser do
   defp parse_sse_lines(event_data) do
     event_data
     |> String.split("\n")
-    |> Enum.reduce(%{}, fn line, acc ->
-      case String.split(line, ": ", parts: 2) do
-        ["data", json_data] ->
-          Map.put(acc, :data, json_data)
+    |> Enum.reduce(%{data_lines: []}, fn raw_line, acc ->
+      line = String.trim_trailing(raw_line, "\r")
 
-        ["event", event_type] ->
-          Map.put(acc, :event, event_type)
-
-        ["id", event_id] ->
-          Map.put(acc, :id, event_id)
-
-        ["retry", retry_ms] ->
-          case Integer.parse(retry_ms) do
-            {ms, ""} -> Map.put(acc, :retry, ms)
-            _ -> acc
-          end
-
-        [field, value] ->
-          # Handle other SSE fields
-          Map.put(acc, String.to_atom(field), value)
-
-        _ ->
-          # Ignore malformed lines
+      cond do
+        line == "" ->
           acc
+
+        String.starts_with?(line, ":") ->
+          # Comment line (SSE spec)
+          acc
+
+        true ->
+          case String.split(line, ":", parts: 2) do
+            [field, value] ->
+              value =
+                case value do
+                  " " <> rest -> rest
+                  other -> other
+                end
+
+              case field do
+                "data" ->
+                  Map.update!(acc, :data_lines, fn existing -> existing ++ [value] end)
+
+                "event" ->
+                  Map.put(acc, :event, value)
+
+                "id" ->
+                  Map.put(acc, :id, value)
+
+                "retry" ->
+                  case Integer.parse(value) do
+                    {ms, ""} -> Map.put(acc, :retry, ms)
+                    _ -> acc
+                  end
+
+                "" ->
+                  acc
+
+                other ->
+                  # Handle other SSE fields (keep existing behavior; assumes bounded field set).
+                  Map.put(acc, String.to_atom(other), value)
+              end
+
+            _ ->
+              # Ignore malformed lines
+              acc
+          end
       end
     end)
   end
 
   @spec build_event(map()) :: map() | nil
-  defp build_event(%{data: data} = event_fields) do
+  defp build_event(%{data_lines: []}), do: nil
+
+  defp build_event(%{data_lines: data_lines} = event_fields) when is_list(data_lines) do
+    data = Enum.join(data_lines, "\n")
+
     case parse_json_data(data) do
       {:ok, parsed_data} ->
+        parsed_data = maybe_attach_event_id_from_sse_id(parsed_data, event_fields)
+
         event_fields
+        |> Map.delete(:data_lines)
         |> Map.put(:data, parsed_data)
         |> Map.put(:timestamp, System.system_time(:millisecond))
 
@@ -155,6 +186,21 @@ defmodule Gemini.SSE.Parser do
   end
 
   defp build_event(_), do: nil
+
+  defp maybe_attach_event_id_from_sse_id(%{} = data, %{id: id})
+       when is_binary(id) and id != "" do
+    # Interactions events carry `event_id` in the JSON payload, but some servers may only emit it
+    # as the SSE `id:` field. Only attach `event_id` when the payload looks like an Interactions
+    # event and the field is missing.
+    if Map.has_key?(data, "event_type") and
+         (not Map.has_key?(data, "event_id") or data["event_id"] in [nil, ""]) do
+      Map.put(data, "event_id", id)
+    else
+      data
+    end
+  end
+
+  defp maybe_attach_event_id_from_sse_id(data, _event_fields), do: data
 
   @spec parse_json_data(String.t()) :: {:ok, map()} | {:error, term()}
   defp parse_json_data("[DONE]"), do: {:ok, %{done: true}}

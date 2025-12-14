@@ -56,13 +56,14 @@ defmodule Gemini.Auth.VertexStrategy do
   Returns `{:ok, headers}` on success, or `{:error, reason}` if authentication fails.
   """
   @impl true
-  def headers(%{access_token: access_token})
+  def headers(%{access_token: access_token} = credentials)
       when is_binary(access_token) and access_token != "" do
     {:ok,
      [
        {"Content-Type", "application/json"},
        {"Authorization", "Bearer #{access_token}"}
-     ]}
+     ]
+     |> maybe_add_quota_project_header(credentials)}
   end
 
   def headers(%{access_token: nil}) do
@@ -73,12 +74,14 @@ defmodule Gemini.Auth.VertexStrategy do
     {:error, "Access token is empty"}
   end
 
-  def headers(%{jwt_token: jwt_token}) when is_binary(jwt_token) and jwt_token != "" do
+  def headers(%{jwt_token: jwt_token} = credentials)
+      when is_binary(jwt_token) and jwt_token != "" do
     {:ok,
      [
        {"Content-Type", "application/json"},
        {"Authorization", "Bearer #{jwt_token}"}
-     ]}
+     ]
+     |> maybe_add_quota_project_header(credentials)}
   end
 
   def headers(%{service_account_key: key_path} = credentials) when is_binary(key_path) do
@@ -88,7 +91,8 @@ defmodule Gemini.Auth.VertexStrategy do
          [
            {"Content-Type", "application/json"},
            {"Authorization", "Bearer #{access_token}"}
-         ]}
+         ]
+         |> maybe_add_quota_project_header(credentials)}
 
       {:error, reason} = error ->
         Logger.error(
@@ -106,7 +110,8 @@ defmodule Gemini.Auth.VertexStrategy do
          [
            {"Content-Type", "application/json"},
            {"Authorization", "Bearer #{access_token}"}
-         ]}
+         ]
+         |> maybe_add_quota_project_header(credentials)}
 
       {:error, reason} = error ->
         Logger.error(
@@ -132,7 +137,10 @@ defmodule Gemini.Auth.VertexStrategy do
                [
                  {"Content-Type", "application/json"},
                  {"Authorization", "Bearer #{access_token}"}
-               ]}
+               ]
+               |> maybe_add_quota_project_header(
+                 Map.put_new(credentials, :quota_project_id, quota_project_id_from_adc(adc_creds))
+               )}
 
             {:error, reason} ->
               Logger.error("[VertexStrategy] Failed to get ADC token: #{inspect(reason)}")
@@ -236,6 +244,28 @@ defmodule Gemini.Auth.VertexStrategy do
     # For other credential types, return as-is
     {:ok, credentials}
   end
+
+  @spec maybe_add_quota_project_header([{String.t(), String.t()}], map()) ::
+          [{String.t(), String.t()}]
+  defp maybe_add_quota_project_header(headers, credentials) do
+    quota_project_id =
+      Map.get(credentials, :quota_project_id) ||
+        Map.get(credentials, :quota_project)
+
+    if is_binary(quota_project_id) and quota_project_id != "" do
+      headers ++ [{"x-goog-user-project", quota_project_id}]
+    else
+      headers
+    end
+  end
+
+  @spec quota_project_id_from_adc(term()) :: String.t() | nil
+  defp quota_project_id_from_adc({:user, %{quota_project_id: quota_project_id}})
+       when is_binary(quota_project_id) do
+    quota_project_id
+  end
+
+  defp quota_project_id_from_adc(_), do: nil
 
   @doc """
   Create a signed JWT for authenticated Vertex AI endpoints.

@@ -19,6 +19,7 @@ A comprehensive Elixir client for Google's Gemini AI API with dual authenticatio
 - **Dual Authentication**: Seamless support for both Gemini API keys and Vertex AI OAuth/Service Accounts
 - **Application Default Credentials (ADC)**: Zero-config GCP auth with automatic discovery and token refresh (NEW in v0.8.x!)
 - **Advanced Streaming**: Production-grade Server-Sent Events streaming with real-time processing
+- **Interactions API**: Stateful interactions (CRUD), background execution, SSE streaming, and resumption (NEW in v0.8.3!)
 - **Live API (WebSocket)**: Bidirectional, low-latency sessions with real-time input/output (NEW in v0.8.x!)
 - **Automatic Rate Limiting**: Built-in rate limit handling with retries, concurrency gating, and adaptive backoff
 - **Files API**: Upload, manage, and use files with Gemini models for multimodal content (NEW in v0.7.0!)
@@ -56,7 +57,7 @@ Add `gemini` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:gemini_ex, "~> 0.8.2"}
+    {:gemini_ex, "~> 0.8.3"}
   ]
 end
 ```
@@ -174,6 +175,32 @@ Gemini.Streaming.stop_stream(stream_id)
 ```
 
 Streaming knobs: pass `timeout:` (per attempt, default `config :gemini_ex, :timeout` = 120_000), `max_retries:` (default 3), `max_backoff_ms:` (default 10_000), and `connect_timeout:` (default 5_000). Manager cleanup delay can be tuned via `config :gemini_ex, :streaming, cleanup_delay_ms: ...`.
+
+### Interactions Quick Start (New in v0.8.3!)
+
+```elixir
+alias Gemini.APIs.Interactions
+alias Gemini.Types.Interactions.Events.ContentDelta
+alias Gemini.Types.Interactions.DeltaTextDelta
+
+{:ok, stream} =
+  Interactions.create("Write a short poem about Elixir",
+    model: "gemini-2.5-flash",
+    stream: true
+  )
+
+for event <- stream do
+  case event do
+    %ContentDelta{delta: %DeltaTextDelta{text: text}} when is_binary(text) ->
+      IO.write(text)
+
+    _ ->
+      :ok
+  end
+end
+```
+
+See `docs/guides/interactions.md` for CRUD, resumption (`last_event_id`), and background/cancel/delete examples.
 
 ### Live API (WebSocket) (New in v0.8.x!)
 

@@ -176,9 +176,22 @@ defmodule Gemini.Client.HTTP do
 
         case Auth.build_headers(auth_type, credentials) do
           {:ok, headers} ->
-            # Add SSE parameter to URL
+            add_sse_params? = Keyword.get(opts, :add_sse_params, true)
+
             sse_url =
-              if String.contains?(url, "?"), do: "#{url}&alt=sse", else: "#{url}?alt=sse"
+              cond do
+                not add_sse_params? ->
+                  url
+
+                String.contains?(url, "alt=sse") ->
+                  url
+
+                String.contains?(url, "?") ->
+                  "#{url}&alt=sse"
+
+                true ->
+                  "#{url}?alt=sse"
+              end
 
             stream_id = Telemetry.generate_stream_id()
             metadata = Telemetry.build_stream_metadata(sse_url, :post, stream_id, opts)
