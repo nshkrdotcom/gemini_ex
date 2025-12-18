@@ -60,6 +60,7 @@ defmodule Gemini.Config do
     # Gemini 3 models (preview)
     pro_3_preview: "gemini-3-pro-preview",
     pro_3_image_preview: "gemini-3-pro-image-preview",
+    flash_3_preview: "gemini-3-flash-preview",
 
     # Gemini 2.5 models (GA)
     pro_2_5: "gemini-2.5-pro",
@@ -73,12 +74,24 @@ defmodule Gemini.Config do
       "gemini-2.5-flash-exp-native-audio-thinking-dialog",
     flash_2_5_preview_tts: "gemini-2.5-flash-preview-tts",
     pro_2_5_preview_tts: "gemini-2.5-pro-preview-tts",
+    flash_2_5_preview_09_2025: "gemini-2.5-flash-preview-09-2025",
+    flash_2_5_lite_preview_09_2025: "gemini-2.5-flash-lite-preview-09-2025",
+    flash_2_5_native_audio_preview_09_2025: "gemini-2.5-flash-native-audio-preview-09-2025",
+    flash_2_5_native_audio_preview_12_2025: "gemini-2.5-flash-native-audio-preview-12-2025",
+    flash_2_5_image: "gemini-2.5-flash-image",
+    flash_2_5_image_preview: "gemini-2.5-flash-image-preview",
 
     # Gemini 2.0 models
     flash_2_0: "gemini-2.0-flash",
+    flash_2_0_001: "gemini-2.0-flash-001",
+    flash_2_0_exp: "gemini-2.0-flash-exp",
     flash_2_0_preview_image_generation: "gemini-2.0-flash-preview-image-generation",
     flash_2_0_lite: "gemini-2.0-flash-lite",
+    flash_2_0_lite_001: "gemini-2.0-flash-lite-001",
     flash_2_0_live_001: "gemini-2.0-flash-live-001",
+
+    # Deep Research (agent model)
+    deep_research_pro_preview_12_2025: "deep-research-pro-preview-12-2025",
 
     # Universal aliases (use these for cross-platform compatibility)
     default_universal: "gemini-2.0-flash-lite",

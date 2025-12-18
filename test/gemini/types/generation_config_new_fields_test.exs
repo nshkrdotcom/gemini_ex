@@ -11,6 +11,13 @@ defmodule Gemini.Types.GenerationConfigNewFieldsTest do
       assert config.response_modalities == [:text, :audio]
     end
 
+    test "accepts response_json_schema" do
+      schema = %{"type" => "object", "properties" => %{"name" => %{"type" => "string"}}}
+      config = GenerationConfig.new(response_json_schema: schema)
+
+      assert config.response_json_schema == schema
+    end
+
     test "accepts speech_config and media_resolution" do
       speech = %SpeechConfig{language_code: "en-US"}
 

@@ -49,12 +49,12 @@ defmodule Gemini.Types.GenerationConfigTest do
   end
 
   describe "structured_json/2 helper" do
-    test "sets both response_mime_type and response_schema" do
+    test "sets both response_mime_type and response_json_schema" do
       schema = %{"type" => "object", "properties" => %{}}
       config = GenerationConfig.structured_json(schema)
 
       assert config.response_mime_type == "application/json"
-      assert config.response_schema == schema
+      assert config.response_json_schema == schema
     end
 
     test "works with nil config (default)" do
@@ -62,7 +62,7 @@ defmodule Gemini.Types.GenerationConfigTest do
       config = GenerationConfig.structured_json(schema)
 
       assert config.response_mime_type == "application/json"
-      assert config.response_schema == schema
+      assert config.response_json_schema == schema
     end
 
     test "preserves other fields" do
@@ -78,7 +78,7 @@ defmodule Gemini.Types.GenerationConfigTest do
       assert config.temperature == 0.5
       assert config.max_output_tokens == 100
       assert config.response_mime_type == "application/json"
-      assert config.response_schema == schema
+      assert config.response_json_schema == schema
     end
 
     test "chains with property_ordering" do
@@ -95,8 +95,17 @@ defmodule Gemini.Types.GenerationConfigTest do
         |> GenerationConfig.property_ordering(["name", "age"])
 
       assert config.response_mime_type == "application/json"
-      assert config.response_schema == schema
+      assert config.response_json_schema == schema
       assert config.property_ordering == ["name", "age"]
+    end
+
+    test "supports internal response_schema when requested" do
+      schema = %{"type" => "OBJECT"}
+
+      config = GenerationConfig.structured_json(schema, schema_type: :response_schema)
+
+      assert config.response_schema == schema
+      assert config.response_json_schema == nil
     end
   end
 

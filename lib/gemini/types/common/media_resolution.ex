@@ -1,6 +1,8 @@
 defmodule Gemini.Types.MediaResolution do
   @moduledoc """
   Media resolution enum for controlling token allocation on media inputs.
+
+  Includes `:media_resolution_ultra_high` for highest fidelity on supported models.
   """
 
   @type t ::
@@ -8,19 +10,22 @@ defmodule Gemini.Types.MediaResolution do
           | :media_resolution_low
           | :media_resolution_medium
           | :media_resolution_high
+          | :media_resolution_ultra_high
 
   @api_values %{
     "MEDIA_RESOLUTION_UNSPECIFIED" => :media_resolution_unspecified,
     "MEDIA_RESOLUTION_LOW" => :media_resolution_low,
     "MEDIA_RESOLUTION_MEDIUM" => :media_resolution_medium,
-    "MEDIA_RESOLUTION_HIGH" => :media_resolution_high
+    "MEDIA_RESOLUTION_HIGH" => :media_resolution_high,
+    "MEDIA_RESOLUTION_ULTRA_HIGH" => :media_resolution_ultra_high
   }
 
   @reverse_api_values %{
     media_resolution_unspecified: "MEDIA_RESOLUTION_UNSPECIFIED",
     media_resolution_low: "MEDIA_RESOLUTION_LOW",
     media_resolution_medium: "MEDIA_RESOLUTION_MEDIUM",
-    media_resolution_high: "MEDIA_RESOLUTION_HIGH"
+    media_resolution_high: "MEDIA_RESOLUTION_HIGH",
+    media_resolution_ultra_high: "MEDIA_RESOLUTION_ULTRA_HIGH"
   }
 
   @doc """

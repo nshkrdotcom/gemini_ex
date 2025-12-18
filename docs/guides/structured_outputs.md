@@ -24,7 +24,7 @@ schema = %{
   "required" => ["answer"]
 }
 
-# Use the convenient helper
+# Use the convenient helper (response_json_schema by default)
 config = GenerationConfig.structured_json(schema)
 
 {:ok, response} = Gemini.generate(
@@ -36,6 +36,16 @@ config = GenerationConfig.structured_json(schema)
 {:ok, text} = Gemini.extract_text(response)
 {:ok, data} = Jason.decode(text)
 # => %{"answer" => "Paris", "confidence" => 0.95}
+```
+
+## JSON Schema vs Internal Schema
+
+`GenerationConfig.structured_json/2` sets `response_json_schema` (standard JSON Schema) by
+default. If you need Gemini's internal schema format, pass `schema_type: :response_schema`:
+
+```elixir
+config =
+  GenerationConfig.structured_json(%{"type" => "OBJECT"}, schema_type: :response_schema)
 ```
 
 ## New Features (November 2025)

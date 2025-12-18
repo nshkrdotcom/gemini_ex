@@ -152,7 +152,7 @@ defmodule Gemini.APIs.Interactions do
   def build_get_url(auth, credentials, api_version, id, stream?, last_event_id)
       when is_binary(api_version) and is_binary(id) do
     with {:ok, base_url} <- base_url_root(auth, credentials),
-         {:ok, path} <- get_path(auth, api_version, id, stream?, last_event_id) do
+         {:ok, path} <- get_path(auth, credentials, api_version, id, stream?, last_event_id) do
       {:ok, base_url <> path}
     end
   end
@@ -161,8 +161,9 @@ defmodule Gemini.APIs.Interactions do
   @spec build_cancel_url(auth_strategy(), map(), String.t(), String.t()) :: result(String.t())
   def build_cancel_url(auth, credentials, api_version, id)
       when is_binary(api_version) and is_binary(id) do
-    with {:ok, base_url} <- base_url_root(auth, credentials) do
-      {:ok, base_url <> "/#{api_version}/interactions/#{id}/cancel"}
+    with {:ok, base_url} <- base_url_root(auth, credentials),
+         {:ok, path} <- cancel_path(auth, credentials, api_version, id) do
+      {:ok, base_url <> path}
     end
   end
 
@@ -170,8 +171,9 @@ defmodule Gemini.APIs.Interactions do
   @spec build_delete_url(auth_strategy(), map(), String.t(), String.t()) :: result(String.t())
   def build_delete_url(auth, credentials, api_version, id)
       when is_binary(api_version) and is_binary(id) do
-    with {:ok, base_url} <- base_url_root(auth, credentials) do
-      {:ok, base_url <> "/#{api_version}/interactions/#{id}"}
+    with {:ok, base_url} <- base_url_root(auth, credentials),
+         {:ok, path} <- delete_path(auth, credentials, api_version, id) do
+      {:ok, base_url <> path}
     end
   end
 
@@ -271,7 +273,21 @@ defmodule Gemini.APIs.Interactions do
     end
   end
 
-  defp get_path(_auth, api_version, id, stream?, last_event_id) do
+  defp get_path(:vertex_ai, credentials, api_version, id, stream?, last_event_id) do
+    params =
+      []
+      |> maybe_add_query("stream", stream? && "true")
+      |> maybe_add_query("last_event_id", stream? && last_event_id)
+
+    with {:ok, path} <- vertex_interaction_path(credentials, api_version, id) do
+      case params do
+        [] -> {:ok, path}
+        _ -> {:ok, path <> "?" <> URI.encode_query(Enum.reverse(params))}
+      end
+    end
+  end
+
+  defp get_path(_auth, _credentials, api_version, id, stream?, last_event_id) do
     params =
       []
       |> maybe_add_query("stream", stream? && "true")
@@ -282,6 +298,28 @@ defmodule Gemini.APIs.Interactions do
     case params do
       [] -> {:ok, path}
       _ -> {:ok, path <> "?" <> URI.encode_query(Enum.reverse(params))}
+    end
+  end
+
+  defp cancel_path(:vertex_ai, credentials, api_version, id) do
+    vertex_interaction_path(credentials, api_version, id, "/cancel")
+  end
+
+  defp cancel_path(_auth, _credentials, api_version, id) do
+    {:ok, "/#{api_version}/interactions/#{id}/cancel"}
+  end
+
+  defp delete_path(:vertex_ai, credentials, api_version, id) do
+    vertex_interaction_path(credentials, api_version, id)
+  end
+
+  defp delete_path(_auth, _credentials, api_version, id) do
+    {:ok, "/#{api_version}/interactions/#{id}"}
+  end
+
+  defp vertex_interaction_path(credentials, api_version, id, suffix \\ "") do
+    with {:ok, base_path} <- create_path(:vertex_ai, credentials, api_version) do
+      {:ok, "#{base_path}/#{id}#{suffix}"}
     end
   end
 

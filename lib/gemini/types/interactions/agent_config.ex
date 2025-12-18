@@ -36,6 +36,10 @@ end
 defmodule Gemini.Types.Interactions.DeepResearchAgentConfig do
   @moduledoc """
   Deep Research agent configuration (`type: "deep-research"`).
+
+  ## Fields
+
+  - `thinking_summaries` - `"auto"` or `"none"`
   """
 
   use TypedStruct

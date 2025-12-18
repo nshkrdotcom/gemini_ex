@@ -1,10 +1,11 @@
 #!/usr/bin/env elixir
-# Gemini 3 Pro Features Demo
+# Gemini 3 Features Demo
 #
 # This example demonstrates the new features in Gemini 3:
 # 1. Thinking levels (replaces thinking_budget for Gemini 3)
-# 2. Image generation with gemini-3-pro-image-preview
-# 3. Media resolution control for vision tasks
+# 2. Built-in tools (Google Search, URL Context, Code Execution)
+# 3. Image generation with gemini-3-pro-image-preview
+# 4. Media resolution control for vision tasks
 #
 # Requirements:
 # - GEMINI_API_KEY environment variable set
@@ -14,8 +15,31 @@
 alias Gemini.APIs.Coordinator
 alias Gemini.Types.GenerationConfig
 
+defmodule Gemini3DemoHelpers do
+  alias Gemini.Types.Blob
+
+  def inline_data_from_part(%{inline_data: inline_data}), do: inline_data
+  def inline_data_from_part(%{"inlineData" => inline_data}), do: inline_data
+  def inline_data_from_part(%{"inline_data" => inline_data}), do: inline_data
+  def inline_data_from_part(_), do: nil
+
+  def inline_data_fields(%Blob{mime_type: mime_type, data: data}), do: {mime_type, data}
+  def inline_data_fields(%{"mimeType" => mime_type, "data" => data}), do: {mime_type, data}
+  def inline_data_fields(%{"mime_type" => mime_type, "data" => data}), do: {mime_type, data}
+  def inline_data_fields(%{mime_type: mime_type, data: data}), do: {mime_type, data}
+  def inline_data_fields(_), do: {nil, nil}
+
+  def thought_signature(%{thought_signature: sig}) when is_binary(sig), do: sig
+  def thought_signature(%{"thoughtSignature" => sig}) when is_binary(sig), do: sig
+  def thought_signature(_), do: nil
+
+  def part_text(%{text: text}) when is_binary(text), do: text
+  def part_text(%{"text" => text}) when is_binary(text), do: text
+  def part_text(_), do: nil
+end
+
 IO.puts("\n" <> String.duplicate("=", 80))
-IO.puts("GEMINI 3 PRO FEATURES DEMO")
+IO.puts("GEMINI 3 FEATURES DEMO")
 IO.puts(String.duplicate("=", 80) <> "\n")
 
 # Check for API key
@@ -38,10 +62,12 @@ IO.puts(String.duplicate("-", 80) <> "\n")
 
 IO.puts("""
 Gemini 3 introduces `thinking_level` to control reasoning depth:
-- :low  - Fast responses, minimal reasoning (best for simple tasks)
-- :high - Deep reasoning, may have higher latency (default)
+- :low  - Fast responses, minimal reasoning (Pro + Flash)
+- :high - Deep reasoning, may have higher latency (Pro + Flash, default)
+- :minimal - Minimal thinking (Flash only)
+- :medium  - Balanced thinking (Flash only)
 
-Note: :medium is not currently supported.
+Note: Gemini 3 Pro supports :low and :high only. Gemini 3 Flash supports all four.
 """)
 
 # Example with low thinking level (fast)
@@ -58,6 +84,25 @@ case Coordinator.generate_content(
     {:ok, text} = Gemini.extract_text(response)
     IO.puts("Response: #{text}")
     IO.puts("  (Used :low thinking level for fast response)\n")
+
+  {:error, error} ->
+    IO.puts("Error: #{inspect(error)}\n")
+end
+
+# Example with minimal thinking level (Flash only)
+IO.puts("Testing with thinking_level: :minimal (Flash only)...")
+
+config_minimal = GenerationConfig.thinking_level(:minimal)
+
+case Coordinator.generate_content(
+       "Summarize the benefits of OTP in one sentence.",
+       model: "gemini-3-flash-preview",
+       generation_config: config_minimal
+     ) do
+  {:ok, response} ->
+    {:ok, text} = Gemini.extract_text(response)
+    IO.puts("Response: #{text}")
+    IO.puts("  (Used :minimal thinking level on Gemini 3 Flash)\n")
 
   {:error, error} ->
     IO.puts("Error: #{inspect(error)}\n")
@@ -83,11 +128,48 @@ case Coordinator.generate_content(
 end
 
 # ============================================================================
-# SECTION 2: Image Generation
+# SECTION 2: Built-in Tools (Gemini 3)
 # ============================================================================
 
 IO.puts(String.duplicate("-", 80))
-IO.puts("2. IMAGE GENERATION (gemini-3-pro-image-preview)")
+IO.puts("2. BUILT-IN TOOLS (GOOGLE SEARCH + URL CONTEXT)")
+IO.puts(String.duplicate("-", 80) <> "\n")
+
+IO.puts("""
+Gemini 3 models can call built-in tools without registering local functions:
+- :google_search
+- :url_context
+- :code_execution
+""")
+
+case Gemini.generate(
+       "Find the latest Elixir release notes and summarize the key changes.",
+       model: "gemini-3-flash-preview",
+       tools: [:google_search, :url_context],
+       response_mime_type: "application/json",
+       response_json_schema: %{
+         "type" => "object",
+         "properties" => %{
+           "summary" => %{"type" => "string"},
+           "sources" => %{"type" => "array", "items" => %{"type" => "string"}}
+         },
+         "required" => ["summary"]
+       }
+     ) do
+  {:ok, response} ->
+    {:ok, text} = Gemini.extract_text(response)
+    IO.puts("Response (JSON text): #{text}\n")
+
+  {:error, error} ->
+    IO.puts("Error: #{inspect(error)}\n")
+end
+
+# ============================================================================
+# SECTION 3: Image Generation
+# ============================================================================
+
+IO.puts(String.duplicate("-", 80))
+IO.puts("3. IMAGE GENERATION (gemini-3-pro-image-preview)")
 IO.puts(String.duplicate("-", 80) <> "\n")
 
 IO.puts("""
@@ -111,16 +193,23 @@ case Coordinator.generate_content(
        generation_config: image_config
      ) do
   {:ok, %{candidates: candidates}} when is_list(candidates) and length(candidates) > 0 ->
-    # Extract parts from the first candidate
+    # Extract parts from the first candidate (struct or map)
     [first_candidate | _] = candidates
-    parts = get_in(first_candidate, [:content, :parts]) || []
+
+    parts =
+      case first_candidate do
+        %{content: %Gemini.Types.Content{parts: parts}} -> parts
+        %{content: %{parts: parts}} -> parts
+        %{"content" => %{"parts" => parts}} -> parts
+        _ -> []
+      end
 
     Enum.each(parts, fn part ->
-      cond do
-        Map.has_key?(part, :inline_data) ->
-          inline_data = part.inline_data
-          mime_type = inline_data[:mime_type] || inline_data["mimeType"] || "unknown"
-          data = inline_data[:data] || inline_data["data"] || ""
+      case Gemini3DemoHelpers.inline_data_from_part(part) do
+        inline_data when not is_nil(inline_data) ->
+          {mime_type, data} = Gemini3DemoHelpers.inline_data_fields(inline_data)
+          mime_type = mime_type || "unknown"
+          data = if is_binary(data), do: data, else: ""
           size = byte_size(data)
 
           IO.puts("  Generated image:")
@@ -128,30 +217,40 @@ case Coordinator.generate_content(
           IO.puts("    Data size: #{size} bytes (base64)")
 
           # Check for thought_signature (Gemini 3 feature)
-          if Map.has_key?(part, :thought_signature) do
-            sig = part.thought_signature
-            IO.puts("    Thought signature: #{String.slice(sig, 0, 50)}...")
+          case Gemini3DemoHelpers.thought_signature(part) do
+            sig when is_binary(sig) ->
+              IO.puts("    Thought signature: #{String.slice(sig, 0, 50)}...")
+
+            _ ->
+              :ok
           end
 
           # Save image to generated/ directory
-          case Base.decode64(data) do
-            {:ok, image_bytes} ->
-              output_dir = "generated"
-              File.mkdir_p!(output_dir)
-              filename = "#{output_dir}/generated_image_#{:os.system_time(:second)}.jpg"
-              File.write!(filename, image_bytes)
-              IO.puts("    Saved to: #{filename}")
-              IO.puts("    (Look in the 'generated/' directory)")
+          if data == "" do
+            IO.puts("    (No image data returned)")
+          else
+            case Base.decode64(data) do
+              {:ok, image_bytes} ->
+                output_dir = "generated"
+                File.mkdir_p!(output_dir)
+                filename = "#{output_dir}/generated_image_#{:os.system_time(:second)}.jpg"
+                File.write!(filename, image_bytes)
+                IO.puts("    Saved to: #{filename}")
+                IO.puts("    (Look in the 'generated/' directory)")
 
-            :error ->
-              IO.puts("    (Could not decode image data)")
+              :error ->
+                IO.puts("    (Could not decode image data)")
+            end
           end
 
-        Map.has_key?(part, :text) ->
-          IO.puts("  Text response: #{part.text}")
+        nil ->
+          case Gemini3DemoHelpers.part_text(part) do
+            text when is_binary(text) ->
+              IO.puts("  Text response: #{text}")
 
-        true ->
-          IO.puts("  Part keys: #{inspect(Map.keys(part))}")
+            _ ->
+              IO.puts("  Part keys: #{inspect(Map.keys(part))}")
+          end
       end
     end)
 
@@ -166,11 +265,11 @@ case Coordinator.generate_content(
 end
 
 # ============================================================================
-# SECTION 3: Media Resolution Control
+# SECTION 4: Media Resolution Control
 # ============================================================================
 
 IO.puts(String.duplicate("-", 80))
-IO.puts("3. MEDIA RESOLUTION CONTROL")
+IO.puts("4. MEDIA RESOLUTION CONTROL")
 IO.puts(String.duplicate("-", 80) <> "\n")
 
 IO.puts("""
@@ -191,6 +290,8 @@ Use lower resolution for:
 - Faster processing
 - Cost optimization
 - General image understanding
+
+Note: :ultra_high is also supported where available, with higher token costs.
 """)
 
 # Demonstrate Part API for media resolution
@@ -205,11 +306,11 @@ IO.puts("  |> Part.with_resolution(:high)")
 IO.puts("")
 
 # ============================================================================
-# SECTION 4: Thought Signatures
+# SECTION 5: Thought Signatures
 # ============================================================================
 
 IO.puts(String.duplicate("-", 80))
-IO.puts("4. THOUGHT SIGNATURES (Multi-turn Context)")
+IO.puts("5. THOUGHT SIGNATURES (Multi-turn Context)")
 IO.puts(String.duplicate("-", 80) <> "\n")
 
 IO.puts("""
@@ -235,26 +336,31 @@ IO.puts("""
 New in Gemini 3:
 
 1. thinking_level - Control reasoning depth
-   GenerationConfig.thinking_level(:low)   # Fast responses
-   GenerationConfig.thinking_level(:high)  # Deep reasoning (default)
+   GenerationConfig.thinking_level(:low)      # Fast responses (Pro + Flash)
+   GenerationConfig.thinking_level(:minimal)  # Minimal thinking (Flash only)
+   GenerationConfig.thinking_level(:high)     # Deep reasoning (default)
 
-2. image_config - Image generation settings
+2. built-in tools - Google Search, URL Context, Code Execution
+   tools: [:google_search, :url_context]
+
+3. image_config - Image generation settings
    GenerationConfig.image_config(aspect_ratio: "16:9", image_size: "4K")
 
-3. media_resolution - Vision processing control
+4. media_resolution - Vision processing control
    Part.inline_data_with_resolution(data, mime, :high)
    Part.with_resolution(part, :low)
 
-4. thought_signature - Reasoning context (automatic in SDK)
+5. thought_signature - Reasoning context (automatic in SDK)
    Part.with_thought_signature(part, signature)
 
 Models:
 - gemini-3-pro-preview      : Text, reasoning, code
+- gemini-3-flash-preview    : Fast thinking + built-in tools
 - gemini-3-pro-image-preview: Image generation
 
 Best Practices:
 - Keep temperature at 1.0 (Gemini 3 default) for best results
-- Use :low thinking for simple tasks, :high for complex reasoning
+- Use :minimal/:low for simple tasks, :high for complex reasoning
 - Don't mix thinking_level and thinking_budget in same request
 """)
 

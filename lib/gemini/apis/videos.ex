@@ -6,12 +6,16 @@ defmodule Gemini.APIs.Videos do
   videos from text descriptions. Video generation is a long-running operation that
   can take several minutes to complete.
 
-  **Note:** Video generation is currently only available through Vertex AI, not the
-  Gemini API. You must configure Vertex AI credentials to use these functions.
+  Video generation is available through both Vertex AI and the Gemini API
+  (for supported Veo models).
 
   ## Supported Models
 
   - `veo-2.0-generate-001` - Veo 2.0 video generation model (recommended)
+  - `veo-3.1-generate-preview` - Veo 3.1 preview
+  - `veo-3.1-fast-generate-preview` - Veo 3.1 Fast preview
+  - `veo-3.0-generate-001` - Veo 3.0 stable
+  - `veo-3.0-fast-generate-001` - Veo 3.0 Fast stable
 
   ## Video Generation Workflow
 
@@ -141,11 +145,13 @@ defmodule Gemini.APIs.Videos do
           api_result(Operation.t())
   def generate(prompt, config \\ %VideoGenerationConfig{}, opts \\ []) do
     model = Keyword.get(opts, :model, @default_model)
-    location = Keyword.get(opts, :location, @default_location)
-    project_id = get_project_id(opts)
+    auth_config = Config.auth_config()
+    auth_type = auth_type_from_config(auth_config)
+    project_id = get_project_id(opts, auth_config)
+    location = get_location(opts, auth_config)
 
-    with :ok <- validate_vertex_ai_config(),
-         {:ok, path} <- build_predict_path(project_id, location, model),
+    with :ok <- validate_video_auth(auth_type, project_id, location),
+         {:ok, path} <- build_predict_path(auth_type, project_id, location, model),
          {:ok, request_body} <- build_generation_request(prompt, config) do
       case HTTP.post(path, request_body, opts) do
         {:ok, response} -> parse_operation_response(response)
@@ -321,9 +327,10 @@ defmodule Gemini.APIs.Videos do
   # Request Building
   # ===========================================================================
 
-  @spec build_predict_path(String.t(), String.t(), String.t()) ::
+  @spec build_predict_path(:gemini | :vertex_ai, String.t() | nil, String.t() | nil, String.t()) ::
           {:ok, String.t()} | {:error, term()}
-  defp build_predict_path(project_id, location, model) do
+  defp build_predict_path(:vertex_ai, project_id, location, model)
+       when is_binary(project_id) and is_binary(location) do
     # Video generation uses the predict endpoint which returns an operation
     path =
       "projects/#{project_id}/locations/#{location}/publishers/google/models/#{model}:predict"
@@ -331,13 +338,32 @@ defmodule Gemini.APIs.Videos do
     {:ok, path}
   end
 
+  defp build_predict_path(:gemini, _project_id, _location, model) when is_binary(model) do
+    {:ok, "models/#{model}:predictLongRunning"}
+  end
+
+  defp build_predict_path(_auth, _project_id, _location, _model) do
+    {:error, Error.validation_error("Invalid video generation path parameters")}
+  end
+
   @spec build_generation_request(String.t(), VideoGenerationConfig.t()) ::
           {:ok, map()} | {:error, term()}
   defp build_generation_request(prompt, config) do
     params = Gemini.Types.Generation.Video.build_generation_params(prompt, config)
 
+    instance =
+      %{"prompt" => prompt}
+      |> maybe_put("image", Gemini.Types.Generation.Video.image_to_api(config.image))
+      |> maybe_put("video", Gemini.Types.Generation.Video.video_to_api(config.video))
+      |> maybe_put("lastFrame", Gemini.Types.Generation.Video.image_to_api(config.last_frame))
+      |> maybe_put_list(
+        "referenceImages",
+        config.reference_images,
+        &Gemini.Types.Generation.Video.reference_image_to_api/1
+      )
+
     request = %{
-      "instances" => [%{"prompt" => prompt}],
+      "instances" => [instance],
       "parameters" => params
     }
 
@@ -373,32 +399,44 @@ defmodule Gemini.APIs.Videos do
   # Helpers
   # ===========================================================================
 
-  @spec validate_vertex_ai_config() :: :ok | {:error, term()}
-  defp validate_vertex_ai_config do
-    case Config.auth_config() do
-      %{type: :vertex_ai} ->
+  @spec validate_video_auth(:gemini | :vertex_ai | nil, String.t() | nil, String.t() | nil) ::
+          :ok | {:error, term()}
+  defp validate_video_auth(:gemini, _project_id, _location), do: :ok
+
+  defp validate_video_auth(:vertex_ai, project_id, location) do
+    cond do
+      not is_binary(project_id) or project_id == "" ->
+        {:error,
+         Error.config_error(
+           "Video generation requires Vertex AI project_id. " <>
+             "Please configure VERTEX_PROJECT_ID."
+         )}
+
+      not is_binary(location) or location == "" ->
+        {:error,
+         Error.config_error(
+           "Video generation requires Vertex AI location. " <>
+             "Please configure VERTEX_LOCATION."
+         )}
+
+      true ->
         :ok
-
-      %{type: :gemini} ->
-        {:error,
-         Error.config_error(
-           "Video generation requires Vertex AI authentication. " <>
-             "Please configure VERTEX_PROJECT_ID and either VERTEX_LOCATION or service account credentials."
-         )}
-
-      nil ->
-        {:error,
-         Error.config_error(
-           "No authentication configured. Video generation requires Vertex AI credentials."
-         )}
     end
   end
 
-  @spec get_project_id(keyword()) :: String.t()
-  defp get_project_id(opts) do
+  defp validate_video_auth(nil, _project_id, _location) do
+    {:error, Error.config_error("No authentication configured for video generation.")}
+  end
+
+  defp validate_video_auth(_other, _project_id, _location) do
+    {:error, Error.config_error("Unsupported authentication for video generation.")}
+  end
+
+  @spec get_project_id(keyword(), map() | nil) :: String.t() | nil
+  defp get_project_id(opts, auth_config) do
     case Keyword.get(opts, :project_id) do
       nil ->
-        case Config.auth_config() do
+        case auth_config do
           %{credentials: %{project_id: project_id}} -> project_id
           _ -> nil
         end
@@ -406,5 +444,47 @@ defmodule Gemini.APIs.Videos do
       project_id ->
         project_id
     end
+  end
+
+  @spec get_location(keyword(), map() | nil) :: String.t() | nil
+  defp get_location(opts, auth_config) do
+    case Keyword.get(opts, :location) do
+      nil ->
+        case auth_config do
+          %{credentials: %{location: location}} when is_binary(location) -> location
+          _ -> @default_location
+        end
+
+      location ->
+        location
+    end
+  end
+
+  defp auth_type_from_config(%{type: type}), do: type
+  defp auth_type_from_config(_), do: nil
+
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, key, value), do: Map.put(map, key, value)
+
+  defp maybe_put_list(map, _key, nil, _fun), do: map
+  defp maybe_put_list(map, _key, [], _fun), do: map
+
+  defp maybe_put_list(map, key, list, fun) when is_list(list) do
+    Map.put(map, key, Enum.map(list, fun))
+  end
+
+  @doc false
+  def __test_build_generation_request__(prompt, config),
+    do: build_generation_request(prompt, config)
+
+  @doc false
+  def __test_build_predict_path__(auth_type, credentials, model)
+      when is_map(credentials) and is_binary(model) do
+    build_predict_path(
+      auth_type,
+      Map.get(credentials, :project_id),
+      Map.get(credentials, :location),
+      model
+    )
   end
 end

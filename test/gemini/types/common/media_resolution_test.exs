@@ -8,6 +8,9 @@ defmodule Gemini.Types.MediaResolutionTest do
       assert MediaResolution.from_api("MEDIA_RESOLUTION_LOW") == :media_resolution_low
       assert MediaResolution.from_api("MEDIA_RESOLUTION_MEDIUM") == :media_resolution_medium
       assert MediaResolution.from_api("MEDIA_RESOLUTION_HIGH") == :media_resolution_high
+
+      assert MediaResolution.from_api("MEDIA_RESOLUTION_ULTRA_HIGH") ==
+               :media_resolution_ultra_high
     end
 
     test "returns unspecified for unknown values" do
@@ -21,6 +24,7 @@ defmodule Gemini.Types.MediaResolutionTest do
       assert MediaResolution.to_api(:media_resolution_low) == "MEDIA_RESOLUTION_LOW"
       assert MediaResolution.to_api(:media_resolution_medium) == "MEDIA_RESOLUTION_MEDIUM"
       assert MediaResolution.to_api(:media_resolution_high) == "MEDIA_RESOLUTION_HIGH"
+      assert MediaResolution.to_api(:media_resolution_ultra_high) == "MEDIA_RESOLUTION_ULTRA_HIGH"
     end
 
     test "defaults to unspecified string for unknown atoms" do

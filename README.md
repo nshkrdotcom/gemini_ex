@@ -16,6 +16,7 @@ A comprehensive Elixir client for Google's Gemini AI API with dual authenticatio
 ## Features
 
 - **Automatic Tool Calling**: A seamless, Python-SDK-like experience that automates the entire multi-turn tool-calling loop
+- **Built-in Tools (Gemini 3)**: Google Search, URL Context, and Code Execution via `tools:`
 - **Dual Authentication**: Seamless support for both Gemini API keys and Vertex AI OAuth/Service Accounts
 - **Application Default Credentials (ADC)**: Zero-config GCP auth with automatic discovery and token refresh (NEW in v0.8.x!)
 - **Advanced Streaming**: Production-grade Server-Sent Events streaming with real-time processing
@@ -36,7 +37,7 @@ A comprehensive Elixir client for Google's Gemini AI API with dual authenticatio
 - **Chat Sessions & System Instructions**: Multi-turn conversation management with persistent guardrails
 - **Flexible Multimodal Input**: Intuitive formats for images/text with automatic MIME detection
 - **Thinking Budget Control**: Optimize costs by controlling thinking token usage
-- **Gemini 3 Support**: `thinking_level`, image generation, media resolution, thought signatures (NEW in v0.5.x!)
+- **Gemini 3 Support**: `thinking_level` (`:minimal`, `:low`, `:medium`, `:high`), image generation, media resolution, thought signatures (NEW in v0.5.x!)
 - **Context Caching**: Cache large contexts once and reuse by ID (NEW in v0.6.0!)
 - **Complete Generation Config**: Full support for all generation config options including structured output
 - **Production Ready**: Robust error handling, retry logic, and performance optimizations
@@ -57,7 +58,7 @@ Add `gemini` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:gemini_ex, "~> 0.8.4"}
+    {:gemini_ex, "~> 0.8.5"}
   ]
 end
 ```
@@ -98,7 +99,7 @@ IO.puts(text)
 
 # Advanced generation config with structured output
 {:ok, response} = Gemini.generate("Analyze this topic and provide a summary", [
-  response_schema: %{
+  response_json_schema: %{
     "type" => "object",
     "properties" => %{
       "summary" => %{"type" => "string"},
@@ -267,7 +268,7 @@ Model aliases: resolve the built-in use-case aliases via `Gemini.Config.model_fo
 config = %Gemini.Types.GenerationConfig{
   temperature: 0.7,
   max_output_tokens: 2000,
-  response_schema: %{
+  response_json_schema: %{
     "type" => "object",
     "properties" => %{
       "analysis" => %{"type" => "string"},
@@ -325,6 +326,14 @@ config = Gemini.Types.GenerationConfig.structured_json(schema)
 # => %{"answer" => "Paris", "confidence" => 0.99}
 ```
 
+`GenerationConfig.structured_json/2` uses `response_json_schema` (standard JSON Schema)
+by default. If you need Gemini's internal schema format, pass `schema_type: :response_schema`:
+
+```elixir
+config =
+  GenerationConfig.structured_json(%{"type" => "OBJECT"}, schema_type: :response_schema)
+```
+
 **New Features (November 2025):**
 - `anyOf` for union types
 - `$ref` for recursive schemas
@@ -372,9 +381,12 @@ alias Gemini.Types.Content
 
 **Models that support explicit caching:**
 - `gemini-2.5-flash`
+- `gemini-2.5-flash-lite`
 - `gemini-2.5-pro`
 - `gemini-2.0-flash-001`
+- `gemini-2.0-flash-lite-001`
 - `gemini-3-pro-preview`
+- `gemini-3-flash-preview`
 
 You can list, get, update TTL, and delete caches via the top-level `Gemini.*cache*` helpers or `Gemini.APIs.ContextCache.*`. Vertex AI names are auto-expanded when `auth: :vertex_ai` or configured credentials are present.
 
@@ -707,6 +719,31 @@ receive do
   {:stream_complete, ^stream_id} -> IO.puts("\n✅ Complete!")
 end
 ```
+
+### Built-in Tools (Gemini 3)
+
+Gemini 3 models can call built-in tools for Google Search, URL Context, and Code Execution.
+Enable them in `tools:` and optionally combine with structured outputs:
+
+```elixir
+{:ok, response} =
+  Gemini.generate(
+    "Find the latest Elixir release notes and summarize the key changes.",
+    model: "gemini-3-flash-preview",
+    tools: [:google_search, :url_context],
+    response_mime_type: "application/json",
+    response_json_schema: %{
+      "type" => "object",
+      "properties" => %{
+        "summary" => %{"type" => "string"},
+        "sources" => %{"type" => "array", "items" => %{"type" => "string"}}
+      },
+      "required" => ["summary"]
+    }
+  )
+```
+
+Built-in tools can be mixed with your own function declarations in the same `tools:` list.
 
 ### Manual Execution (Advanced)
 
@@ -1235,7 +1272,7 @@ Models are organized by API compatibility:
 
 | Category | Example Models | Gemini API | Vertex AI |
 |----------|---------------|------------|-----------|
-| **Universal** | `gemini-2.5-flash`, `gemini-2.0-flash-lite` | ✓ | ✓ |
+| **Universal** | `gemini-2.5-flash`, `gemini-3-flash-preview` | ✓ | ✓ |
 | **AI Studio Only** | `gemini-flash-lite-latest`, `gemini-pro-latest` | ✓ | ✗ |
 | **Vertex AI Only** | `embeddinggemma`, `embeddinggemma-300m` | ✗ | ✓ |
 
@@ -1328,12 +1365,12 @@ The library features a modular, layered architecture:
 
 ### Complete Generation Configuration Support
 
-All 12 generation config options are fully supported across all API entry points:
+All generation config options are fully supported across all API entry points:
 
 ```elixir
 # Structured output with JSON schema
 {:ok, response} = Gemini.generate("Analyze this data", [
-  response_schema: %{
+  response_json_schema: %{
     "type" => "object",
     "properties" => %{
       "summary" => %{"type" => "string"},
@@ -1370,6 +1407,7 @@ All 12 generation config options are fully supported across all API entry points
 **Model quick picks**
 - `gemini-flash-lite-latest` (default; fastest + most cost-efficient)
 - `gemini-2.5-flash` (balanced price/performance for high-volume workloads)
+- `gemini-3-flash-preview` (fast Gemini 3 with full thinking levels + built-in tools)
 - `gemini-3-pro-preview` (most capable multimodal reasoning)
 
 ### Multimodal Content (New in v0.2.2!)

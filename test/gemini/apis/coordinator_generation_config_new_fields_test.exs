@@ -53,6 +53,19 @@ defmodule Gemini.APIs.CoordinatorGenerationConfigNewFieldsTest do
                "outputCompressionQuality" => 80
              }
     end
+
+    test "includes response_json_schema" do
+      schema = %{"type" => "object", "properties" => %{"answer" => %{"type" => "string"}}}
+
+      config =
+        Coordinator.__test_build_generation_config__(
+          response_json_schema: schema,
+          response_mime_type: "application/json"
+        )
+
+      assert config[:responseJsonSchema] == schema
+      assert config[:responseMimeType] == "application/json"
+    end
   end
 
   describe "__test_struct_to_api_map__/1" do
@@ -113,6 +126,16 @@ defmodule Gemini.APIs.CoordinatorGenerationConfigNewFieldsTest do
                "outputMimeType" => "image/png",
                "outputCompressionQuality" => 90
              }
+    end
+
+    test "encodes response_json_schema on struct" do
+      schema = %{"type" => "object", "properties" => %{"value" => %{"type" => "integer"}}}
+      gc = %GenerationConfig{response_json_schema: schema}
+
+      result = Coordinator.__test_struct_to_api_map__(gc)
+
+      assert (Map.get(result, "responseJsonSchema") || Map.get(result, :responseJsonSchema)) ==
+               schema
     end
   end
 end

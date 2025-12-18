@@ -1269,8 +1269,12 @@ defmodule Gemini.APIs.Coordinator do
       {:thinking_budget, budget}, acc when is_integer(budget) ->
         Map.put(acc, "thinkingBudget", budget)
 
-      {:thinking_level, level}, acc when level in [:low, :medium, :high] ->
-        Map.put(acc, "thinkingLevel", convert_thinking_level(level))
+      {:thinking_level, level}, acc
+      when level in [:unspecified, :minimal, :low, :medium, :high] ->
+        case convert_thinking_level(level) do
+          nil -> acc
+          api_level -> Map.put(acc, "thinkingLevel", api_level)
+        end
 
       {:include_thoughts, include}, acc when is_boolean(include) ->
         Map.put(acc, "includeThoughts", include)
@@ -1293,6 +1297,8 @@ defmodule Gemini.APIs.Coordinator do
   defp convert_thinking_config_to_api(nil), do: %{}
 
   # Convert thinking level atom to API string
+  defp convert_thinking_level(:unspecified), do: nil
+  defp convert_thinking_level(:minimal), do: "minimal"
   defp convert_thinking_level(:low), do: "low"
   defp convert_thinking_level(:medium), do: "medium"
   defp convert_thinking_level(:high), do: "high"
@@ -1386,6 +1392,9 @@ defmodule Gemini.APIs.Coordinator do
       # Advanced generation parameters
       {:response_schema, schema}, acc when is_map(schema) ->
         Map.put(acc, :responseSchema, schema)
+
+      {:response_json_schema, schema}, acc when is_map(schema) ->
+        Map.put(acc, :responseJsonSchema, schema)
 
       {:response_mime_type, mime_type}, acc when is_binary(mime_type) ->
         Map.put(acc, :responseMimeType, mime_type)

@@ -8,6 +8,34 @@ defmodule Gemini.Validation.ThinkingConfigTest do
   @pro_2_5 Config.get_model(:pro_2_5)
   @flash_2_5 Config.get_model(:flash_2_5)
   @flash_2_5_lite Config.get_model(:flash_2_5_lite)
+  @pro_3 Config.get_model(:pro_3_preview)
+  @flash_3 Config.get_model(:flash_3_preview)
+
+  describe "validate_level/2 for Gemini 3 models" do
+    test "accepts low/high for Gemini 3 Pro" do
+      assert :ok = ThinkingConfig.validate_level(:low, @pro_3)
+      assert :ok = ThinkingConfig.validate_level(:high, @pro_3)
+    end
+
+    test "rejects minimal/medium for Gemini 3 Pro" do
+      assert {:error, msg} = ThinkingConfig.validate_level(:minimal, @pro_3)
+      assert msg =~ "only supported on Gemini 3 Flash"
+
+      assert {:error, msg} = ThinkingConfig.validate_level(:medium, @pro_3)
+      assert msg =~ "only supported on Gemini 3 Flash"
+    end
+
+    test "accepts minimal/medium/low/high for Gemini 3 Flash" do
+      assert :ok = ThinkingConfig.validate_level(:minimal, @flash_3)
+      assert :ok = ThinkingConfig.validate_level(:low, @flash_3)
+      assert :ok = ThinkingConfig.validate_level(:medium, @flash_3)
+      assert :ok = ThinkingConfig.validate_level(:high, @flash_3)
+    end
+
+    test "accepts unspecified level" do
+      assert :ok = ThinkingConfig.validate_level(:unspecified, @flash_3)
+    end
+  end
 
   describe "validate_budget/2 for Gemini 2.5 Pro" do
     test "rejects budget of 0 (cannot disable thinking)" do
@@ -120,6 +148,11 @@ defmodule Gemini.Validation.ThinkingConfigTest do
     test "validates budget in config map" do
       config = %{thinking_budget: 1024}
       assert :ok = ThinkingConfig.validate(config, @flash_2_5)
+    end
+
+    test "validates thinking level in config map" do
+      config = %{thinking_level: :minimal}
+      assert :ok = ThinkingConfig.validate(config, @flash_3)
     end
 
     test "returns error for invalid budget in config map" do

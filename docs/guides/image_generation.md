@@ -252,7 +252,7 @@ config = %ImageGenerationConfig{
 
 # Don't generate recognizable people (default)
 config = %ImageGenerationConfig{
-  person_generation: :dont_allow
+  person_generation: :allow_none
 }
 ```
 
@@ -429,7 +429,7 @@ end
 | `number_of_images` | `1..8` | `1` | Number of images to generate |
 | `aspect_ratio` | `String.t()` | `"1:1"` | Image aspect ratio |
 | `safety_filter_level` | `atom()` | `:block_some` | Content filtering level |
-| `person_generation` | `atom()` | `:dont_allow` | Person generation policy |
+| `person_generation` | `atom()` | `:allow_none` | Person generation policy |
 | `output_mime_type` | `String.t()` | `"image/png"` | Output format |
 | `output_compression_quality` | `0..100` | `nil` | JPEG quality (JPEG only) |
 | `negative_prompt` | `String.t()` | `nil` | What to avoid |

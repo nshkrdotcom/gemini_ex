@@ -298,6 +298,69 @@ config = %VideoGenerationConfig{
 # Videos will be identical
 ```
 
+## Veo 3.x Inputs
+
+Veo 3.x models support image-to-video, interpolation, reference images, video extension, and
+explicit resolution control.
+
+### Image-to-Video
+
+```elixir
+{:ok, image} = Gemini.Types.Blob.from_file("assets/first_frame.png")
+
+config = %VideoGenerationConfig{
+  image: image
+}
+
+{:ok, operation} =
+  Videos.generate("A slow camera pan across the scene", config,
+    model: "veo-3.1-generate-preview"
+  )
+```
+
+### Last Frame (Interpolation)
+
+```elixir
+{:ok, first_frame} = Gemini.Types.Blob.from_file("assets/first_frame.png")
+{:ok, last_frame} = Gemini.Types.Blob.from_file("assets/last_frame.png")
+
+config = %VideoGenerationConfig{
+  image: first_frame,
+  last_frame: last_frame
+}
+```
+
+### Reference Images
+
+```elixir
+{:ok, reference} = Gemini.Types.Blob.from_file("assets/reference.png")
+
+ref = %Gemini.Types.Generation.Video.VideoGenerationReferenceImage{
+  image: reference,
+  reference_type: "asset"
+}
+
+config = %VideoGenerationConfig{
+  reference_images: [ref]
+}
+```
+
+### Video Extension
+
+```elixir
+config = %VideoGenerationConfig{
+  video: %{"gcsUri" => "gs://bucket/previous_video.mp4"}
+}
+```
+
+### Resolution
+
+```elixir
+config = %VideoGenerationConfig{
+  resolution: "1080p"
+}
+```
+
 ## Safety and Content Filtering
 
 ### Safety Filter Levels
@@ -334,7 +397,7 @@ config = %VideoGenerationConfig{
 
 # Don't generate recognizable people (default)
 config = %VideoGenerationConfig{
-  person_generation: :dont_allow
+  person_generation: :allow_none
 }
 ```
 
@@ -534,7 +597,7 @@ prompts
 | `negative_prompt` | `String.t()` | `nil` | What to avoid |
 | `seed` | `integer()` | `nil` | Random seed for reproducibility |
 | `guidance_scale` | `float()` | `nil` | Prompt adherence (1.0-20.0) |
-| `person_generation` | `atom()` | `:dont_allow` | Person generation policy |
+| `person_generation` | `atom()` | `:allow_none` | Person generation policy |
 
 ## Troubleshooting
 

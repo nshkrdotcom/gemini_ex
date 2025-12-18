@@ -484,10 +484,8 @@ Current Elixir type:
 @type person_generation :: :allow_adult | :allow_all | :dont_allow
 ```
 
-**Note:** Python uses `ALLOW_NONE` but Elixir has `:dont_allow`. Consider aligning:
-```elixir
-@type person_generation :: :allow_adult | :allow_all | :allow_none
-```
+**Note:** Python uses `ALLOW_NONE` but Elixir previously used `:dont_allow`. Align to
+`:allow_none` and keep `:dont_allow` as a backward-compatible alias.
 
 ---
 
@@ -972,7 +970,6 @@ These commits do not introduce API surface changes that need Elixir equivalents:
    - `gemini-2.5-flash-lite-preview-09-2025`
    - `gemini-2.5-flash-native-audio-preview-09-2025`
    - `gemini-2.5-flash-native-audio-preview-12-2025`
-   - `gemini-2.5-computer-use-preview-10-2025`
    - `deep-research-pro-preview-12-2025`
 2. Update context cache model list if needed
 
@@ -990,9 +987,9 @@ These commits do not introduce API surface changes that need Elixir equivalents:
 
 ### Phase 7: Computer Use + Deep Research (Priority: HIGH)
 
-1. Align Computer Use tool schema with official docs (types + content/events)
-2. Extend Deep Research agent config to match official schema
-3. Add examples/tests for both features once schemas are finalized
+1. Computer Use remains out of scope; do not add models, tool serialization, or content/event types.
+2. Extend Deep Research agent config to match official schema if gaps are discovered.
+3. Add examples/tests for Deep Research only if needed.
 
 ### Phase 8: Testing (Priority: HIGH)
 

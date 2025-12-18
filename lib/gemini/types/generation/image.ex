@@ -45,9 +45,11 @@ defmodule Gemini.Types.Generation.Image do
 
   - `:allow_adult` - Allow generation of adult humans
   - `:allow_all` - Allow generation of humans of all ages
-  - `:dont_allow` - Do not generate recognizable people
+  - `:allow_none` - Do not generate recognizable people
+
+  Legacy alias: `:dont_allow` (mapped to `:allow_none`)
   """
-  @type person_generation :: :allow_adult | :allow_all | :dont_allow
+  @type person_generation :: :allow_adult | :allow_all | :allow_none | :dont_allow
 
   @typedoc """
   Aspect ratio for generated images.
@@ -88,7 +90,7 @@ defmodule Gemini.Types.Generation.Image do
     - `number_of_images` - Number of images to generate (1-8, default: 1)
     - `aspect_ratio` - Image aspect ratio (default: "1:1")
     - `safety_filter_level` - Content safety filtering (default: :block_some)
-    - `person_generation` - Person generation policy (default: :dont_allow)
+    - `person_generation` - Person generation policy (default: :allow_none; legacy :dont_allow supported)
     - `output_mime_type` - Output format, "image/png" or "image/jpeg" (default: "image/png")
     - `output_compression_quality` - JPEG quality 0-100 (default: 80, only for JPEG)
     - `negative_prompt` - Text describing what to avoid in the image
@@ -106,7 +108,7 @@ defmodule Gemini.Types.Generation.Image do
     )
 
     field(:person_generation, Gemini.Types.Generation.Image.person_generation(),
-      default: :dont_allow
+      default: :allow_none
     )
 
     field(:output_mime_type, String.t(), default: "image/png")
@@ -236,7 +238,8 @@ defmodule Gemini.Types.Generation.Image do
   @spec format_person_generation(person_generation()) :: String.t()
   def format_person_generation(:allow_adult), do: "allowAdult"
   def format_person_generation(:allow_all), do: "allowAll"
-  def format_person_generation(:dont_allow), do: "dontAllow"
+  def format_person_generation(:allow_none), do: "allowNone"
+  def format_person_generation(:dont_allow), do: "allowNone"
 
   @doc """
   Converts edit mode to API format.

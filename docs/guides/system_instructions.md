@@ -232,7 +232,7 @@ Enforce both behavior and format:
   - Suggested improvements
   """,
   response_mime_type: "application/json",
-  response_schema: %{
+  response_json_schema: %{
     "type" => "object",
     "properties" => %{
       "sentiment" => %{"type" => "string", "enum" => ["positive", "negative", "neutral"]},

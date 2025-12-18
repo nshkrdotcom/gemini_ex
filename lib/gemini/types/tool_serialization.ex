@@ -15,32 +15,51 @@ defmodule Gemini.Types.ToolSerialization do
   @type api_tool_config :: map()
 
   @doc """
-  Convert a list of ADM `FunctionDeclaration` structs into a Gemini API `tools` list.
+  Convert a list of tools into a Gemini API `tools` list.
 
-  Output shape (each entry):
-  %{
-    "functionDeclarations" => [
-      %{
-        "name" => String.t(),
-        "description" => String.t(),
-        "parameters" => map() # OpenAPI-like schema map, passed through as-is
-      }
-    ]
-  }
+  Supports:
+  - ADM `FunctionDeclaration` structs
+  - Built-in tools (`googleSearch`, `urlContext`, `codeExecution`)
+  - Atom shorthand for built-ins (`:google_search`, `:url_context`, `:code_execution`)
   """
-  @spec to_api_tool_list([FunctionDeclaration.t()]) :: api_tool_list()
-  def to_api_tool_list(declarations) when is_list(declarations) do
-    # Gemini API expects a list of Tool objects; each Tool wraps a list of function declarations.
-    # We place all provided declarations into a single Tool entry per industry docs where a Tool
-    # contains `functionDeclarations`.
-    # If callers want multiple Tool objects, they can pass multiple groups separately in future.
-
-    if declarations == [] do
-      []
+  @spec to_api_tool_list(list()) :: api_tool_list()
+  def to_api_tool_list(declarations) when is_list(declarations) and declarations != [] do
+    if Enum.all?(declarations, &match?(%FunctionDeclaration{}, &1)) do
+      [
+        %{"functionDeclarations" => Enum.map(declarations, &function_declaration_to_map/1)}
+      ]
     else
-      [%{"functionDeclarations" => Enum.map(declarations, &function_declaration_to_map/1)}]
+      Enum.flat_map(declarations, &tool_to_api/1)
     end
   end
+
+  def to_api_tool_list([]), do: []
+
+  defp tool_to_api(%FunctionDeclaration{} = fd) do
+    [%{"functionDeclarations" => [function_declaration_to_map(fd)]}]
+  end
+
+  defp tool_to_api(declarations) when is_list(declarations) do
+    if Enum.all?(declarations, &match?(%FunctionDeclaration{}, &1)) do
+      [%{"functionDeclarations" => Enum.map(declarations, &function_declaration_to_map/1)}]
+    else
+      Enum.flat_map(declarations, &tool_to_api/1)
+    end
+  end
+
+  defp tool_to_api(:google_search), do: [%{"googleSearch" => %{}}]
+  defp tool_to_api(:url_context), do: [%{"urlContext" => %{}}]
+  defp tool_to_api(:code_execution), do: [%{"codeExecution" => %{}}]
+
+  defp tool_to_api(%{google_search: _} = tool), do: [camelize_keys(tool)]
+  defp tool_to_api(%{googleSearch: _} = tool), do: [tool]
+  defp tool_to_api(%{url_context: _} = tool), do: [camelize_keys(tool)]
+  defp tool_to_api(%{urlContext: _} = tool), do: [tool]
+  defp tool_to_api(%{code_execution: _} = tool), do: [camelize_keys(tool)]
+  defp tool_to_api(%{codeExecution: _} = tool), do: [tool]
+
+  defp tool_to_api(%{} = tool), do: [tool]
+  defp tool_to_api(_), do: []
 
   defp function_declaration_to_map(%FunctionDeclaration{
          name: name,
@@ -106,6 +125,17 @@ defmodule Gemini.Types.ToolSerialization do
       [first | rest] -> first <> Enum.map_join(rest, "", &String.capitalize/1)
     end
   end
+
+  defp camelize_keys(%{} = map) do
+    map
+    |> Enum.reduce(%{}, fn {key, value}, acc ->
+      Map.put(acc, camelize_key(key), camelize_value(value))
+    end)
+  end
+
+  defp camelize_value(%{} = value), do: camelize_keys(value)
+  defp camelize_value(list) when is_list(list), do: Enum.map(list, &camelize_value/1)
+  defp camelize_value(value), do: value
 
   @doc """
   Convert ADM `ToolConfig` into Gemini API `toolConfig` map.

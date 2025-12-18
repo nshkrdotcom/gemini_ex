@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.5] - 2025-12-18
+
+### Added
+- `response_json_schema` structured outputs support with `structured_json/2` defaulting to JSON Schema
+- Built-in tools serialization for GenerateContent (`googleSearch`, `urlContext`, `codeExecution`)
+- Gemini 3 thinking levels `:minimal`/`:medium` and `:ultra_high` media resolution
+- Veo 3.x video inputs (image, last_frame, reference_images, video extension, resolution) and Gemini API video generation
+- New model registry entries (Gemini 3 Flash preview, 2.0/2.5 variants, flash image, native audio previews, deep research)
+
+### Changed
+- `person_generation` defaults to `:allow_none` (with `:dont_allow` alias) for image/video config
+- `total_reasoning_tokens` renamed to `total_thought_tokens` in Interactions usage
+- Removed `object` field from `Interaction`
+
+### Fixed
+- Vertex Interactions get/cancel/delete paths now include project/location
+- Documentation/examples refreshed for Gemini 3 thinking levels, JSON Schema outputs, and built-in tools
+
 ## [0.8.4] - 2025-12-13
 
 ### Added
@@ -1685,6 +1703,8 @@ config :gemini_ex,
 - Minimal latency overhead
 - Concurrent request processing
 
+[0.8.5]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.8.5
+[0.8.4]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.8.4
 [0.8.3]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.8.3
 [0.8.2]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.8.2
 [0.8.1]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.8.1

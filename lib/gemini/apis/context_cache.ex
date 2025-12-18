@@ -530,8 +530,10 @@ defmodule Gemini.APIs.ContextCache do
     "gemini-2.0-flash-001",
     "gemini-2.0-flash-lite-001",
     "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
     "gemini-2.5-pro",
-    "gemini-3-pro-preview"
+    "gemini-3-pro-preview",
+    "gemini-3-flash-preview"
   ]
 
   defp validate_cache_model(model) do

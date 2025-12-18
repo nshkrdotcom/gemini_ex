@@ -29,7 +29,7 @@ defmodule Gemini.APIs.VideosTest do
       assert config.fps == 24
       assert config.compression_format == :h264
       assert config.safety_filter_level == :block_some
-      assert config.person_generation == :dont_allow
+      assert config.person_generation == :allow_none
     end
 
     test "accepts custom config values" do
@@ -56,6 +56,30 @@ defmodule Gemini.APIs.VideosTest do
       assert config.seed == 12345
       assert config.guidance_scale == 10.0
       assert config.person_generation == :allow_adult
+    end
+
+    test "accepts Veo 3.x fields" do
+      image = %Gemini.Types.Blob{data: "image-data", mime_type: "image/png"}
+      last_frame = %Gemini.Types.Blob{data: "frame-data", mime_type: "image/png"}
+
+      reference = %Gemini.Types.Generation.Video.VideoGenerationReferenceImage{
+        image: %Gemini.Types.Blob{data: "ref-data", mime_type: "image/png"},
+        reference_type: "asset"
+      }
+
+      config = %VideoGenerationConfig{
+        image: image,
+        last_frame: last_frame,
+        reference_images: [reference],
+        video: %{"gcsUri" => "gs://bucket/video.mp4"},
+        resolution: "1080p"
+      }
+
+      assert config.image == image
+      assert config.last_frame == last_frame
+      assert config.reference_images == [reference]
+      assert config.video == %{"gcsUri" => "gs://bucket/video.mp4"}
+      assert config.resolution == "1080p"
     end
   end
 
@@ -240,7 +264,7 @@ defmodule Gemini.APIs.VideosTest do
 
       assert Gemini.Types.Generation.Video.format_person_generation(:allow_all) == "allowAll"
 
-      assert Gemini.Types.Generation.Video.format_person_generation(:dont_allow) == "dontAllow"
+      assert Gemini.Types.Generation.Video.format_person_generation(:allow_none) == "allowNone"
     end
   end
 
@@ -251,7 +275,8 @@ defmodule Gemini.APIs.VideosTest do
         duration_seconds: 8,
         aspect_ratio: "16:9",
         fps: 30,
-        compression_format: :h265
+        compression_format: :h265,
+        resolution: "1080p"
       }
 
       params = Gemini.Types.Generation.Video.build_generation_params("A cat", config)
@@ -262,6 +287,7 @@ defmodule Gemini.APIs.VideosTest do
       assert params["videoConfig"]["aspectRatio"] == "16:9"
       assert params["videoConfig"]["fps"] == 30
       assert params["videoConfig"]["compressionFormat"] == "h265"
+      assert params["videoConfig"]["resolution"] == "1080p"
     end
 
     test "build_generation_params includes optional fields" do
@@ -292,6 +318,40 @@ defmodule Gemini.APIs.VideosTest do
     end
   end
 
+  describe "__test_build_generation_request__/2" do
+    test "includes image and reference inputs in instances" do
+      image = %Gemini.Types.Blob{data: "image-data", mime_type: "image/png"}
+      last_frame = %Gemini.Types.Blob{data: "frame-data", mime_type: "image/png"}
+
+      reference = %Gemini.Types.Generation.Video.VideoGenerationReferenceImage{
+        image: %Gemini.Types.Blob{data: "ref-data", mime_type: "image/png"},
+        reference_type: "asset"
+      }
+
+      config = %VideoGenerationConfig{
+        image: image,
+        last_frame: last_frame,
+        reference_images: [reference]
+      }
+
+      {:ok, request} = Videos.__test_build_generation_request__("A cat", config)
+
+      [instance] = request["instances"]
+
+      assert instance["prompt"] == "A cat"
+      assert instance["image"]["bytesBase64Encoded"] == "image-data"
+      assert instance["image"]["mimeType"] == "image/png"
+      assert instance["lastFrame"]["bytesBase64Encoded"] == "frame-data"
+
+      assert instance["referenceImages"] == [
+               %{
+                 "image" => %{"bytesBase64Encoded" => "ref-data", "mimeType" => "image/png"},
+                 "referenceType" => "asset"
+               }
+             ]
+    end
+  end
+
   describe "API functions" do
     test "validates function signatures" do
       # Verify all public API functions exist using deterministic module info
@@ -305,6 +365,31 @@ defmodule Gemini.APIs.VideosTest do
       assert {:cancel, 2} in functions
       assert {:list_operations, 1} in functions
       assert {:wrap_operation, 1} in functions
+    end
+  end
+
+  describe "__test_build_predict_path__/3" do
+    test "builds Vertex AI predict path" do
+      assert {:ok, path} =
+               Videos.__test_build_predict_path__(
+                 :vertex_ai,
+                 %{project_id: "proj", location: "us-central1"},
+                 "veo-3.1-generate-preview"
+               )
+
+      assert path ==
+               "projects/proj/locations/us-central1/publishers/google/models/veo-3.1-generate-preview:predict"
+    end
+
+    test "builds Gemini predictLongRunning path" do
+      assert {:ok, path} =
+               Videos.__test_build_predict_path__(
+                 :gemini,
+                 %{},
+                 "veo-3.1-generate-preview"
+               )
+
+      assert path == "models/veo-3.1-generate-preview:predictLongRunning"
     end
   end
 end

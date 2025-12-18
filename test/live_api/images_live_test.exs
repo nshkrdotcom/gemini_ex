@@ -100,7 +100,7 @@ defmodule Gemini.APIs.ImagesLiveTest do
         config = %ImageGenerationConfig{
           number_of_images: 1,
           safety_filter_level: :block_most,
-          person_generation: :dont_allow
+          person_generation: :allow_none
         }
 
         case Images.generate("A peaceful garden scene", config) do

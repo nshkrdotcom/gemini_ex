@@ -91,7 +91,7 @@ defmodule Gemini.Types.Interactions.ImageContent do
 
   use TypedStruct
 
-  @type resolution :: String.t()
+  @type resolution :: :low | :medium | :high | :ultra_high | String.t()
 
   @derive Jason.Encoder
   typedstruct enforce: true do
@@ -178,6 +178,10 @@ end
 defmodule Gemini.Types.Interactions.DocumentContent do
   @moduledoc """
   A document content block (`type: "document"`).
+
+  ## Supported MIME Types
+
+  - `"application/pdf"` - PDF documents
   """
 
   use TypedStruct
@@ -225,7 +229,7 @@ defmodule Gemini.Types.Interactions.VideoContent do
 
   use TypedStruct
 
-  @type resolution :: String.t()
+  @type resolution :: :low | :medium | :high | :ultra_high | String.t()
 
   @derive Jason.Encoder
   typedstruct enforce: true do
@@ -366,6 +370,9 @@ end
 defmodule Gemini.Types.Interactions.FunctionResultContent do
   @moduledoc """
   A function tool result content block (`type: "function_result"`).
+
+  The `result` payload may include strings, image content blocks, or arbitrary
+  structured data returned by tools.
   """
 
   use TypedStruct
@@ -944,6 +951,9 @@ end
 defmodule Gemini.Types.Interactions.MCPServerToolResultContent do
   @moduledoc """
   MCP server tool result content block (`type: "mcp_server_tool_result"`).
+
+  The `result` payload may include strings, image content blocks, or arbitrary
+  structured data returned by the MCP server.
   """
 
   use TypedStruct

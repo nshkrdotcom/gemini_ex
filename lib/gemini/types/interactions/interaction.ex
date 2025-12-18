@@ -18,7 +18,6 @@ defmodule Gemini.Types.Interactions.Interaction do
     field(:agent, String.t(), enforce: false)
     field(:created, DateTime.t(), enforce: false)
     field(:model, String.t(), enforce: false)
-    field(:object, String.t(), enforce: false)
     field(:outputs, [Content.t()], enforce: false)
     field(:previous_interaction_id, String.t(), enforce: false)
     field(:role, String.t(), enforce: false)
@@ -37,7 +36,6 @@ defmodule Gemini.Types.Interactions.Interaction do
       agent: Map.get(data, "agent"),
       created: parse_datetime(Map.get(data, "created")),
       model: Map.get(data, "model"),
-      object: Map.get(data, "object"),
       outputs: map_list(Map.get(data, "outputs"), &Content.from_api/1),
       previous_interaction_id: Map.get(data, "previous_interaction_id"),
       role: Map.get(data, "role"),
@@ -57,7 +55,6 @@ defmodule Gemini.Types.Interactions.Interaction do
     |> maybe_put("agent", interaction.agent)
     |> maybe_put("created", datetime_to_iso8601(interaction.created))
     |> maybe_put("model", interaction.model)
-    |> maybe_put("object", interaction.object)
     |> maybe_put("outputs", map_list(interaction.outputs, &Content.to_api/1))
     |> maybe_put("previous_interaction_id", interaction.previous_interaction_id)
     |> maybe_put("role", interaction.role)

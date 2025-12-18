@@ -48,6 +48,23 @@ defmodule Gemini.Types.ToolSerializationTest do
     test "returns empty list when no declarations provided" do
       assert ToolSerialization.to_api_tool_list([]) == []
     end
+
+    test "supports built-in tools via atom shorthand" do
+      tools = [:google_search, :url_context, :code_execution]
+      api_tools = ToolSerialization.to_api_tool_list(tools)
+
+      assert %{"googleSearch" => %{}} in api_tools
+      assert %{"urlContext" => %{}} in api_tools
+      assert %{"codeExecution" => %{}} in api_tools
+    end
+
+    test "supports built-in tools via map format" do
+      tools = [%{google_search: %{}}, %{code_execution: %{}}]
+      api_tools = ToolSerialization.to_api_tool_list(tools)
+
+      assert %{"googleSearch" => %{}} in api_tools
+      assert %{"codeExecution" => %{}} in api_tools
+    end
   end
 
   describe "to_api_tool_config/1" do

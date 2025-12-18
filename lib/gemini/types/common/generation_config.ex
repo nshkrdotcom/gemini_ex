@@ -13,10 +13,15 @@ defmodule Gemini.Types.GenerationConfig do
     ## Gemini 3 (Recommended)
 
     Use `thinking_level` for Gemini 3 models:
+    - `:minimal` - Minimal thinking (Gemini 3 Flash only)
     - `:low` - Minimizes latency and cost. Best for simple tasks.
+    - `:medium` - Balanced thinking (Gemini 3 Flash only)
     - `:high` - Maximizes reasoning depth (default for Gemini 3).
 
-    Note: `:medium` is not currently supported.
+    ## Model Support
+
+    - **Gemini 3 Pro**: `:low`, `:high`
+    - **Gemini 3 Flash**: `:minimal`, `:low`, `:medium`, `:high`
 
     ## Gemini 2.5 (Legacy)
 
@@ -33,7 +38,7 @@ defmodule Gemini.Types.GenerationConfig do
 
     use TypedStruct
 
-    @type thinking_level :: :low | :medium | :high
+    @type thinking_level :: :unspecified | :minimal | :low | :medium | :high
 
     @derive Jason.Encoder
     typedstruct do
@@ -85,6 +90,7 @@ defmodule Gemini.Types.GenerationConfig do
     field(:stop_sequences, [String.t()], default: [])
     field(:response_mime_type, String.t() | nil, default: nil)
     field(:response_schema, map() | nil, default: nil)
+    field(:response_json_schema, map() | nil, default: nil)
     field(:candidate_count, integer() | nil, default: nil)
     field(:max_output_tokens, integer() | nil, default: nil)
     field(:temperature, float() | nil, default: nil)
@@ -229,10 +235,10 @@ defmodule Gemini.Types.GenerationConfig do
   ## Parameters
   - `config`: GenerationConfig struct (defaults to new config)
   - `level`: Thinking level atom
+    - `:minimal` - Minimal thinking (Gemini 3 Flash only)
     - `:low` - Minimizes latency and cost. Best for simple instruction following.
+    - `:medium` - Balanced thinking (Gemini 3 Flash only)
     - `:high` - Maximizes reasoning depth. Model may take longer for first token.
-
-  Note: `:medium` is not currently supported by the API.
 
   ## Important
 
@@ -253,7 +259,8 @@ defmodule Gemini.Types.GenerationConfig do
         |> GenerationConfig.max_tokens(1000)
   """
   @spec thinking_level(t(), ThinkingConfig.thinking_level()) :: t()
-  def thinking_level(config \\ %__MODULE__{}, level) when level in [:low, :medium, :high] do
+  def thinking_level(config \\ %__MODULE__{}, level)
+      when level in [:unspecified, :minimal, :low, :medium, :high] do
     thinking_config = %ThinkingConfig{thinking_level: level}
     %{config | thinking_config: thinking_config}
   end
@@ -426,7 +433,8 @@ defmodule Gemini.Types.GenerationConfig do
   Configure structured JSON output with schema.
 
   Convenience helper that sets both response MIME type and schema in one call.
-  This is the recommended way to set up structured outputs.
+  By default this uses `response_json_schema` (standard JSON Schema). To use
+  Gemini's internal schema format, pass `schema_type: :response_schema`.
 
   ## Parameters
   - `config`: GenerationConfig struct (defaults to new config)
@@ -434,7 +442,7 @@ defmodule Gemini.Types.GenerationConfig do
 
   ## Examples
 
-      # Basic structured output
+      # Basic structured output (JSON Schema)
       config = GenerationConfig.structured_json(%{
         "type" => "object",
         "properties" => %{
@@ -466,6 +474,9 @@ defmodule Gemini.Types.GenerationConfig do
         }
       })
 
+      # Internal schema format (response_schema)
+      config = GenerationConfig.structured_json(%{"type" => "OBJECT"}, schema_type: :response_schema)
+
   ## Supported JSON Schema Keywords
 
   - Basic types: string, number, integer, boolean, object, array
@@ -480,9 +491,41 @@ defmodule Gemini.Types.GenerationConfig do
   See `docs/guides/structured_outputs.md` for comprehensive examples.
 
   """
+  @spec structured_json(map()) :: t()
+  def structured_json(schema) when is_map(schema) do
+    structured_json(%__MODULE__{}, schema, [])
+  end
+
   @spec structured_json(t(), map()) :: t()
-  def structured_json(config \\ %__MODULE__{}, schema) when is_map(schema) do
-    %{config | response_mime_type: "application/json", response_schema: schema}
+  def structured_json(%__MODULE__{} = config, schema) when is_map(schema) do
+    structured_json(config, schema, [])
+  end
+
+  @spec structured_json(map(), keyword()) :: t()
+  def structured_json(schema, opts) when is_map(schema) and is_list(opts) do
+    structured_json(%__MODULE__{}, schema, opts)
+  end
+
+  @spec structured_json(t(), map(), keyword()) :: t()
+  def structured_json(%__MODULE__{} = config, schema, opts)
+      when is_map(schema) and is_list(opts) do
+    case Keyword.get(opts, :schema_type, :response_json_schema) do
+      :response_schema ->
+        %{
+          config
+          | response_mime_type: "application/json",
+            response_schema: schema,
+            response_json_schema: nil
+        }
+
+      :response_json_schema ->
+        %{
+          config
+          | response_mime_type: "application/json",
+            response_json_schema: schema,
+            response_schema: nil
+        }
+    end
   end
 
   @doc """

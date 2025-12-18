@@ -1976,7 +1976,7 @@ defmodule Gemini.APIs.CoordinatorGenerationConfigTest do
 
       gen_config = request[:generationConfig]
       assert gen_config["responseMimeType"] == "application/json"
-      assert gen_config["responseSchema"] == schema
+      assert gen_config["responseJsonSchema"] == schema
     end
   end
 end

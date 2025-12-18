@@ -43,7 +43,7 @@ defmodule Gemini.APIs.ImagesTest do
       assert config.number_of_images == 1
       assert config.aspect_ratio == "1:1"
       assert config.safety_filter_level == :block_some
-      assert config.person_generation == :dont_allow
+      assert config.person_generation == :allow_none
       assert config.output_mime_type == "image/png"
       assert config.add_watermark == true
     end
@@ -194,7 +194,7 @@ defmodule Gemini.APIs.ImagesTest do
 
       assert Gemini.Types.Generation.Image.format_person_generation(:allow_all) == "allowAll"
 
-      assert Gemini.Types.Generation.Image.format_person_generation(:dont_allow) == "dontAllow"
+      assert Gemini.Types.Generation.Image.format_person_generation(:allow_none) == "allowNone"
     end
 
     test "format_edit_mode converts atoms to API format" do

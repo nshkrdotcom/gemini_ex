@@ -30,7 +30,7 @@ end
 
 defmodule Gemini.Types.Interactions.ThinkingLevel do
   @moduledoc """
-  Thinking level for Interactions generation (`"low"` or `"high"`).
+  Thinking level for Interactions generation (`"minimal"`, `"low"`, `"medium"`, `"high"`).
   """
 
   @type t :: String.t()

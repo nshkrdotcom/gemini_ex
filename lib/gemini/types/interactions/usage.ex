@@ -181,7 +181,7 @@ defmodule Gemini.Types.Interactions.Usage do
     field(:total_cached_tokens, non_neg_integer())
     field(:total_input_tokens, non_neg_integer())
     field(:total_output_tokens, non_neg_integer())
-    field(:total_reasoning_tokens, non_neg_integer())
+    field(:total_thought_tokens, non_neg_integer())
     field(:total_tokens, non_neg_integer())
     field(:total_tool_use_tokens, non_neg_integer())
   end
@@ -206,7 +206,7 @@ defmodule Gemini.Types.Interactions.Usage do
       total_cached_tokens: Map.get(data, "total_cached_tokens"),
       total_input_tokens: Map.get(data, "total_input_tokens"),
       total_output_tokens: Map.get(data, "total_output_tokens"),
-      total_reasoning_tokens: Map.get(data, "total_reasoning_tokens"),
+      total_thought_tokens: Map.get(data, "total_thought_tokens"),
       total_tokens: Map.get(data, "total_tokens"),
       total_tool_use_tokens: Map.get(data, "total_tool_use_tokens")
     }
@@ -237,7 +237,7 @@ defmodule Gemini.Types.Interactions.Usage do
     |> maybe_put("total_cached_tokens", usage.total_cached_tokens)
     |> maybe_put("total_input_tokens", usage.total_input_tokens)
     |> maybe_put("total_output_tokens", usage.total_output_tokens)
-    |> maybe_put("total_reasoning_tokens", usage.total_reasoning_tokens)
+    |> maybe_put("total_thought_tokens", usage.total_thought_tokens)
     |> maybe_put("total_tokens", usage.total_tokens)
     |> maybe_put("total_tool_use_tokens", usage.total_tool_use_tokens)
   end

@@ -47,6 +47,26 @@ defmodule Gemini.Types.GenerationConfigThinkingTest do
     end
   end
 
+  describe "thinking_level/2" do
+    test "creates config with minimal thinking" do
+      config = GenerationConfig.thinking_level(:minimal)
+
+      assert %ThinkingConfig{thinking_level: :minimal} = config.thinking_config
+    end
+
+    test "creates config with medium thinking" do
+      config = GenerationConfig.thinking_level(:medium)
+
+      assert %ThinkingConfig{thinking_level: :medium} = config.thinking_config
+    end
+
+    test "creates config with unspecified thinking" do
+      config = GenerationConfig.thinking_level(:unspecified)
+
+      assert %ThinkingConfig{thinking_level: :unspecified} = config.thinking_config
+    end
+  end
+
   describe "include_thoughts/2" do
     test "enables thought summaries" do
       config = GenerationConfig.include_thoughts(true)

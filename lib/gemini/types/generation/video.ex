@@ -9,6 +9,10 @@ defmodule Gemini.Types.Generation.Video do
   ## Supported Models
 
   - `veo-2.0-generate-001` - Veo 2.0 video generation model
+  - `veo-3.1-generate-preview` - Veo 3.1 preview
+  - `veo-3.1-fast-generate-preview` - Veo 3.1 Fast preview
+  - `veo-3.0-generate-001` - Veo 3.0 stable
+  - `veo-3.0-fast-generate-001` - Veo 3.0 Fast stable
 
   ## Example
 
@@ -52,6 +56,24 @@ defmodule Gemini.Types.Generation.Video do
   """
   @type compression_format :: :h264 | :h265
 
+  @typedoc """
+  Resolution for generated videos.
+
+  Supported values:
+  - `"720p"` (default)
+  - `"1080p"` (up to 8s duration)
+  """
+  @type resolution :: String.t()
+
+  @typedoc """
+  Reference image type for video generation.
+
+  Common values:
+  - `"asset"` - Preserve the referenced subject
+  - `"style"` - Apply visual style
+  """
+  @type reference_type :: String.t()
+
   typedstruct module: VideoGenerationConfig do
     @derive Jason.Encoder
     @moduledoc """
@@ -68,7 +90,12 @@ defmodule Gemini.Types.Generation.Video do
     - `negative_prompt` - Text describing what to avoid in the video
     - `seed` - Random seed for reproducibility
     - `guidance_scale` - How closely to follow the prompt (1.0-20.0)
-    - `person_generation` - Person generation policy (default: :dont_allow)
+    - `person_generation` - Person generation policy (default: :allow_none; legacy :dont_allow supported)
+    - `image` - Optional image input for image-to-video
+    - `last_frame` - Optional last frame for interpolation (Veo 3.1)
+    - `reference_images` - Optional list of reference images (Veo 3.1)
+    - `video` - Optional input video for extension (Veo 3.1)
+    - `resolution` - Output resolution ("720p" or "1080p")
     """
 
     field(:number_of_videos, pos_integer(), default: 1)
@@ -80,7 +107,22 @@ defmodule Gemini.Types.Generation.Video do
     field(:negative_prompt, String.t())
     field(:seed, integer())
     field(:guidance_scale, float())
-    field(:person_generation, atom(), default: :dont_allow)
+    field(:person_generation, atom(), default: :allow_none)
+    field(:image, Gemini.Types.Blob.t() | map())
+    field(:last_frame, Gemini.Types.Blob.t() | map())
+    field(:reference_images, [Gemini.Types.Generation.Video.VideoGenerationReferenceImage.t()])
+    field(:video, Gemini.Types.Blob.t() | map())
+    field(:resolution, Gemini.Types.Generation.Video.resolution())
+  end
+
+  typedstruct module: VideoGenerationReferenceImage do
+    @derive Jason.Encoder
+    @moduledoc """
+    Reference image used to guide video generation.
+    """
+
+    field(:image, Gemini.Types.Blob.t() | map())
+    field(:reference_type, Gemini.Types.Generation.Video.reference_type(), default: "asset")
   end
 
   @type t :: VideoGenerationConfig.t()
@@ -157,22 +199,27 @@ defmodule Gemini.Types.Generation.Video do
   @spec format_person_generation(atom()) :: String.t()
   def format_person_generation(:allow_adult), do: "allowAdult"
   def format_person_generation(:allow_all), do: "allowAll"
-  def format_person_generation(:dont_allow), do: "dontAllow"
+  def format_person_generation(:allow_none), do: "allowNone"
+  def format_person_generation(:dont_allow), do: "allowNone"
 
   @doc """
   Builds parameters map for video generation API request.
   """
   @spec build_generation_params(String.t(), VideoGenerationConfig.t()) :: map()
   def build_generation_params(prompt, config) do
-    params = %{
-      "prompt" => prompt,
-      "videoConfig" => %{
+    video_config =
+      %{
         "sampleCount" => config.number_of_videos,
         "durationSeconds" => config.duration_seconds,
         "aspectRatio" => config.aspect_ratio,
         "fps" => config.fps,
         "compressionFormat" => format_compression_format(config.compression_format)
-      },
+      }
+      |> add_if_present("resolution", config.resolution)
+
+    params = %{
+      "prompt" => prompt,
+      "videoConfig" => video_config,
       "safetyFilterLevel" => format_safety_filter_level(config.safety_filter_level),
       "personGeneration" => format_person_generation(config.person_generation)
     }
@@ -182,6 +229,70 @@ defmodule Gemini.Types.Generation.Video do
     |> add_if_present("seed", config.seed)
     |> add_if_present("guidanceScale", config.guidance_scale)
   end
+
+  @doc false
+  @spec image_to_api(Gemini.Types.Blob.t() | map() | nil) :: map() | nil
+  def image_to_api(nil), do: nil
+
+  def image_to_api(%Gemini.Types.Blob{data: data, mime_type: mime_type}) do
+    %{"bytesBase64Encoded" => data, "mimeType" => mime_type}
+  end
+
+  def image_to_api(%{"bytesBase64Encoded" => _} = value), do: value
+  def image_to_api(%{"gcsUri" => _} = value), do: value
+
+  def image_to_api(%{data: data, mime_type: mime_type}),
+    do: %{"bytesBase64Encoded" => data, "mimeType" => mime_type}
+
+  def image_to_api(%{"data" => data, "mime_type" => mime_type}),
+    do: %{"bytesBase64Encoded" => data, "mimeType" => mime_type}
+
+  def image_to_api(%{gcs_uri: uri} = value) do
+    %{}
+    |> maybe_put("gcsUri", uri)
+    |> maybe_put("mimeType", Map.get(value, :mime_type) || Map.get(value, "mime_type"))
+  end
+
+  def image_to_api(%{} = value), do: value
+
+  @doc false
+  @spec video_to_api(Gemini.Types.Blob.t() | GeneratedVideo.t() | map() | nil) :: map() | nil
+  def video_to_api(nil), do: nil
+
+  def video_to_api(%Gemini.Types.Blob{data: data, mime_type: mime_type}) do
+    %{"bytesBase64Encoded" => data, "mimeType" => mime_type}
+  end
+
+  def video_to_api(%{"bytesBase64Encoded" => _} = value), do: value
+  def video_to_api(%{"gcsUri" => _} = value), do: value
+
+  def video_to_api(%GeneratedVideo{} = video) do
+    %{}
+    |> maybe_put("gcsUri", video.video_uri)
+    |> maybe_put("bytesBase64Encoded", video.video_data)
+    |> maybe_put("mimeType", video.mime_type)
+  end
+
+  def video_to_api(%{video_data: data, mime_type: mime_type}),
+    do: %{"bytesBase64Encoded" => data, "mimeType" => mime_type}
+
+  def video_to_api(%{video_uri: uri} = value) do
+    %{}
+    |> maybe_put("gcsUri", uri)
+    |> maybe_put("mimeType", Map.get(value, :mime_type) || Map.get(value, "mime_type"))
+  end
+
+  def video_to_api(%{} = value), do: value
+
+  @doc false
+  @spec reference_image_to_api(VideoGenerationReferenceImage.t() | map()) :: map()
+  def reference_image_to_api(%VideoGenerationReferenceImage{} = reference) do
+    %{}
+    |> maybe_put("image", image_to_api(reference.image))
+    |> maybe_put("referenceType", reference.reference_type)
+  end
+
+  def reference_image_to_api(%{} = value), do: value
 
   @doc """
   Parses a generated video from API response.
@@ -264,6 +375,9 @@ defmodule Gemini.Types.Generation.Video do
 
   defp add_if_present(map, _key, nil), do: map
   defp add_if_present(map, key, value), do: Map.put(map, key, value)
+
+  defp maybe_put(map, _key, nil), do: map
+  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 
   defp extract_progress(%Gemini.Types.Operation{metadata: metadata}) when is_map(metadata) do
     # Try various progress field names

@@ -393,21 +393,42 @@ defmodule Gemini.Types.Enums do
   defmodule ThinkingLevel do
     @moduledoc """
     Thinking configuration levels for Gemini 3 models.
+
+    ## Values
+
+    - `:unspecified` - Unspecified thinking level
+    - `:minimal` - Minimal thinking (Gemini 3 Flash only)
+    - `:low` - Low thinking level
+    - `:medium` - Medium thinking level (Gemini 3 Flash only)
+    - `:high` - High thinking level (default)
+
+    ## Model Support
+
+    - **Gemini 3 Pro**: `:low`, `:high`
+    - **Gemini 3 Flash**: `:minimal`, `:low`, `:medium`, `:high`
     """
 
-    @type t :: :low | :medium | :high
+    @type t :: :unspecified | :minimal | :low | :medium | :high
 
     @spec to_api(t()) :: String.t()
-    def to_api(:low), do: "low"
-    def to_api(:medium), do: "medium"
-    def to_api(:high), do: "high"
+    def to_api(:unspecified), do: "THINKING_LEVEL_UNSPECIFIED"
+    def to_api(:minimal), do: "MINIMAL"
+    def to_api(:low), do: "LOW"
+    def to_api(:medium), do: "MEDIUM"
+    def to_api(:high), do: "HIGH"
 
     @spec from_api(String.t() | nil) :: t() | nil
+    def from_api("THINKING_LEVEL_UNSPECIFIED"), do: :unspecified
+    def from_api("MINIMAL"), do: :minimal
+    def from_api("minimal"), do: :minimal
+    def from_api("LOW"), do: :low
     def from_api("low"), do: :low
+    def from_api("MEDIUM"), do: :medium
     def from_api("medium"), do: :medium
+    def from_api("HIGH"), do: :high
     def from_api("high"), do: :high
     def from_api(nil), do: nil
-    def from_api(_), do: :medium
+    def from_api(_), do: :high
   end
 
   defmodule CodeExecutionOutcome do

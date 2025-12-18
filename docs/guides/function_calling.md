@@ -53,6 +53,29 @@ if Coordinator.has_function_calls?(response) do
 end
 ```
 
+## Built-in Tools (Gemini 3)
+
+Gemini 3 models support built-in tools for Google Search, URL context, and code execution.
+You can enable them in `tools:` alongside your own function declarations:
+
+```elixir
+{:ok, response} =
+  Gemini.generate(
+    "Find the latest news about Elixir and summarize it.",
+    model: "gemini-3-pro-preview",
+    tools: [:google_search, :url_context],
+    response_mime_type: "application/json",
+    response_json_schema: %{
+      "type" => "object",
+      "properties" => %{
+        "summary" => %{"type" => "string"},
+        "sources" => %{"type" => "array", "items" => %{"type" => "string"}}
+      },
+      "required" => ["summary"]
+    }
+  )
+```
+
 ## Defining Functions
 
 ### Using FunctionDeclaration

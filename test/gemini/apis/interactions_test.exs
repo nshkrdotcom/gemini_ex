@@ -65,6 +65,43 @@ defmodule Gemini.APIs.InteractionsTest do
       assert url ==
                "https://us-central1-aiplatform.googleapis.com/v1beta1/projects/proj/locations/us-central1/interactions"
     end
+
+    test "Vertex get includes project/location in path" do
+      credentials = %{project_id: "proj", location: "us-central1"}
+
+      assert {:ok, url} =
+               Interactions.build_get_url(
+                 :vertex_ai,
+                 credentials,
+                 "v1beta1",
+                 "int_123",
+                 false,
+                 nil
+               )
+
+      assert url ==
+               "https://us-central1-aiplatform.googleapis.com/v1beta1/projects/proj/locations/us-central1/interactions/int_123"
+    end
+
+    test "Vertex cancel includes project/location in path" do
+      credentials = %{project_id: "proj", location: "us-central1"}
+
+      assert {:ok, url} =
+               Interactions.build_cancel_url(:vertex_ai, credentials, "v1beta1", "int_123")
+
+      assert url ==
+               "https://us-central1-aiplatform.googleapis.com/v1beta1/projects/proj/locations/us-central1/interactions/int_123/cancel"
+    end
+
+    test "Vertex delete includes project/location in path" do
+      credentials = %{project_id: "proj", location: "us-central1"}
+
+      assert {:ok, url} =
+               Interactions.build_delete_url(:vertex_ai, credentials, "v1beta1", "int_123")
+
+      assert url ==
+               "https://us-central1-aiplatform.googleapis.com/v1beta1/projects/proj/locations/us-central1/interactions/int_123"
+    end
   end
 
   describe "request validation" do

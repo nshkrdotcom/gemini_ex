@@ -220,6 +220,7 @@ The `examples/` directory also contains additional specialized demos for advance
 | `streaming_demo.exs` | Advanced streaming patterns with detailed timing |
 | `demo_unified.exs` | Multi-auth coordination demo |
 | `demo.exs` | Original comprehensive demo |
+| `gemini_3_demo.exs` | Gemini 3 thinking levels, built-in tools, image generation, media resolution |
 | `tool_calling_demo.exs` | Extended function calling patterns |
 | `auto_tool_calling_demo.exs` | Automatic tool execution loop |
 | `live_auto_tool_test.exs` | Live API tool calling with real code execution |

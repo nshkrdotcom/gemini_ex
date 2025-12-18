@@ -77,13 +77,15 @@ The GeminiEx library has a **complete implementation** of Gemini's thinking/reas
 
 ## Documentation Notes
 
-### Medium Level Not Supported
+### Medium/Minimal Level Support
 
-**Per Gemini documentation:** `:medium` thinking level is not currently supported by the API.
+**Per updated Gemini documentation:** `:medium` and `:minimal` are supported for Gemini 3 Flash,
+and not supported for Gemini 3 Pro.
 
-**Our implementation:** The code accepts `:medium` in the typespec but will pass it to the API which may reject it. This matches the documentation's note that medium is "not currently supported."
+**Our implementation:** The code accepts `:minimal`/`:medium` and validates against the model
+family when provided. Unknown models are passed through to the API.
 
-**Recommendation:** Consider adding a warning when `:medium` is used, or documenting this limitation more prominently.
+**Recommendation:** Keep model-aware validation and document the Flash-only constraint.
 
 ### Model-Specific Constraints
 

@@ -31,7 +31,6 @@ This plan is ordered to minimize breakage, keep high-visibility features first, 
      - gemini-2.5-flash-lite-preview-09-2025
      - gemini-2.5-flash-native-audio-preview-09-2025
      - gemini-2.5-flash-native-audio-preview-12-2025
-     - gemini-2.5-computer-use-preview-10-2025
      - deep-research-pro-preview-12-2025
    - Update lib/gemini/apis/context_cache.ex model list if it uses a hardcoded allowlist.
 
@@ -99,7 +98,7 @@ This plan is ordered to minimize breakage, keep high-visibility features first, 
     - Add tests for request payload mapping
 
 11. Computer Use API (OUT OF SCOPE)
-    - No implementation work planned.
+    - No implementation work planned (do not add models, tools, or content/event types).
 
 12. Deep Research Agent (VERIFY ONLY)
     - Confirm existing models/types/examples align with official docs.
