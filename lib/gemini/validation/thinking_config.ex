@@ -6,9 +6,11 @@ defmodule Gemini.Validation.ThinkingConfig do
 
   Use `thinking_level` for Gemini 3 models:
   - `:low` - Minimizes latency and cost
-  - `:high` - Maximizes reasoning depth (default)
+  - `:high` - Maximizes reasoning depth (default, dynamic)
 
-  Note: `:medium` is not currently supported.
+  Gemini 3 Flash also supports:
+  - `:minimal` - Matches "no thinking" for most queries
+  - `:medium` - Balanced thinking for most tasks
 
   ## Gemini 2.5 Models
 
@@ -28,13 +30,13 @@ defmodule Gemini.Validation.ThinkingConfig do
   """
 
   @type validation_result :: :ok | {:error, String.t()}
-  @type thinking_level :: :low | :medium | :high
+  @type thinking_level :: :minimal | :low | :medium | :high
 
   @doc """
   Validate thinking level for Gemini 3 models.
 
   ## Parameters
-  - `level`: Thinking level atom (`:low`, `:medium`, or `:high`)
+  - `level`: Thinking level atom (`:minimal`, `:low`, `:medium`, or `:high`)
 
   ## Returns
   - `:ok` if valid
@@ -46,18 +48,24 @@ defmodule Gemini.Validation.ThinkingConfig do
       :ok
 
       iex> Gemini.Validation.ThinkingConfig.validate_level(:medium)
-      {:error, "Thinking level :medium is not currently supported. Use :low or :high."}
+      {:error, "Thinking level :medium is only supported by Gemini 3 Flash (gemini-3-flash). Use :low or :high."}
   """
   @spec validate_level(thinking_level()) :: validation_result()
-  def validate_level(:low), do: :ok
-  def validate_level(:high), do: :ok
+  def validate_level(level), do: validate_level(level, nil)
 
-  def validate_level(:medium) do
-    {:error, "Thinking level :medium is not currently supported. Use :low or :high."}
-  end
+  @doc """
+  Validate thinking level for a specific model.
 
-  def validate_level(level) do
-    {:error, "Invalid thinking level: #{inspect(level)}. Use :low or :high."}
+  Gemini 3 Pro supports `:low` and `:high`.
+  Gemini 3 Flash supports `:minimal`, `:low`, `:medium`, and `:high`.
+  """
+  @spec validate_level(thinking_level(), String.t() | nil) :: validation_result()
+  def validate_level(level, model) when is_nil(model) or is_binary(model) do
+    if flash_3_model?(model) do
+      validate_flash_3_level(level)
+    else
+      validate_pro_3_level(level)
+    end
   end
 
   @doc """
@@ -126,8 +134,8 @@ defmodule Gemini.Validation.ThinkingConfig do
     {:error, "Cannot use both thinking_level and thinking_budget in the same request"}
   end
 
-  def validate(%{thinking_level: level}, _model) when not is_nil(level) do
-    validate_level(level)
+  def validate(%{thinking_level: level}, model) when not is_nil(level) do
+    validate_level(level, model)
   end
 
   def validate(%{thinking_budget: budget}, model) when is_integer(budget) do
@@ -135,6 +143,36 @@ defmodule Gemini.Validation.ThinkingConfig do
   end
 
   def validate(_config, _model), do: :ok
+
+  defp flash_3_model?(nil), do: false
+  defp flash_3_model?(model) when is_binary(model), do: String.contains?(model, "gemini-3-flash")
+
+  defp validate_pro_3_level(:low), do: :ok
+  defp validate_pro_3_level(:high), do: :ok
+
+  defp validate_pro_3_level(:medium) do
+    {:error,
+     "Thinking level :medium is only supported by Gemini 3 Flash (gemini-3-flash). Use :low or :high."}
+  end
+
+  defp validate_pro_3_level(:minimal) do
+    {:error,
+     "Thinking level :minimal is only supported by Gemini 3 Flash (gemini-3-flash). Use :low or :high."}
+  end
+
+  defp validate_pro_3_level(level) do
+    {:error, "Invalid thinking level: #{inspect(level)}. Use :low or :high."}
+  end
+
+  defp validate_flash_3_level(:minimal), do: :ok
+  defp validate_flash_3_level(:low), do: :ok
+  defp validate_flash_3_level(:medium), do: :ok
+  defp validate_flash_3_level(:high), do: :ok
+
+  defp validate_flash_3_level(level) do
+    {:error,
+     "Invalid thinking level: #{inspect(level)}. Use :minimal, :low, :medium, or :high."}
+  end
 
   # Private validation functions for each model type
 

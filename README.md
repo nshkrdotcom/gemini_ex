@@ -1494,6 +1494,19 @@ config = Gemini.Types.GenerationConfig.image_config(
 images = Gemini.Types.Response.Image.extract_base64(response)
 ```
 
+### Thinking Levels (Gemini 3)
+
+Control reasoning behavior with `thinking_level`:
+
+```elixir
+alias Gemini.Types.GenerationConfig
+
+config = GenerationConfig.thinking_level(:low)      # Gemini 3 Pro + Flash
+config = GenerationConfig.thinking_level(:high)     # Gemini 3 Pro + Flash (default)
+config = GenerationConfig.thinking_level(:minimal)  # Gemini 3 Flash only
+config = GenerationConfig.thinking_level(:medium)   # Gemini 3 Flash only
+```
+
 ### Cost Optimization with Thinking Budgets (New in v0.2.2!)
 
 Gemini 2.5 series models use internal "thinking" for complex reasoning. Control thinking token usage to optimize costs:

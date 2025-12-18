@@ -4,6 +4,10 @@
 # If you run "mix test --cover", coverage assets end up here.
 /cover/
 
+# Local Hex/Mix homes (when HEX_HOME/MIX_HOME are set to the repo)
+/.hex/
+/.mix/
+
 # The directory Mix downloads your dependencies sources to.
 /deps/
 

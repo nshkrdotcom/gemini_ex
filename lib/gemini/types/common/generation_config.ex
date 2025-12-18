@@ -14,9 +14,11 @@ defmodule Gemini.Types.GenerationConfig do
 
     Use `thinking_level` for Gemini 3 models:
     - `:low` - Minimizes latency and cost. Best for simple tasks.
-    - `:high` - Maximizes reasoning depth (default for Gemini 3).
+    - `:high` - Maximizes reasoning depth (default, dynamic)
 
-    Note: `:medium` is not currently supported.
+    Gemini 3 Flash also supports:
+    - `:minimal` - Matches "no thinking" for most queries (minimizes latency)
+    - `:medium` - Balanced thinking for most tasks
 
     ## Gemini 2.5 (Legacy)
 
@@ -33,7 +35,7 @@ defmodule Gemini.Types.GenerationConfig do
 
     use TypedStruct
 
-    @type thinking_level :: :low | :medium | :high
+    @type thinking_level :: :minimal | :low | :medium | :high
 
     @derive Jason.Encoder
     typedstruct do
@@ -229,10 +231,12 @@ defmodule Gemini.Types.GenerationConfig do
   ## Parameters
   - `config`: GenerationConfig struct (defaults to new config)
   - `level`: Thinking level atom
+    - `:minimal` - Gemini 3 Flash only. Matches "no thinking" for most queries.
     - `:low` - Minimizes latency and cost. Best for simple instruction following.
+    - `:medium` - Gemini 3 Flash only. Balanced thinking for most tasks.
     - `:high` - Maximizes reasoning depth. Model may take longer for first token.
 
-  Note: `:medium` is not currently supported by the API.
+  Note: `:minimal` and `:medium` are only supported by Gemini 3 Flash.
 
   ## Important
 
@@ -253,7 +257,8 @@ defmodule Gemini.Types.GenerationConfig do
         |> GenerationConfig.max_tokens(1000)
   """
   @spec thinking_level(t(), ThinkingConfig.thinking_level()) :: t()
-  def thinking_level(config \\ %__MODULE__{}, level) when level in [:low, :medium, :high] do
+  def thinking_level(config \\ %__MODULE__{}, level)
+      when level in [:minimal, :low, :medium, :high] do
     thinking_config = %ThinkingConfig{thinking_level: level}
     %{config | thinking_config: thinking_config}
   end

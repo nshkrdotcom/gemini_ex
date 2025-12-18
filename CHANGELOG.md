@@ -740,7 +740,7 @@ Full support for Google's Gemini 3 model family with new API features:
 - **`thinking_level` Parameter** - New thinking control for Gemini 3 models
   - `GenerationConfig.thinking_level(:low)` - Fast responses, minimal reasoning
   - `GenerationConfig.thinking_level(:high)` - Deep reasoning (default for Gemini 3)
-  - Note: `:medium` is not currently supported by the API
+  - Note: `:minimal` and `:medium` are supported by Gemini 3 Flash (`gemini-3-flash`) but not Gemini 3 Pro
   - Cannot be used with `thinking_budget` in the same request (API returns 400)
 
 - **`gemini-3-pro-image-preview` Model** - Image generation support

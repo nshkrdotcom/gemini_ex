@@ -116,6 +116,34 @@ defmodule Gemini.Validation.ThinkingConfigTest do
     end
   end
 
+  describe "validate_level/2 for Gemini 3 models" do
+    test "Gemini 3 Pro supports :low and :high only" do
+      assert :ok = ThinkingConfig.validate_level(:low, "gemini-3-pro-preview")
+      assert :ok = ThinkingConfig.validate_level(:high, "gemini-3-pro-preview")
+
+      assert {:error, msg} = ThinkingConfig.validate_level(:medium, "gemini-3-pro-preview")
+      assert msg =~ "only supported by Gemini 3 Flash"
+
+      assert {:error, msg} = ThinkingConfig.validate_level(:minimal, "gemini-3-pro-preview")
+      assert msg =~ "only supported by Gemini 3 Flash"
+    end
+
+    test "Gemini 3 Flash supports :minimal, :low, :medium, and :high" do
+      assert :ok = ThinkingConfig.validate_level(:minimal, "gemini-3-flash")
+      assert :ok = ThinkingConfig.validate_level(:low, "gemini-3-flash")
+      assert :ok = ThinkingConfig.validate_level(:medium, "gemini-3-flash")
+      assert :ok = ThinkingConfig.validate_level(:high, "gemini-3-flash")
+
+      assert {:error, msg} = ThinkingConfig.validate_level(:invalid, "gemini-3-flash")
+      assert msg =~ "Use :minimal, :low, :medium, or :high"
+    end
+
+    test "validate/2 uses model-specific thinking level rules" do
+      assert :ok = ThinkingConfig.validate(%{thinking_level: :medium}, "gemini-3-flash")
+      assert {:error, _msg} = ThinkingConfig.validate(%{thinking_level: :medium}, "gemini-3-pro-preview")
+    end
+  end
+
   describe "validate/2 with config map" do
     test "validates budget in config map" do
       config = %{thinking_budget: 1024}

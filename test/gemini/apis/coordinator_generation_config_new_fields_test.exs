@@ -53,6 +53,22 @@ defmodule Gemini.APIs.CoordinatorGenerationConfigNewFieldsTest do
                "outputCompressionQuality" => 80
              }
     end
+
+    test "includes thinking_config thinking_level for Gemini 3 Flash (minimal/medium)" do
+      config_minimal =
+        Coordinator.__test_build_generation_config__(
+          thinking_config: %{thinking_level: :minimal}
+        )
+
+      assert config_minimal["thinkingConfig"] == %{"thinkingLevel" => "minimal"}
+
+      config_medium =
+        Coordinator.__test_build_generation_config__(
+          thinking_config: %{thinking_level: :medium}
+        )
+
+      assert config_medium["thinkingConfig"] == %{"thinkingLevel" => "medium"}
+    end
   end
 
   describe "__test_struct_to_api_map__/1" do
@@ -113,6 +129,29 @@ defmodule Gemini.APIs.CoordinatorGenerationConfigNewFieldsTest do
                "outputMimeType" => "image/png",
                "outputCompressionQuality" => 90
              }
+    end
+
+    test "encodes thinking_config thinking_level on struct (minimal/medium)" do
+      gc_minimal = %GenerationConfig{
+        thinking_config: %GenerationConfig.ThinkingConfig{thinking_level: :minimal}
+      }
+
+      result_minimal = Coordinator.__test_struct_to_api_map__(gc_minimal)
+
+      thinking_config =
+        Map.get(result_minimal, "thinkingConfig") || Map.get(result_minimal, :thinkingConfig)
+
+      assert thinking_config == %{"thinkingLevel" => "minimal"}
+
+      gc_medium = %GenerationConfig{
+        thinking_config: %GenerationConfig.ThinkingConfig{thinking_level: :medium}
+      }
+
+      result_medium = Coordinator.__test_struct_to_api_map__(gc_medium)
+
+      thinking_config = Map.get(result_medium, "thinkingConfig") || Map.get(result_medium, :thinkingConfig)
+
+      assert thinking_config == %{"thinkingLevel" => "medium"}
     end
   end
 end

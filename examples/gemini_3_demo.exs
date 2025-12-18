@@ -38,10 +38,8 @@ IO.puts(String.duplicate("-", 80) <> "\n")
 
 IO.puts("""
 Gemini 3 introduces `thinking_level` to control reasoning depth:
-- :low  - Fast responses, minimal reasoning (best for simple tasks)
-- :high - Deep reasoning, may have higher latency (default)
-
-Note: :medium is not currently supported.
+- Gemini 3 Pro: :low, :high
+- Gemini 3 Flash: :minimal, :low, :medium, :high
 """)
 
 # Example with low thinking level (fast)

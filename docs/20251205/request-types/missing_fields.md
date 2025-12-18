@@ -361,7 +361,7 @@ class ThinkingLevel(Enum):
     HIGH = 'HIGH'  # Maximize reasoning depth
 ```
 
-**Note:** gemini_ex correctly documents that `:medium` is not currently supported by the API.
+**Note:** `:minimal` and `:medium` thinking levels are supported by Gemini 3 Flash (`gemini-3-flash`) but not Gemini 3 Pro.
 
 ---
 

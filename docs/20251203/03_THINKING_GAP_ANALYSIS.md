@@ -77,13 +77,13 @@ The GeminiEx library has a **complete implementation** of Gemini's thinking/reas
 
 ## Documentation Notes
 
-### Medium Level Not Supported
+### Gemini 3 Flash-only Levels
 
-**Per Gemini documentation:** `:medium` thinking level is not currently supported by the API.
+**Per Gemini documentation:** Gemini 3 Flash supports additional thinking levels beyond Gemini 3 Pro:
+- `:minimal` and `:medium` are supported by Gemini 3 Flash (`gemini-3-flash`)
+- Gemini 3 Pro supports `:low` and `:high` only
 
-**Our implementation:** The code accepts `:medium` in the typespec but will pass it to the API which may reject it. This matches the documentation's note that medium is "not currently supported."
-
-**Recommendation:** Consider adding a warning when `:medium` is used, or documenting this limitation more prominently.
+**Our implementation:** gemini_ex serializes `thinking_level` to the API `thinkingLevel` field and validates model-specific constraints when using `Gemini.APIs.Coordinator`.
 
 ### Model-Specific Constraints
 

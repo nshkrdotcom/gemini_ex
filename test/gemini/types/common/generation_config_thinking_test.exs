@@ -4,6 +4,36 @@ defmodule Gemini.Types.GenerationConfigThinkingTest do
   alias Gemini.Types.GenerationConfig
   alias Gemini.Types.GenerationConfig.ThinkingConfig
 
+  describe "thinking_level/2" do
+    test "creates config with minimal thinking (Gemini 3 Flash)" do
+      config = GenerationConfig.thinking_level(:minimal)
+
+      assert config.thinking_config.thinking_level == :minimal
+      assert config.thinking_config.thinking_budget == nil
+    end
+
+    test "creates config with low thinking" do
+      config = GenerationConfig.thinking_level(:low)
+
+      assert config.thinking_config.thinking_level == :low
+      assert config.thinking_config.thinking_budget == nil
+    end
+
+    test "creates config with medium thinking (Gemini 3 Flash)" do
+      config = GenerationConfig.thinking_level(:medium)
+
+      assert config.thinking_config.thinking_level == :medium
+      assert config.thinking_config.thinking_budget == nil
+    end
+
+    test "creates config with high thinking" do
+      config = GenerationConfig.thinking_level(:high)
+
+      assert config.thinking_config.thinking_level == :high
+      assert config.thinking_config.thinking_budget == nil
+    end
+  end
+
   describe "thinking_budget/2" do
     test "creates config with disabled thinking (budget = 0)" do
       config = GenerationConfig.thinking_budget(0)

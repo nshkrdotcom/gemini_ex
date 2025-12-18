@@ -33,6 +33,7 @@ defmodule Gemini.APIs.Coordinator do
 
   alias Gemini.Config
   alias Gemini.Client.HTTP
+  alias Gemini.Error
   alias Gemini.Streaming.UnifiedManager
   alias Gemini.Types.Request.GenerateContentRequest
   alias Gemini.Types.Request.{EmbedContentRequest, BatchEmbedContentsRequest}
@@ -44,6 +45,7 @@ defmodule Gemini.APIs.Coordinator do
   alias Gemini.Types.Content
   alias Gemini.Types.ToolSerialization
   alias Gemini.Types.{FileData, FunctionResponse, MediaResolution, Modality, SpeechConfig}
+  alias Gemini.Validation.ThinkingConfig, as: ThinkingConfigValidation
 
   @type auth_strategy :: :gemini | :vertex_ai
   @type request_opts :: keyword()
@@ -90,7 +92,8 @@ defmodule Gemini.APIs.Coordinator do
     # This runs on supported input types (string, Content list) before normalization
     opts_with_estimation = inject_token_estimation(input, opts)
 
-    with {:ok, request} <- build_generate_request(input, opts_with_estimation),
+    with :ok <- validate_thinking_config_opts(opts_with_estimation, model),
+         {:ok, request} <- build_generate_request(input, opts_with_estimation),
          {:ok, response} <- HTTP.post(path, request, opts_with_estimation) do
       parse_generate_response(response)
     else
@@ -148,7 +151,8 @@ defmodule Gemini.APIs.Coordinator do
     # ADR-0001: Estimate tokens on original input BEFORE building the request
     opts_with_estimation = inject_token_estimation(input, opts)
 
-    with {:ok, request_body} <- build_generate_request(input, opts_with_estimation) do
+    with :ok <- validate_thinking_config_opts(opts_with_estimation, model),
+         {:ok, request_body} <- build_generate_request(input, opts_with_estimation) do
       # Pass through the auto_execute_tools option to the UnifiedManager
       UnifiedManager.start_stream(model, request_body, opts_with_estimation)
     else
@@ -843,6 +847,29 @@ defmodule Gemini.APIs.Coordinator do
     end
   end
 
+  defp validate_thinking_config_opts(opts, model) when is_list(opts) and is_binary(model) do
+    config =
+      case Keyword.get(opts, :generation_config) do
+        %Gemini.Types.GenerationConfig{} = generation_config -> generation_config.thinking_config
+        _ -> Keyword.get(opts, :thinking_config)
+      end
+
+    case config do
+      nil ->
+        :ok
+
+      %{} = config ->
+        case ThinkingConfigValidation.validate(config, model) do
+          :ok -> :ok
+          {:error, message} -> {:error, Error.validation_error(message, %{model: model})}
+        end
+
+      other ->
+        {:error,
+         Error.validation_error("Invalid thinking_config: #{inspect(other)}", %{model: model})}
+    end
+  end
+
   @doc false
   @spec struct_to_api_map(Gemini.Types.GenerationConfig.t()) :: map()
   defp struct_to_api_map(%Gemini.Types.GenerationConfig{} = config) do
@@ -1269,7 +1296,7 @@ defmodule Gemini.APIs.Coordinator do
       {:thinking_budget, budget}, acc when is_integer(budget) ->
         Map.put(acc, "thinkingBudget", budget)
 
-      {:thinking_level, level}, acc when level in [:low, :medium, :high] ->
+      {:thinking_level, level}, acc when level in [:minimal, :low, :medium, :high] ->
         Map.put(acc, "thinkingLevel", convert_thinking_level(level))
 
       {:include_thoughts, include}, acc when is_boolean(include) ->
@@ -1293,6 +1320,7 @@ defmodule Gemini.APIs.Coordinator do
   defp convert_thinking_config_to_api(nil), do: %{}
 
   # Convert thinking level atom to API string
+  defp convert_thinking_level(:minimal), do: "minimal"
   defp convert_thinking_level(:low), do: "low"
   defp convert_thinking_level(:medium), do: "medium"
   defp convert_thinking_level(:high), do: "high"
