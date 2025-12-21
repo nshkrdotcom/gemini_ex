@@ -212,7 +212,7 @@ alias Gemini.Live.Session
 
 {:ok, pid} =
   Session.start_link(
-    model: "gemini-2.0-flash-exp",
+    model: "gemini-2.5-flash",
     auth: :vertex_ai,
     on_message: fn msg -> IO.inspect(msg, label: "live message") end,
     on_error: fn err -> IO.inspect(err, label: "live error") end
@@ -488,7 +488,7 @@ alias Gemini.Types.BatchJob
 {:ok, input} = Files.upload("requests.jsonl")
 
 # 2. Create batch job
-{:ok, batch} = Batches.create("gemini-2.0-flash",
+{:ok, batch} = Batches.create("gemini-2.5-flash",
   file_name: input.name,
   display_name: "My Batch"
 )
@@ -1262,7 +1262,7 @@ Gemini.Config.default_model()        #=> "gemini-flash-lite-latest"
 Gemini.Config.default_embedding_model()  #=> "gemini-embedding-001"
 
 # With VERTEX_PROJECT_ID set (no GEMINI_API_KEY):
-Gemini.Config.default_model()        #=> "gemini-2.0-flash-lite"
+Gemini.Config.default_model()        #=> "gemini-2.5-flash-lite"
 Gemini.Config.default_embedding_model()  #=> "embeddinggemma"
 ```
 

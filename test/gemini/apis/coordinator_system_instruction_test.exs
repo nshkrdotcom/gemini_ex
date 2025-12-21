@@ -16,7 +16,7 @@ defmodule Gemini.APIs.CoordinatorSystemInstructionTest do
       # Test that system_instruction is properly included when passed as string
       opts = [
         system_instruction: "You are a helpful assistant specialized in Python.",
-        model: "gemini-2.0-flash"
+        model: "gemini-2.5-flash"
       ]
 
       # We can test the internal build function
@@ -35,7 +35,7 @@ defmodule Gemini.APIs.CoordinatorSystemInstructionTest do
 
       opts = [
         system_instruction: system_content,
-        model: "gemini-2.0-flash"
+        model: "gemini-2.5-flash"
       ]
 
       {:ok, request} = Coordinator.__test_build_request__("Explain recursion", opts)
@@ -51,7 +51,7 @@ defmodule Gemini.APIs.CoordinatorSystemInstructionTest do
         system_instruction: %{
           parts: [%{text: "You are an expert mathematician."}]
         },
-        model: "gemini-2.0-flash"
+        model: "gemini-2.5-flash"
       ]
 
       {:ok, request} = Coordinator.__test_build_request__("What is calculus?", opts)
@@ -61,7 +61,7 @@ defmodule Gemini.APIs.CoordinatorSystemInstructionTest do
     end
 
     test "omits systemInstruction when not provided" do
-      opts = [model: "gemini-2.0-flash"]
+      opts = [model: "gemini-2.5-flash"]
 
       {:ok, request} = Coordinator.__test_build_request__("Hello", opts)
 
@@ -71,7 +71,7 @@ defmodule Gemini.APIs.CoordinatorSystemInstructionTest do
     test "system_instruction works with generation_config" do
       opts = [
         system_instruction: "Be concise.",
-        model: "gemini-2.0-flash",
+        model: "gemini-2.5-flash",
         temperature: 0.5,
         max_output_tokens: 100
       ]

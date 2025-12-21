@@ -16,7 +16,7 @@ defmodule Gemini.Types.Live do
   ## Example
 
       config = %LiveConfig{
-        model: "gemini-2.0-flash-exp",
+        model: "gemini-2.5-flash",
         generation_config: %GenerationConfig{temperature: 0.8},
         system_instruction: "You are a helpful assistant"
       }

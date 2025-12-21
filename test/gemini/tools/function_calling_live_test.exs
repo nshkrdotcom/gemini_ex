@@ -111,7 +111,7 @@ defmodule Gemini.Tools.FunctionCallingLiveTest do
         Coordinator.generate_content(
           "What is 15 + 27? Use the calculate function to find the answer.",
           tools: [tool],
-          model: "gemini-2.0-flash"
+          model: "gemini-2.5-flash"
         )
 
       # The model should generate a function call
@@ -134,7 +134,7 @@ defmodule Gemini.Tools.FunctionCallingLiveTest do
         Coordinator.generate_content(
           "What's the weather like in Tokyo right now? Use the get_weather function.",
           tools: [tool],
-          model: "gemini-2.0-flash"
+          model: "gemini-2.5-flash"
         )
 
       assert Coordinator.has_function_calls?(response)
@@ -152,7 +152,7 @@ defmodule Gemini.Tools.FunctionCallingLiveTest do
         Coordinator.generate_content(
           "Hello! How are you today?",
           tools: [tool],
-          model: "gemini-2.0-flash"
+          model: "gemini-2.5-flash"
         )
 
       # For a simple greeting, the model should NOT call the calculator
@@ -171,7 +171,7 @@ defmodule Gemini.Tools.FunctionCallingLiveTest do
         Coordinator.generate_content(
           "Calculate 25 + 17 using the calculate function.",
           tools: [tool],
-          model: "gemini-2.0-flash"
+          model: "gemini-2.5-flash"
         )
 
       assert Coordinator.has_function_calls?(response1)
@@ -203,7 +203,7 @@ defmodule Gemini.Tools.FunctionCallingLiveTest do
         Coordinator.generate_content(
           contents,
           tools: [tool],
-          model: "gemini-2.0-flash"
+          model: "gemini-2.5-flash"
         )
 
       # The model should now provide a final answer (no more function calls)
@@ -228,7 +228,7 @@ defmodule Gemini.Tools.FunctionCallingLiveTest do
 
       # Generate function that we'll pass to AFC
       generate_fn = fn contents, _opts ->
-        Coordinator.generate_content(contents, tools: [tool], model: "gemini-2.0-flash")
+        Coordinator.generate_content(contents, tools: [tool], model: "gemini-2.5-flash")
       end
 
       # First API call
@@ -293,7 +293,7 @@ defmodule Gemini.Tools.FunctionCallingLiveTest do
       ]
 
       generate_fn = fn contents, _opts ->
-        Coordinator.generate_content(contents, tools: [repeating_tool], model: "gemini-2.0-flash")
+        Coordinator.generate_content(contents, tools: [repeating_tool], model: "gemini-2.5-flash")
       end
 
       {:ok, initial_response} = generate_fn.(initial_contents, [])
@@ -327,7 +327,7 @@ defmodule Gemini.Tools.FunctionCallingLiveTest do
         Coordinator.generate_content(
           "What's the weather in Paris? Use the appropriate function.",
           tools: [calc_tool, weather_tool],
-          model: "gemini-2.0-flash"
+          model: "gemini-2.5-flash"
         )
 
       assert Coordinator.has_function_calls?(response)

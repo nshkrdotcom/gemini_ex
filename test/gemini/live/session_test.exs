@@ -10,7 +10,7 @@ defmodule Gemini.Live.SessionTest do
 
   describe "start_link/1" do
     test "starts session with required model" do
-      assert {:ok, pid} = Session.start_link(model: "gemini-2.0-flash-exp")
+      assert {:ok, pid} = Session.start_link(model: "gemini-2.5-flash")
       assert Process.alive?(pid)
       Session.close(pid)
     end
@@ -21,7 +21,7 @@ defmodule Gemini.Live.SessionTest do
 
       assert {:ok, pid} =
                Session.start_link(
-                 model: "gemini-2.0-flash-exp",
+                 model: "gemini-2.5-flash",
                  on_message: on_message,
                  on_connect: on_connect
                )
@@ -31,7 +31,7 @@ defmodule Gemini.Live.SessionTest do
     end
 
     test "can be started with a name" do
-      assert {:ok, pid} = Session.start_link(model: "gemini-2.0-flash-exp", name: :test_session)
+      assert {:ok, pid} = Session.start_link(model: "gemini-2.5-flash", name: :test_session)
       assert Process.whereis(:test_session) == pid
       Session.close(pid)
     end
@@ -39,7 +39,7 @@ defmodule Gemini.Live.SessionTest do
 
   describe "status/1" do
     test "returns disconnected initially" do
-      {:ok, session} = Session.start_link(model: "gemini-2.0-flash-exp")
+      {:ok, session} = Session.start_link(model: "gemini-2.5-flash")
       assert Session.status(session) == :disconnected
       Session.close(session)
     end
@@ -47,7 +47,7 @@ defmodule Gemini.Live.SessionTest do
 
   describe "send/2" do
     test "queues message when not connected" do
-      {:ok, session} = Session.start_link(model: "gemini-2.0-flash-exp")
+      {:ok, session} = Session.start_link(model: "gemini-2.5-flash")
 
       # Should return ok even though not connected (message will be queued)
       # Note: This will fail since we're not connected, but we're testing the API
@@ -59,7 +59,7 @@ defmodule Gemini.Live.SessionTest do
 
   describe "send_client_content/3" do
     test "accepts list of turns" do
-      {:ok, session} = Session.start_link(model: "gemini-2.0-flash-exp")
+      {:ok, session} = Session.start_link(model: "gemini-2.5-flash")
 
       turns = [
         %{role: "user", parts: [%{text: "Hello"}]}
@@ -71,7 +71,7 @@ defmodule Gemini.Live.SessionTest do
     end
 
     test "accepts ClientContent struct" do
-      {:ok, session} = Session.start_link(model: "gemini-2.0-flash-exp")
+      {:ok, session} = Session.start_link(model: "gemini-2.5-flash")
 
       content = %ClientContent{
         turns: [%{role: "user", parts: [%{text: "Hello"}]}],
@@ -86,7 +86,7 @@ defmodule Gemini.Live.SessionTest do
 
   describe "send_tool_response/3" do
     test "sends function responses" do
-      {:ok, session} = Session.start_link(model: "gemini-2.0-flash-exp")
+      {:ok, session} = Session.start_link(model: "gemini-2.5-flash")
 
       responses = [
         %{name: "get_weather", response: %{temperature: 72}}
@@ -100,7 +100,7 @@ defmodule Gemini.Live.SessionTest do
 
   describe "send_realtime_input/3" do
     test "sends media chunks" do
-      {:ok, session} = Session.start_link(model: "gemini-2.0-flash-exp")
+      {:ok, session} = Session.start_link(model: "gemini-2.5-flash")
 
       chunks = [
         %{data: "base64_audio_data", mime_type: "audio/pcm"}
@@ -114,7 +114,7 @@ defmodule Gemini.Live.SessionTest do
 
   describe "close/1" do
     test "stops the session" do
-      {:ok, session} = Session.start_link(model: "gemini-2.0-flash-exp")
+      {:ok, session} = Session.start_link(model: "gemini-2.5-flash")
       assert Process.alive?(session)
 
       assert :ok = Session.close(session)
@@ -136,7 +136,7 @@ defmodule Gemini.Live.SessionTest do
 
       {:ok, session} =
         Session.start_link(
-          model: "gemini-2.0-flash-exp",
+          model: "gemini-2.5-flash",
           on_message: on_message
         )
 
@@ -156,7 +156,7 @@ defmodule Gemini.Live.SessionTest do
 
       {:ok, session} =
         Session.start_link(
-          model: "gemini-2.0-flash-exp",
+          model: "gemini-2.5-flash",
           on_connect: on_connect
         )
 
@@ -174,7 +174,7 @@ defmodule Gemini.Live.SessionTest do
 
       {:ok, session} =
         Session.start_link(
-          model: "gemini-2.0-flash-exp",
+          model: "gemini-2.5-flash",
           on_error: on_error
         )
 
@@ -188,14 +188,14 @@ defmodule Gemini.Live.SessionTest do
     test "converts setup message to JSON" do
       message = %ClientMessage{
         setup: %LiveClientSetup{
-          model: "gemini-2.0-flash-exp",
+          model: "gemini-2.5-flash",
           generation_config: %{temperature: 0.8}
         }
       }
 
       assert {:ok, json} = Message.to_json(message)
       assert is_binary(json)
-      assert String.contains?(json, "gemini-2.0-flash-exp")
+      assert String.contains?(json, "gemini-2.5-flash")
     end
 
     test "converts client content to JSON" do

@@ -23,7 +23,7 @@ defmodule Gemini.Types.BatchJob do
 
       # Create a batch job
       {:ok, batch} = Gemini.APIs.Batches.create(
-        "gemini-2.0-flash",
+        "gemini-2.5-flash",
         file_name: "files/input-12345"
       )
 

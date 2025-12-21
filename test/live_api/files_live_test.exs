@@ -370,7 +370,7 @@ defmodule Gemini.APIs.FilesLiveTest do
                 ]
               }
             ],
-            model: "gemini-2.0-flash-lite"
+            model: "gemini-2.5-flash-lite"
           )
 
         case result do

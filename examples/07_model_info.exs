@@ -132,10 +132,10 @@ defmodule ModelInfoExample do
     print_section("3. Model Comparison")
 
     models = [
-      "models/gemini-2.0-flash-exp",
-      "models/gemini-1.5-flash",
-      "models/gemini-1.5-pro",
-      "models/text-embedding-004"
+      "models/gemini-2.5-flash",
+      "models/gemini-2.5-pro",
+      "models/gemini-3-pro-preview",
+      "models/gemini-embedding-001"
     ]
 
     IO.puts("COMPARISON TABLE:")

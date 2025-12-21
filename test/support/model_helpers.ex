@@ -107,7 +107,7 @@ defmodule Gemini.Test.ModelHelpers do
   Returns the default generation model for the detected auth type.
 
   - **Gemini API**: `"gemini-flash-lite-latest"`
-  - **Vertex AI**: `"gemini-2.0-flash-lite"`
+  - **Vertex AI**: `"gemini-2.5-flash-lite"`
 
   Use this for ALL tests unless a specific capability is required.
   """
@@ -126,7 +126,7 @@ defmodule Gemini.Test.ModelHelpers do
       #=> "gemini-flash-lite-latest"
 
       default_model_for(:vertex_ai)
-      #=> "gemini-2.0-flash-lite"
+      #=> "gemini-2.5-flash-lite"
   """
   @spec default_model_for(:gemini | :vertex_ai) :: String.t()
   def default_model_for(api_type), do: Config.default_model_for(api_type)
@@ -191,24 +191,25 @@ defmodule Gemini.Test.ModelHelpers do
   of which authentication is configured.
   """
   @spec universal_model() :: String.t()
-  def universal_model, do: Config.get_model(:flash_2_0_lite)
+  def universal_model, do: Config.get_model(:flash_2_5_lite)
 
   @doc """
   Returns a model that supports structured outputs for both APIs.
 
-  Flash 2.0 supports JSON schema-based structured outputs.
+  Flash 2.5 supports JSON schema-based structured outputs.
   """
   @spec structured_output_model() :: String.t()
-  def structured_output_model, do: Config.get_model(:flash_2_0)
+  def structured_output_model, do: Config.get_model(:flash_2_5)
 
   @doc """
   Returns a model that supports context caching.
 
   Only specific model versions support explicit caching:
   - gemini-2.5-flash
+  - gemini-2.5-flash-lite
   - gemini-2.5-pro
-  - gemini-2.0-flash-001
   - gemini-3-pro-preview
+  - gemini-3-flash-preview
 
   Use this for context cache tests.
   """

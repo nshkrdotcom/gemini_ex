@@ -41,7 +41,7 @@ defmodule Gemini.APIs.Batches do
       {:ok, input_file} = Gemini.APIs.Files.upload("input.jsonl")
 
       # 3. Create batch job
-      {:ok, batch} = Gemini.APIs.Batches.create("gemini-2.0-flash",
+      {:ok, batch} = Gemini.APIs.Batches.create("gemini-2.5-flash",
         file_name: input_file.name,
         display_name: "My Batch Job"
       )
@@ -94,7 +94,7 @@ defmodule Gemini.APIs.Batches do
 
   ## Parameters
 
-  - `model` - Model to use for generation (e.g., "gemini-2.0-flash")
+  - `model` - Model to use for generation (e.g., "gemini-2.5-flash")
   - `opts` - Batch creation options
 
   ## Options
@@ -118,13 +118,13 @@ defmodule Gemini.APIs.Batches do
   ## Examples
 
       # Using uploaded file
-      {:ok, batch} = Gemini.APIs.Batches.create("gemini-2.0-flash",
+      {:ok, batch} = Gemini.APIs.Batches.create("gemini-2.5-flash",
         file_name: "files/abc123",
         display_name: "My Batch"
       )
 
       # Using inline requests (small batches only)
-      {:ok, batch} = Gemini.APIs.Batches.create("gemini-2.0-flash",
+      {:ok, batch} = Gemini.APIs.Batches.create("gemini-2.5-flash",
         inlined_requests: [
           %{contents: [%{parts: [%{text: "Request 1"}]}]},
           %{contents: [%{parts: [%{text: "Request 2"}]}]}
@@ -133,7 +133,7 @@ defmodule Gemini.APIs.Batches do
       )
 
       # With generation config
-      {:ok, batch} = Gemini.APIs.Batches.create("gemini-2.0-flash",
+      {:ok, batch} = Gemini.APIs.Batches.create("gemini-2.5-flash",
         file_name: "files/abc123",
         generation_config: %{
           temperature: 0.7,

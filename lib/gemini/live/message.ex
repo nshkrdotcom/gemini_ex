@@ -18,7 +18,7 @@ defmodule Gemini.Live.Message do
       # Setup message
       setup = %ClientMessage{
         setup: %LiveClientSetup{
-          model: "gemini-2.0-flash-exp",
+          model: "gemini-2.5-flash",
           generation_config: %{temperature: 0.8}
         }
       }

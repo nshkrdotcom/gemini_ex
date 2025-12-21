@@ -492,7 +492,7 @@ defmodule MyApp.VertexAI do
          {:ok, project_id} <- get_project_id(creds) do
 
       location = Keyword.get(opts, :location, @default_location)
-      model = Keyword.get(opts, :model, "gemini-2.0-flash-lite")
+      model = Keyword.get(opts, :model, "gemini-2.5-flash-lite")
 
       Gemini.generate(
         prompt,

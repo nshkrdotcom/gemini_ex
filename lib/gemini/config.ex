@@ -19,7 +19,7 @@ defmodule Gemini.Config do
 
   Default models are automatically selected based on detected authentication:
   - Gemini API: `gemini-flash-lite-latest` (convenience alias)
-  - Vertex AI: `gemini-2.0-flash-lite` (universal name)
+  - Vertex AI: `gemini-2.5-flash-lite` (universal name)
 
   For embeddings:
   - Gemini API: `gemini-embedding-001` (3072 dimensions)
@@ -94,7 +94,7 @@ defmodule Gemini.Config do
     deep_research_pro_preview_12_2025: "deep-research-pro-preview-12-2025",
 
     # Universal aliases (use these for cross-platform compatibility)
-    default_universal: "gemini-2.0-flash-lite",
+    default_universal: "gemini-2.5-flash-lite",
     latest: "gemini-3-pro-preview",
     stable: "gemini-2.5-pro"
   }
@@ -122,7 +122,7 @@ defmodule Gemini.Config do
     embedding_gemma_300m: "embeddinggemma-300m",
 
     # Vertex AI default alias
-    default: "gemini-2.0-flash-lite"
+    default: "gemini-2.5-flash-lite"
   }
 
   @use_case_models %{
@@ -140,7 +140,7 @@ defmodule Gemini.Config do
   # Default models per API type
   @default_generation_models %{
     gemini: "gemini-flash-lite-latest",
-    vertex_ai: "gemini-2.0-flash-lite"
+    vertex_ai: "gemini-2.5-flash-lite"
   }
 
   @default_embedding_models %{
@@ -374,7 +374,7 @@ defmodule Gemini.Config do
 
       # With VERTEX_PROJECT_ID set
       Config.default_model()
-      #=> "gemini-2.0-flash-lite"
+      #=> "gemini-2.5-flash-lite"
   """
   @spec default_model() :: String.t()
   def default_model do
@@ -396,7 +396,7 @@ defmodule Gemini.Config do
       #=> "gemini-flash-lite-latest"
 
       Config.default_model_for(:vertex_ai)
-      #=> "gemini-2.0-flash-lite"
+      #=> "gemini-2.5-flash-lite"
   """
   @spec default_model_for(api_type()) :: String.t()
   def default_model_for(:gemini), do: @default_generation_models[:gemini]
@@ -499,8 +499,8 @@ defmodule Gemini.Config do
       iex> Gemini.Config.get_model(:flash_2_0)
       "gemini-2.0-flash"
 
-      iex> Gemini.Config.get_model("gemini-1.5-pro")
-      "gemini-1.5-pro"
+      iex> Gemini.Config.get_model("gemini-2.5-flash")
+      "gemini-2.5-flash"
 
       iex> Gemini.Config.get_model(:flash_lite_latest, api: :vertex_ai)
       # Logs warning: Model flash_lite_latest (gemini-flash-lite-latest) may not be available on vertex_ai
@@ -542,13 +542,13 @@ defmodule Gemini.Config do
   ## Examples
 
       Config.models_for(:gemini)
-      #=> %{flash_lite_latest: "gemini-flash-lite-latest", flash_2_0: "gemini-2.0-flash", ...}
+      #=> %{flash_lite_latest: "gemini-flash-lite-latest", flash_2_5: "gemini-2.5-flash", ...}
 
       Config.models_for(:vertex_ai)
-      #=> %{embedding_gemma: "embeddinggemma", flash_2_0: "gemini-2.0-flash", ...}
+      #=> %{embedding_gemma: "embeddinggemma", flash_2_5: "gemini-2.5-flash", ...}
 
       Config.models_for(:both)
-      #=> %{flash_2_0: "gemini-2.0-flash", ...}  # Only universal models
+      #=> %{flash_2_5: "gemini-2.5-flash", ...}  # Only universal models
   """
   @spec models_for(api_type()) :: map()
   def models_for(:gemini), do: Map.merge(@universal_models, @gemini_api_models)

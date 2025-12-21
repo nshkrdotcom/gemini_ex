@@ -11,7 +11,7 @@ defmodule Gemini.APIs.ContextCache do
       {:ok, cache} = Gemini.APIs.ContextCache.create(
         [%Gemini.Types.Content{role: "user", parts: [%{text: large_content}]}],
         display_name: "My Codebase",
-        model: "gemini-2.0-flash"
+        model: "gemini-2.5-flash"
       )
 
       # Use cached context in requests
@@ -87,7 +87,7 @@ defmodule Gemini.APIs.ContextCache do
       {:ok, cache} = ContextCache.create(
         [Content.text("Large document content...")],
         display_name: "My Document",
-        model: "gemini-2.0-flash",
+        model: "gemini-2.5-flash",
         ttl: 7200
       )
   """

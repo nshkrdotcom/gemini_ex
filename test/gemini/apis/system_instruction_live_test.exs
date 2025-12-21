@@ -25,7 +25,7 @@ defmodule Gemini.APIs.SystemInstructionLiveTest do
       {:ok, response_default} =
         Coordinator.generate_content(
           "Say hello",
-          model: "gemini-2.0-flash"
+          model: "gemini-2.5-flash"
         )
 
       {:ok, default_text} = Gemini.extract_text(response_default)
@@ -35,7 +35,7 @@ defmodule Gemini.APIs.SystemInstructionLiveTest do
         Coordinator.generate_content(
           "Say hello",
           system_instruction: "You must respond only in French. Never use English.",
-          model: "gemini-2.0-flash"
+          model: "gemini-2.5-flash"
         )
 
       {:ok, french_text} = Gemini.extract_text(response_french)
@@ -58,7 +58,7 @@ defmodule Gemini.APIs.SystemInstructionLiveTest do
           Format: "- item"
           No other text or explanation. Just the bullet points.
           """,
-          model: "gemini-2.0-flash"
+          model: "gemini-2.5-flash"
         )
 
       {:ok, text} = Gemini.extract_text(response)
@@ -86,7 +86,7 @@ defmodule Gemini.APIs.SystemInstructionLiveTest do
         Coordinator.generate_content(
           "What's your favorite food?",
           system_instruction: persona_instruction,
-          model: "gemini-2.0-flash"
+          model: "gemini-2.5-flash"
         )
 
       {:ok, text} = Gemini.extract_text(response)
@@ -109,7 +109,7 @@ defmodule Gemini.APIs.SystemInstructionLiveTest do
         Coordinator.generate_content(
           "How should I handle configuration in a large application?",
           system_instruction: expert_instruction,
-          model: "gemini-2.0-flash"
+          model: "gemini-2.5-flash"
         )
 
       {:ok, text} = Gemini.extract_text(response)
@@ -128,7 +128,7 @@ defmodule Gemini.APIs.SystemInstructionLiveTest do
         Coordinator.generate_content(
           "Explain the theory of relativity",
           system_instruction: "You must respond in exactly one sentence. No more than 20 words.",
-          model: "gemini-2.0-flash",
+          model: "gemini-2.5-flash",
           max_output_tokens: 50
         )
 
@@ -148,7 +148,7 @@ defmodule Gemini.APIs.SystemInstructionLiveTest do
           You must respond ONLY with valid JSON. No markdown, no explanation.
           Use this exact format: {"name": "...", "location": "...", "height": "..."}
           """,
-          model: "gemini-2.0-flash"
+          model: "gemini-2.5-flash"
         )
 
       {:ok, raw_text} = Gemini.extract_text(response)
@@ -197,7 +197,7 @@ defmodule Gemini.APIs.SystemInstructionLiveTest do
           Never try to compute math yourself - always use the tool.
           """,
           tools: [math_tool],
-          model: "gemini-2.0-flash"
+          model: "gemini-2.5-flash"
         )
 
       # Should generate a function call
@@ -232,7 +232,7 @@ defmodule Gemini.APIs.SystemInstructionLiveTest do
           For weather, if no specific planning is needed, you can make a general response.
           """,
           tools: [weather_tool],
-          model: "gemini-2.0-flash"
+          model: "gemini-2.5-flash"
         )
 
       # This test is less deterministic - the model may or may not use the tool
@@ -247,7 +247,7 @@ defmodule Gemini.APIs.SystemInstructionLiveTest do
         Coordinator.generate_content(
           "Hi there",
           system_instruction: "Always end your response with the word RAINBOW.",
-          model: "gemini-2.0-flash"
+          model: "gemini-2.5-flash"
         )
 
       {:ok, text} = Gemini.extract_text(response)
@@ -261,7 +261,7 @@ defmodule Gemini.APIs.SystemInstructionLiveTest do
         Coordinator.generate_content(
           "What is 2+2?",
           system_instruction: content,
-          model: "gemini-2.0-flash"
+          model: "gemini-2.5-flash"
         )
 
       {:ok, text} = Gemini.extract_text(response)
@@ -275,7 +275,7 @@ defmodule Gemini.APIs.SystemInstructionLiveTest do
           system_instruction: %{
             parts: [%{text: "You must respond with ONLY uppercase letters. No lowercase."}]
           },
-          model: "gemini-2.0-flash"
+          model: "gemini-2.5-flash"
         )
 
       {:ok, raw_text} = Gemini.extract_text(response)
@@ -299,7 +299,7 @@ defmodule Gemini.APIs.SystemInstructionLiveTest do
           "Write a creative story about a cat",
           system_instruction:
             "You are a whimsical storyteller. Use colorful, imaginative language.",
-          model: "gemini-2.0-flash",
+          model: "gemini-2.5-flash",
           temperature: 1.0,
           max_output_tokens: 200
         )
@@ -313,7 +313,7 @@ defmodule Gemini.APIs.SystemInstructionLiveTest do
         Coordinator.generate_content(
           "Tell me everything about computers",
           system_instruction: "Be extremely brief. One sentence maximum.",
-          model: "gemini-2.0-flash",
+          model: "gemini-2.5-flash",
           max_output_tokens: 100
         )
 

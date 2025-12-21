@@ -17,7 +17,7 @@ defmodule Gemini.Live.Session do
 
       # Start a session
       {:ok, session} = LiveSession.start_link(
-        model: "gemini-2.0-flash-exp",
+        model: "gemini-2.5-flash",
         generation_config: %{temperature: 0.8},
         on_message: fn message -> IO.inspect(message, label: "Received") end
       )
@@ -53,7 +53,7 @@ defmodule Gemini.Live.Session do
   ## Example with Callbacks
 
       LiveSession.start_link(
-        model: "gemini-2.0-flash-exp",
+        model: "gemini-2.5-flash",
         on_message: fn message ->
           case message do
             %{server_content: content} ->
@@ -149,7 +149,7 @@ defmodule Gemini.Live.Session do
   ## Examples
 
       {:ok, session} = LiveSession.start_link(
-        model: "gemini-2.0-flash-exp",
+        model: "gemini-2.5-flash",
         on_message: &handle_message/1
       )
   """
@@ -171,7 +171,7 @@ defmodule Gemini.Live.Session do
 
   ## Examples
 
-      {:ok, session} = LiveSession.start_link(model: "gemini-2.0-flash-exp")
+      {:ok, session} = LiveSession.start_link(model: "gemini-2.5-flash")
       :ok = LiveSession.connect(session)
   """
   @spec connect(session()) :: :ok | {:error, term()}

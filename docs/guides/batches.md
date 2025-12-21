@@ -23,7 +23,7 @@ alias Gemini.Types.BatchJob
 {:ok, input_file} = Files.upload("input.jsonl")
 
 # 3. Create batch job
-{:ok, batch} = Batches.create("gemini-2.0-flash",
+{:ok, batch} = Batches.create("gemini-2.5-flash",
   file_name: input_file.name,
   display_name: "My Batch Job"
 )
@@ -57,7 +57,7 @@ For file-based batch processing, create a JSONL file where each line is a JSON o
 For small batches, you can pass requests directly:
 
 ```elixir
-{:ok, batch} = Batches.create("gemini-2.0-flash",
+{:ok, batch} = Batches.create("gemini-2.5-flash",
   inlined_requests: [
     %{contents: [%{parts: [%{text: "Request 1"}]}]},
     %{contents: [%{parts: [%{text: "Request 2"}]}]},
@@ -72,7 +72,7 @@ For small batches, you can pass requests directly:
 ### Content Generation Batch
 
 ```elixir
-{:ok, batch} = Batches.create("gemini-2.0-flash",
+{:ok, batch} = Batches.create("gemini-2.5-flash",
   file_name: "files/input123",
   display_name: "Content Generation Batch",
   generation_config: %{
@@ -94,7 +94,7 @@ For small batches, you can pass requests directly:
 ### With System Instruction
 
 ```elixir
-{:ok, batch} = Batches.create("gemini-2.0-flash",
+{:ok, batch} = Batches.create("gemini-2.5-flash",
   file_name: "files/input123",
   system_instruction: %{
     parts: [%{text: "You are a helpful assistant that summarizes documents concisely."}]
@@ -247,7 +247,7 @@ BatchJob.get_id(batch)        # "abc123" from "batches/abc123"
 ### GCS Source (Vertex AI)
 
 ```elixir
-{:ok, batch} = Batches.create("gemini-2.0-flash",
+{:ok, batch} = Batches.create("gemini-2.5-flash",
   gcs_uri: ["gs://my-bucket/input.jsonl"],
   auth: :vertex_ai
 )
@@ -256,7 +256,7 @@ BatchJob.get_id(batch)        # "abc123" from "batches/abc123"
 ### BigQuery Source (Vertex AI)
 
 ```elixir
-{:ok, batch} = Batches.create("gemini-2.0-flash",
+{:ok, batch} = Batches.create("gemini-2.5-flash",
   bigquery_uri: "bq://project.dataset.table",
   auth: :vertex_ai
 )
@@ -265,7 +265,7 @@ BatchJob.get_id(batch)        # "abc123" from "batches/abc123"
 ## Error Handling
 
 ```elixir
-case Batches.create("gemini-2.0-flash", file_name: "files/input") do
+case Batches.create("gemini-2.5-flash", file_name: "files/input") do
   {:ok, batch} ->
     IO.puts("Created: #{batch.name}")
 

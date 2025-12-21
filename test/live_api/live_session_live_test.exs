@@ -44,7 +44,7 @@ defmodule Gemini.LiveSessionLiveTest do
 
       {:ok, session} =
         Session.start_link(
-          model: "gemini-2.0-flash-exp",
+          model: "gemini-2.5-flash",
           on_connect: on_connect,
           on_message: on_message
         )
@@ -73,7 +73,7 @@ defmodule Gemini.LiveSessionLiveTest do
 
       {:ok, session} =
         Session.start_link(
-          model: "gemini-2.0-flash-exp",
+          model: "gemini-2.5-flash",
           on_message: on_message
         )
 
@@ -104,7 +104,7 @@ defmodule Gemini.LiveSessionLiveTest do
 
       {:ok, session} =
         Session.start_link(
-          model: "gemini-2.0-flash-exp",
+          model: "gemini-2.5-flash",
           generation_config: %{temperature: 0.7},
           on_message: on_message
         )
@@ -157,7 +157,7 @@ defmodule Gemini.LiveSessionLiveTest do
 
       {:ok, session} =
         Session.start_link(
-          model: "gemini-2.0-flash-exp",
+          model: "gemini-2.5-flash",
           tools: tools,
           on_message: on_message
         )
@@ -206,7 +206,7 @@ defmodule Gemini.LiveSessionLiveTest do
 
       {:ok, session} =
         Session.start_link(
-          model: "gemini-2.0-flash-exp",
+          model: "gemini-2.5-flash",
           on_connect: on_connect,
           on_disconnect: on_disconnect
         )

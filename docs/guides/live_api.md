@@ -29,7 +29,7 @@ alias Gemini.Live.Session
 
 # Start a session
 {:ok, session} = Session.start_link(
-  model: "gemini-2.0-flash-exp",
+  model: "gemini-2.5-flash",
   on_message: fn message ->
     IO.inspect(message, label: "Received")
   end
@@ -51,7 +51,7 @@ The session supports several callbacks for handling different events:
 
 ```elixir
 {:ok, session} = Session.start_link(
-  model: "gemini-2.0-flash-exp",
+  model: "gemini-2.5-flash",
 
   # Called when successfully connected
   on_connect: fn ->
@@ -189,7 +189,7 @@ tools = [
 
 # Start session with tools
 {:ok, session} = Session.start_link(
-  model: "gemini-2.0-flash-exp",
+  model: "gemini-2.5-flash",
   tools: tools,
   on_message: &handle_message/1
 )
@@ -224,7 +224,7 @@ end
 
 ```elixir
 {:ok, session} = Session.start_link(
-  model: "gemini-2.0-flash-exp",
+  model: "gemini-2.5-flash",
   generation_config: %{
     temperature: 0.8,
     top_p: 0.95,
@@ -238,7 +238,7 @@ end
 
 ```elixir
 {:ok, session} = Session.start_link(
-  model: "gemini-2.0-flash-exp",
+  model: "gemini-2.5-flash",
   system_instruction: "You are a helpful travel assistant. Always provide concise recommendations."
 )
 ```
@@ -249,7 +249,7 @@ end
 alias Gemini.Types.SafetySetting
 
 {:ok, session} = Session.start_link(
-  model: "gemini-2.0-flash-exp",
+  model: "gemini-2.5-flash",
   safety_settings: [
     %SafetySetting{
       category: :harassment,
@@ -269,7 +269,7 @@ defmodule VoiceAssistant do
 
   def start do
     {:ok, session} = Session.start_link(
-      model: "gemini-2.0-flash-exp",
+      model: "gemini-2.5-flash",
       generation_config: %{
         response_modalities: ["AUDIO"],
         speech_config: %{
@@ -323,7 +323,7 @@ defmodule ConversationManager do
 
   def start_conversation do
     {:ok, session} = Session.start_link(
-      model: "gemini-2.0-flash-exp",
+      model: "gemini-2.5-flash",
       system_instruction: "You are a math tutor helping students learn algebra.",
       on_message: &handle_response/1
     )
@@ -357,7 +357,7 @@ The session automatically handles reconnection with exponential backoff:
 
 ```elixir
 {:ok, session} = Session.start_link(
-  model: "gemini-2.0-flash-exp",
+  model: "gemini-2.5-flash",
 
   on_connect: fn ->
     IO.puts("Connected - ready to send messages")
@@ -379,7 +379,7 @@ The session automatically handles reconnection with exponential backoff:
 
 ```elixir
 {:ok, session} = Session.start_link(
-  model: "gemini-2.0-flash-exp",
+  model: "gemini-2.5-flash",
 
   on_error: fn error ->
     case error do
@@ -451,7 +451,7 @@ defmodule MyApp.ChatServer do
 
   def init(_opts) do
     {:ok, session} = Session.start_link(
-      model: "gemini-2.0-flash-exp",
+      model: "gemini-2.5-flash",
       on_message: fn msg -> send(self(), {:live_message, msg}) end
     )
 
@@ -473,7 +473,7 @@ end
 require Logger
 
 {:ok, session} = Session.start_link(
-  model: "gemini-2.0-flash-exp",
+  model: "gemini-2.5-flash",
 
   on_connect: fn ->
     Logger.info("Live API session connected")
@@ -539,7 +539,7 @@ Logger.configure(level: :debug)
 
 # Test basic connectivity
 {:ok, session} = Session.start_link(
-  model: "gemini-2.0-flash-exp",
+  model: "gemini-2.5-flash",
   on_error: fn error -> IO.inspect(error, label: "Error") end
 )
 ```
@@ -549,7 +549,7 @@ Logger.configure(level: :debug)
 ```elixir
 # Ensure callbacks are configured
 {:ok, session} = Session.start_link(
-  model: "gemini-2.0-flash-exp",
+  model: "gemini-2.5-flash",
   on_message: fn msg ->
     IO.inspect(msg, label: "Message received", limit: :infinity)
   end
