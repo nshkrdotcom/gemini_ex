@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.6] - 2025-12-20
+
+### Changed
+- **Default models updated to Gemini 2.5**: All defaults now use current-generation models
+  - Vertex AI default: `gemini-2.0-flash-lite` → `gemini-2.5-flash-lite`
+  - Universal default: `gemini-2.0-flash-lite` → `gemini-2.5-flash-lite`
+- Updated all documentation examples to use `gemini-2.5-flash` instead of `gemini-2.0-flash-exp`
+- Updated test helpers (`universal_model`, `structured_output_model`) to use 2.5 models
+- Refreshed model comparison examples in `examples/07_model_info.exs`
+
+### Fixed
+- Documentation consistency: All guides, examples, and docstrings now reference current-generation models
+- Test model references updated across live session, function calling, and system instruction tests
+
+### Notes
+- Gemini 2.0 models remain fully supported and available via explicit model selection
+- All `gemini-2.0-*` model keys retained in manifest for backward compatibility
+- Context caching still supports both 2.0 and 2.5 model versions
+
 ## [0.8.5] - 2025-12-18
 
 ### Added
