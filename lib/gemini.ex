@@ -471,13 +471,32 @@ defmodule Gemini do
 
   @doc """
   Extract text from a GenerateContentResponse or raw streaming data.
+
+  This function searches through all parts in the response to find text content,
+  which is important for Gemini 2.5+ models that may include thought parts before
+  text parts in the response.
   """
   @spec extract_text(GenerateContentResponse.t() | map()) ::
           {:ok, String.t()} | {:error, String.t()}
-  def extract_text(%GenerateContentResponse{
-        candidates: [%{content: %{parts: [%{text: text} | _]}} | _]
-      }) do
-    {:ok, text}
+  def extract_text(%GenerateContentResponse{candidates: [first_candidate | _]}) do
+    case first_candidate do
+      %{content: %{parts: parts}} when is_list(parts) and parts != [] ->
+        # Search through ALL parts for text content (not just the first part)
+        # This handles Gemini 2.5+ models with thinking where thought parts come first
+        text =
+          parts
+          |> Enum.filter(fn part -> Map.has_key?(part, :text) and part.text != nil end)
+          |> Enum.map_join("", & &1.text)
+
+        if text == "" do
+          {:error, "No text content found in response"}
+        else
+          {:ok, text}
+        end
+
+      _ ->
+        {:error, "No text content found in response"}
+    end
   end
 
   def extract_text(%GenerateContentResponse{candidates: []}) do
@@ -557,27 +576,7 @@ defmodule Gemini do
     # Make API call with current chat history
     case Coordinator.generate_content(chat.history, chat.opts) do
       {:ok, response} ->
-        # Check if response contains function calls
-        case extract_function_calls_from_response(response) do
-          [] ->
-            # No function calls - this is the final text response
-            {:ok, response}
-
-          function_calls ->
-            # Response contains function calls - continue the loop
-            # Add model's function call turn to chat history
-            updated_chat = Chat.add_turn(chat, "model", function_calls)
-
-            # Execute the function calls
-            case Tools.execute_calls(function_calls) do
-              {:ok, tool_results} ->
-                # Add tool's function response turn to chat history
-                final_chat = Chat.add_turn(updated_chat, "tool", tool_results)
-
-                # Recursively continue the loop with decremented turn limit
-                orchestrate_tool_loop(final_chat, turn_limit - 1)
-            end
-        end
+        handle_tool_loop_response(response, chat, turn_limit)
 
       {:error, error} ->
         {:error, error}
@@ -589,43 +588,58 @@ defmodule Gemini do
           Altar.ADM.FunctionCall.t()
         ]
   defp extract_function_calls_from_response(%GenerateContentResponse{candidates: candidates}) do
-    candidates
-    |> Enum.flat_map(fn candidate ->
-      case candidate do
-        %{content: %{parts: parts}} ->
-          parts
-          |> Enum.filter(fn part ->
-            fc = get_value(part, :function_call)
-            fc != nil
-          end)
-          |> Enum.map(fn part ->
-            # Convert raw function call data to ADM FunctionCall struct
-            # Handle both atom and string keys from API responses
-            function_call_data = get_value(part, :function_call)
-            name = get_value(function_call_data, :name)
-            args = get_value(function_call_data, :args) || %{}
-
-            {:ok, function_call} =
-              Altar.ADM.new_function_call(%{
-                name: name,
-                args: args,
-                call_id:
-                  name <>
-                    "_" <> (:crypto.strong_rand_bytes(8) |> Base.encode16(case: :lower))
-              })
-
-            function_call
-          end)
-
-        _ ->
-          []
-      end
-    end)
+    Enum.flat_map(candidates, &extract_function_calls_from_candidate/1)
   end
 
   # Helper to get value from map with either atom or string key
   defp get_value(map, key) when is_map(map) and is_atom(key) do
     Map.get(map, key) || Map.get(map, Atom.to_string(key))
+  end
+
+  defp handle_tool_loop_response(response, chat, turn_limit) do
+    case extract_function_calls_from_response(response) do
+      [] ->
+        {:ok, response}
+
+      function_calls ->
+        updated_chat = Chat.add_turn(chat, "model", function_calls)
+        {:ok, tool_results} = Tools.execute_calls(function_calls)
+        final_chat = Chat.add_turn(updated_chat, "tool", tool_results)
+        orchestrate_tool_loop(final_chat, turn_limit - 1)
+    end
+  end
+
+  defp extract_function_calls_from_candidate(%{content: %{parts: parts}}) do
+    parts
+    |> Enum.map(&extract_function_call_from_part/1)
+    |> Enum.reject(&is_nil/1)
+  end
+
+  defp extract_function_calls_from_candidate(_), do: []
+
+  defp extract_function_call_from_part(part) do
+    case get_value(part, :function_call) do
+      nil -> nil
+      function_call_data -> build_function_call(function_call_data)
+    end
+  end
+
+  defp build_function_call(function_call_data) do
+    name = get_value(function_call_data, :name)
+    args = get_value(function_call_data, :args) || %{}
+
+    {:ok, function_call} =
+      Altar.ADM.new_function_call(%{
+        name: name,
+        args: args,
+        call_id: build_function_call_id(name)
+      })
+
+    function_call
+  end
+
+  defp build_function_call_id(name) do
+    name <> "_" <> (:crypto.strong_rand_bytes(8) |> Base.encode16(case: :lower))
   end
 
   @doc """

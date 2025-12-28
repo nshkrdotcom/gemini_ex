@@ -31,19 +31,48 @@ defmodule Gemini.APIs.Coordinator do
   See `t:Gemini.options/0` in `Gemini` for the canonical list of options.
   """
 
-  alias Gemini.Config
+  alias Gemini.APIs.Tokens
   alias Gemini.Client.HTTP
+  alias Gemini.Config
   alias Gemini.Streaming.UnifiedManager
-  alias Gemini.Types.Request.GenerateContentRequest
-  alias Gemini.Types.Request.{EmbedContentRequest, BatchEmbedContentsRequest}
-  alias Gemini.Types.Request.{InlinedEmbedContentRequest, InlinedEmbedContentRequests}
-  alias Gemini.Types.Request.{InputEmbedContentConfig, EmbedContentBatch}
-  alias Gemini.Types.Response.{GenerateContentResponse, ListModelsResponse}
-  alias Gemini.Types.Response.{EmbedContentResponse, BatchEmbedContentsResponse}
-  alias Gemini.Types.Response.{InlinedEmbedContentResponses, ContentEmbedding}
+  alias Gemini.Tools.AutomaticFunctionCalling
+
   alias Gemini.Types.Content
+
+  alias Gemini.Types.{
+    Blob,
+    FileData,
+    FunctionResponse,
+    GenerationConfig,
+    MediaResolution,
+    Modality,
+    Part,
+    SpeechConfig
+  }
+
   alias Gemini.Types.ToolSerialization
-  alias Gemini.Types.{FileData, FunctionResponse, MediaResolution, Modality, SpeechConfig}
+  alias Gemini.Types.GenerationConfig.{ImageConfig, ThinkingConfig}
+  alias Gemini.Types.Part.MediaResolution, as: PartMediaResolution
+  alias Gemini.Types.Response.EmbedContentBatch, as: EmbedContentBatchResponse
+
+  alias Gemini.Types.Request.{
+    BatchEmbedContentsRequest,
+    EmbedContentBatch,
+    EmbedContentRequest,
+    GenerateContentRequest,
+    InlinedEmbedContentRequest,
+    InlinedEmbedContentRequests,
+    InputEmbedContentConfig
+  }
+
+  alias Gemini.Types.Response.{
+    BatchEmbedContentsResponse,
+    ContentEmbedding,
+    EmbedContentResponse,
+    GenerateContentResponse,
+    InlinedEmbedContentResponses,
+    ListModelsResponse
+  }
 
   @type auth_strategy :: :gemini | :vertex_ai
   @type request_opts :: keyword()
@@ -148,11 +177,13 @@ defmodule Gemini.APIs.Coordinator do
     # ADR-0001: Estimate tokens on original input BEFORE building the request
     opts_with_estimation = inject_token_estimation(input, opts)
 
-    with {:ok, request_body} <- build_generate_request(input, opts_with_estimation) do
-      # Pass through the auto_execute_tools option to the UnifiedManager
-      UnifiedManager.start_stream(model, request_body, opts_with_estimation)
-    else
-      {:error, reason} -> {:error, reason}
+    case build_generate_request(input, opts_with_estimation) do
+      {:ok, request_body} ->
+        # Pass through the auto_execute_tools option to the UnifiedManager
+        UnifiedManager.start_stream(model, request_body, opts_with_estimation)
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -234,10 +265,12 @@ defmodule Gemini.APIs.Coordinator do
   def list_models(opts \\ []) do
     path = "models"
 
-    with {:ok, response} <- HTTP.get(path, opts) do
-      parse_models_response(response)
-    else
-      {:error, reason} -> {:error, reason}
+    case HTTP.get(path, opts) do
+      {:ok, response} ->
+        parse_models_response(response)
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -342,10 +375,12 @@ defmodule Gemini.APIs.Coordinator do
     request = EmbedContentRequest.new(text, Keyword.put(opts, :model, model))
     request_body = EmbedContentRequest.to_api_map(request)
 
-    with {:ok, response} <- HTTP.post(path, request_body, opts) do
-      {:ok, EmbedContentResponse.from_api_response(response)}
-    else
-      {:error, reason} -> {:error, reason}
+    case HTTP.post(path, request_body, opts) do
+      {:ok, response} ->
+        {:ok, EmbedContentResponse.from_api_response(response)}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -392,10 +427,12 @@ defmodule Gemini.APIs.Coordinator do
     request = BatchEmbedContentsRequest.new(texts, Keyword.put(opts, :model, model))
     request_body = BatchEmbedContentsRequest.to_api_map(request)
 
-    with {:ok, response} <- HTTP.post(path, request_body, opts) do
-      {:ok, BatchEmbedContentsResponse.from_api_response(response)}
-    else
-      {:error, reason} -> {:error, reason}
+    case HTTP.post(path, request_body, opts) do
+      {:ok, response} ->
+        {:ok, BatchEmbedContentsResponse.from_api_response(response)}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -455,7 +492,7 @@ defmodule Gemini.APIs.Coordinator do
   @spec async_batch_embed_contents(
           [String.t()] | [EmbedContentRequest.t()],
           Gemini.options()
-        ) :: api_result(Gemini.Types.Response.EmbedContentBatch.t())
+        ) :: api_result(EmbedContentBatchResponse.t())
   def async_batch_embed_contents(texts_or_requests, opts \\ [])
 
   def async_batch_embed_contents(texts, opts) when is_list(texts) do
@@ -486,10 +523,12 @@ defmodule Gemini.APIs.Coordinator do
     path = "models/#{model}:asyncBatchEmbedContent"
     request_body = EmbedContentBatch.to_api_map(batch_request)
 
-    with {:ok, response} <- HTTP.post(path, request_body, opts) do
-      {:ok, Gemini.Types.Response.EmbedContentBatch.from_api_response(response)}
-    else
-      {:error, reason} -> {:error, reason}
+    case HTTP.post(path, request_body, opts) do
+      {:ok, response} ->
+        {:ok, EmbedContentBatchResponse.from_api_response(response)}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -523,14 +562,16 @@ defmodule Gemini.APIs.Coordinator do
       end
   """
   @spec get_batch_status(String.t(), Gemini.options()) ::
-          api_result(Gemini.Types.Response.EmbedContentBatch.t())
+          api_result(EmbedContentBatchResponse.t())
   def get_batch_status(batch_name, opts \\ []) when is_binary(batch_name) do
     path = batch_name
 
-    with {:ok, response} <- HTTP.get(path, opts) do
-      {:ok, Gemini.Types.Response.EmbedContentBatch.from_api_response(response)}
-    else
-      {:error, reason} -> {:error, reason}
+    case HTTP.get(path, opts) do
+      {:ok, response} ->
+        {:ok, EmbedContentBatchResponse.from_api_response(response)}
+
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -558,9 +599,9 @@ defmodule Gemini.APIs.Coordinator do
         IO.puts("Retrieved \#{length(embeddings)} embeddings")
       end
   """
-  @spec get_batch_embeddings(Gemini.Types.Response.EmbedContentBatch.t()) ::
+  @spec get_batch_embeddings(EmbedContentBatchResponse.t()) ::
           api_result([ContentEmbedding.t()])
-  def get_batch_embeddings(%Gemini.Types.Response.EmbedContentBatch{} = batch) do
+  def get_batch_embeddings(%EmbedContentBatchResponse{} = batch) do
     cond do
       batch.state != :completed ->
         {:error, "Batch not yet completed (current state: #{batch.state})"}
@@ -623,7 +664,7 @@ defmodule Gemini.APIs.Coordinator do
       )
   """
   @spec await_batch_completion(String.t(), keyword()) ::
-          api_result(Gemini.Types.Response.EmbedContentBatch.t())
+          api_result(EmbedContentBatchResponse.t())
   def await_batch_completion(batch_name, opts \\ []) when is_binary(batch_name) do
     poll_interval = Keyword.get(opts, :poll_interval, 5_000)
     timeout = Keyword.get(opts, :timeout, 600_000)
@@ -639,36 +680,58 @@ defmodule Gemini.APIs.Coordinator do
   defp poll_until_complete(batch_name, auth_opts, poll_interval, timeout, start_time, on_progress) do
     case get_batch_status(batch_name, auth_opts) do
       {:ok, batch} ->
-        # Call progress callback if provided
-        if on_progress, do: on_progress.(batch)
+        maybe_report_progress(on_progress, batch)
 
-        # Check if complete
-        if Gemini.Types.Response.EmbedContentBatch.is_complete?(batch) do
-          {:ok, batch}
-        else
-          # Check timeout
-          elapsed = System.monotonic_time(:millisecond) - start_time
-
-          if elapsed >= timeout do
-            {:error, :timeout}
-          else
-            # Wait and poll again
-            Process.sleep(poll_interval)
-
-            poll_until_complete(
-              batch_name,
-              auth_opts,
-              poll_interval,
-              timeout,
-              start_time,
-              on_progress
-            )
-          end
-        end
+        handle_batch_completion(
+          batch,
+          batch_name,
+          auth_opts,
+          poll_interval,
+          timeout,
+          start_time,
+          on_progress
+        )
 
       {:error, reason} ->
         {:error, reason}
     end
+  end
+
+  defp handle_batch_completion(
+         batch,
+         batch_name,
+         auth_opts,
+         poll_interval,
+         timeout,
+         start_time,
+         on_progress
+       ) do
+    cond do
+      EmbedContentBatchResponse.complete?(batch) ->
+        {:ok, batch}
+
+      batch_timed_out?(start_time, timeout) ->
+        {:error, :timeout}
+
+      true ->
+        Process.sleep(poll_interval)
+
+        poll_until_complete(
+          batch_name,
+          auth_opts,
+          poll_interval,
+          timeout,
+          start_time,
+          on_progress
+        )
+    end
+  end
+
+  defp maybe_report_progress(nil, _batch), do: :ok
+  defp maybe_report_progress(callback, batch), do: callback.(batch)
+
+  defp batch_timed_out?(start_time, timeout) do
+    System.monotonic_time(:millisecond) - start_time >= timeout
   end
 
   # Token Counting API
@@ -760,7 +823,7 @@ defmodule Gemini.APIs.Coordinator do
           Altar.ADM.FunctionCall.t()
         ]
   def extract_function_calls(response) do
-    Gemini.Tools.AutomaticFunctionCalling.extract_function_calls(response)
+    AutomaticFunctionCalling.extract_function_calls(response)
   end
 
   @doc """
@@ -779,7 +842,7 @@ defmodule Gemini.APIs.Coordinator do
   """
   @spec has_function_calls?(GenerateContentResponse.t() | map()) :: boolean()
   def has_function_calls?(response) do
-    Gemini.Tools.AutomaticFunctionCalling.has_function_calls?(response)
+    AutomaticFunctionCalling.has_function_calls?(response)
   end
 
   # Private Helper Functions
@@ -792,7 +855,7 @@ defmodule Gemini.APIs.Coordinator do
     if Keyword.has_key?(opts, :estimated_input_tokens) do
       opts
     else
-      case Gemini.APIs.Tokens.estimate(input) do
+      case Tokens.estimate(input) do
         {:ok, count} when count > 0 ->
           Keyword.put(opts, :estimated_input_tokens, count)
 
@@ -844,8 +907,8 @@ defmodule Gemini.APIs.Coordinator do
   end
 
   @doc false
-  @spec struct_to_api_map(Gemini.Types.GenerationConfig.t()) :: map()
-  defp struct_to_api_map(%Gemini.Types.GenerationConfig{} = config) do
+  @spec struct_to_api_map(GenerationConfig.t()) :: map()
+  defp struct_to_api_map(%GenerationConfig{} = config) do
     config
     |> Map.from_struct()
     |> Map.to_list()
@@ -877,7 +940,7 @@ defmodule Gemini.APIs.Coordinator do
     # Check for :generation_config option first, then fall back to individual options
     config =
       case Keyword.get(opts, :generation_config) do
-        %Gemini.Types.GenerationConfig{} = generation_config ->
+        %GenerationConfig{} = generation_config ->
           # Convert GenerationConfig struct directly to API format
           struct_to_api_map(generation_config)
 
@@ -921,7 +984,7 @@ defmodule Gemini.APIs.Coordinator do
     # Check for :generation_config option first, then fall back to individual options
     config =
       case Keyword.get(opts, :generation_config) do
-        %Gemini.Types.GenerationConfig{} = generation_config ->
+        %GenerationConfig{} = generation_config ->
           # Convert GenerationConfig struct directly to API format
           struct_to_api_map(generation_config)
 
@@ -993,7 +1056,7 @@ defmodule Gemini.APIs.Coordinator do
 
   # Anthropic-style: list of mixed text/image maps with type field
   defp normalize_single_content(%{type: "text", text: text}) do
-    %Content{role: "user", parts: [Gemini.Types.Part.text(text)]}
+    %Content{role: "user", parts: [Part.text(text)]}
   end
 
   defp normalize_single_content(%{type: "image", source: %{type: "base64", data: data} = source}) do
@@ -1003,17 +1066,17 @@ defmodule Gemini.APIs.Coordinator do
 
     # When source type is "base64", treat data as already base64-encoded
     # Don't call Part.inline_data which would encode it again (Issue #11 fix)
-    blob = %Gemini.Types.Blob{data: data, mime_type: mime_type}
+    blob = %Blob{data: data, mime_type: mime_type}
 
     %Content{
       role: "user",
-      parts: [%Gemini.Types.Part{inline_data: blob}]
+      parts: [%Part{inline_data: blob}]
     }
   end
 
   # Simple string - convert to text content
   defp normalize_single_content(text) when is_binary(text) do
-    %Content{role: "user", parts: [Gemini.Types.Part.text(text)]}
+    %Content{role: "user", parts: [Part.text(text)]}
   end
 
   # Fallback for unrecognized format
@@ -1031,17 +1094,17 @@ defmodule Gemini.APIs.Coordinator do
   end
 
   # Normalize part formats
-  defp normalize_part(%Gemini.Types.Part{} = part), do: part
-  defp normalize_part(%{text: text}) when is_binary(text), do: Gemini.Types.Part.text(text)
+  defp normalize_part(%Part{} = part), do: part
+  defp normalize_part(%{text: text}) when is_binary(text), do: Part.text(text)
 
   defp normalize_part(%{inline_data: %{mime_type: mime_type, data: data}}) do
     # When inline_data is provided in map format, treat data as already base64-encoded
     # (consistent with Anthropic-style format fix for Issue #11)
-    blob = %Gemini.Types.Blob{data: data, mime_type: mime_type}
-    %Gemini.Types.Part{inline_data: blob}
+    blob = %Blob{data: data, mime_type: mime_type}
+    %Part{inline_data: blob}
   end
 
-  defp normalize_part(text) when is_binary(text), do: Gemini.Types.Part.text(text)
+  defp normalize_part(text) when is_binary(text), do: Part.text(text)
   defp normalize_part(part), do: part
 
   # Detect MIME type from base64 data using magic bytes
@@ -1074,7 +1137,7 @@ defmodule Gemini.APIs.Coordinator do
 
   # Helper function to format Part structs for API requests
   # Format part for API, handling Gemini.Types.Part structs and maps
-  defp format_part(%Gemini.Types.Part{} = part) do
+  defp format_part(%Part{} = part) do
     base = %{}
 
     base =
@@ -1150,7 +1213,7 @@ defmodule Gemini.APIs.Coordinator do
 
   defp format_part(part), do: part
 
-  defp media_resolution_to_api(%Gemini.Types.Part.MediaResolution{level: level}),
+  defp media_resolution_to_api(%PartMediaResolution{level: level}),
     do: media_resolution_to_api(level)
 
   defp media_resolution_to_api(value) when is_atom(value), do: MediaResolution.to_api(value)
@@ -1250,12 +1313,12 @@ defmodule Gemini.APIs.Coordinator do
 
   # Helper to format parts within system instruction maps
   defp format_system_instruction_part(%{text: _} = part), do: part
-  defp format_system_instruction_part(%Gemini.Types.Part{} = part), do: format_part(part)
+  defp format_system_instruction_part(%Part{} = part), do: format_part(part)
   defp format_system_instruction_part(part), do: part
 
   # Convert ThinkingConfig to API format with camelCase keys
   @doc false
-  defp convert_thinking_config_to_api(%Gemini.Types.GenerationConfig.ThinkingConfig{} = config) do
+  defp convert_thinking_config_to_api(%ThinkingConfig{} = config) do
     %{}
     |> maybe_put_if_not_nil("thinkingBudget", config.thinking_budget)
     |> maybe_put_if_not_nil("thinkingLevel", convert_thinking_level(config.thinking_level))
@@ -1306,7 +1369,7 @@ defmodule Gemini.APIs.Coordinator do
 
   # Convert ImageConfig to API format with camelCase keys
   @doc false
-  defp convert_image_config_to_api(%Gemini.Types.GenerationConfig.ImageConfig{} = config) do
+  defp convert_image_config_to_api(%ImageConfig{} = config) do
     %{}
     |> maybe_put_if_not_nil("aspectRatio", config.aspect_ratio)
     |> maybe_put_if_not_nil("imageSize", config.image_size)
@@ -1374,119 +1437,128 @@ defmodule Gemini.APIs.Coordinator do
 
   @spec build_generation_config(request_opts()) :: map()
   defp build_generation_config(opts) do
-    opts
-    |> Enum.reduce(%{}, fn
-      # Basic generation parameters
-      {:temperature, temp}, acc when is_number(temp) ->
-        Map.put(acc, :temperature, temp)
+    Enum.reduce(opts, %{}, &put_generation_opt/2)
+  end
 
-      {:max_output_tokens, max}, acc when is_integer(max) ->
-        Map.put(acc, :maxOutputTokens, max)
+  defp put_generation_opt({:temperature, temp}, acc) when is_number(temp),
+    do: Map.put(acc, :temperature, temp)
 
-      {:top_p, top_p}, acc when is_number(top_p) ->
-        Map.put(acc, :topP, top_p)
+  defp put_generation_opt({:max_output_tokens, max}, acc) when is_integer(max),
+    do: Map.put(acc, :maxOutputTokens, max)
 
-      {:top_k, top_k}, acc when is_integer(top_k) ->
-        Map.put(acc, :topK, top_k)
+  defp put_generation_opt({:top_p, top_p}, acc) when is_number(top_p),
+    do: Map.put(acc, :topP, top_p)
 
-      # Advanced generation parameters
-      {:response_schema, schema}, acc when is_map(schema) ->
-        Map.put(acc, :responseSchema, schema)
+  defp put_generation_opt({:top_k, top_k}, acc) when is_integer(top_k),
+    do: Map.put(acc, :topK, top_k)
 
-      {:response_json_schema, schema}, acc when is_map(schema) ->
-        Map.put(acc, :responseJsonSchema, schema)
+  defp put_generation_opt({:response_schema, schema}, acc) when is_map(schema),
+    do: Map.put(acc, :responseSchema, schema)
 
-      {:response_mime_type, mime_type}, acc when is_binary(mime_type) ->
-        Map.put(acc, :responseMimeType, mime_type)
+  defp put_generation_opt({:response_json_schema, schema}, acc) when is_map(schema),
+    do: Map.put(acc, :responseJsonSchema, schema)
 
-      {:stop_sequences, sequences}, acc when is_list(sequences) ->
-        Map.put(acc, :stopSequences, sequences)
+  defp put_generation_opt({:response_mime_type, mime_type}, acc) when is_binary(mime_type),
+    do: Map.put(acc, :responseMimeType, mime_type)
 
-      {:candidate_count, count}, acc when is_integer(count) and count > 0 ->
-        Map.put(acc, :candidateCount, count)
+  defp put_generation_opt({:stop_sequences, sequences}, acc) when is_list(sequences),
+    do: Map.put(acc, :stopSequences, sequences)
 
-      {:presence_penalty, penalty}, acc when is_number(penalty) ->
-        Map.put(acc, :presencePenalty, penalty)
+  defp put_generation_opt({:candidate_count, count}, acc) when is_integer(count) and count > 0,
+    do: Map.put(acc, :candidateCount, count)
 
-      {:frequency_penalty, penalty}, acc when is_number(penalty) ->
-        Map.put(acc, :frequencyPenalty, penalty)
+  defp put_generation_opt({:presence_penalty, penalty}, acc) when is_number(penalty),
+    do: Map.put(acc, :presencePenalty, penalty)
 
-      {:response_logprobs, logprobs}, acc when is_boolean(logprobs) ->
-        Map.put(acc, :responseLogprobs, logprobs)
+  defp put_generation_opt({:frequency_penalty, penalty}, acc) when is_number(penalty),
+    do: Map.put(acc, :frequencyPenalty, penalty)
 
-      {:logprobs, logprobs}, acc when is_integer(logprobs) ->
-        Map.put(acc, :logprobs, logprobs)
+  defp put_generation_opt({:response_logprobs, logprobs}, acc) when is_boolean(logprobs),
+    do: Map.put(acc, :responseLogprobs, logprobs)
 
-      {:seed, seed}, acc when is_integer(seed) ->
-        Map.put(acc, :seed, seed)
+  defp put_generation_opt({:logprobs, logprobs}, acc) when is_integer(logprobs),
+    do: Map.put(acc, :logprobs, logprobs)
 
-      {:response_modalities, modalities}, acc when is_list(modalities) ->
-        api_modalities =
-          modalities
-          |> Enum.map(&Modality.to_api/1)
-          |> Enum.reject(&is_nil/1)
+  defp put_generation_opt({:seed, seed}, acc) when is_integer(seed),
+    do: Map.put(acc, :seed, seed)
 
-        if api_modalities == [] do
-          acc
-        else
-          Map.put(acc, :responseModalities, api_modalities)
-        end
+  defp put_generation_opt({:response_modalities, modalities}, acc) when is_list(modalities),
+    do: put_response_modalities(acc, modalities)
 
-      {:speech_config, %SpeechConfig{} = speech_config}, acc ->
-        api_speech = SpeechConfig.to_api(speech_config)
+  defp put_generation_opt({:speech_config, %SpeechConfig{} = speech_config}, acc),
+    do: put_speech_config(acc, SpeechConfig.to_api(speech_config))
 
-        if api_speech && map_size(api_speech) > 0 do
-          Map.put(acc, "speechConfig", api_speech)
-        else
-          acc
-        end
+  defp put_generation_opt({:speech_config, speech_config}, acc) when is_map(speech_config),
+    do:
+      put_speech_config(
+        acc,
+        speech_config
+        |> SpeechConfig.from_api()
+        |> SpeechConfig.to_api()
+      )
 
-      {:speech_config, speech_config}, acc when is_map(speech_config) ->
-        api_speech =
-          speech_config
-          |> SpeechConfig.from_api()
-          |> SpeechConfig.to_api()
+  defp put_generation_opt({:media_resolution, resolution}, acc),
+    do: put_media_resolution(acc, resolution)
 
-        if api_speech && map_size(api_speech) > 0 do
-          Map.put(acc, "speechConfig", api_speech)
-        else
-          acc
-        end
+  defp put_generation_opt({:property_ordering, ordering}, acc)
+       when is_list(ordering) and ordering != [],
+       do: Map.put(acc, :propertyOrdering, ordering)
 
-      {:media_resolution, resolution}, acc ->
-        case media_resolution_to_api(resolution) do
-          nil -> acc
-          api_value -> Map.put(acc, :mediaResolution, api_value)
-        end
+  defp put_generation_opt({:thinking_config, thinking_config}, acc)
+       when not is_nil(thinking_config),
+       do: put_thinking_config(acc, thinking_config)
 
-      # Property ordering for Gemini 2.0 models (structured outputs)
-      {:property_ordering, ordering}, acc when is_list(ordering) and ordering != [] ->
-        Map.put(acc, :propertyOrdering, ordering)
+  defp put_generation_opt({:image_config, image_config}, acc) when not is_nil(image_config),
+    do: put_image_config(acc, image_config)
 
-      # Thinking config support - FIXED: Now converts field names properly
-      {:thinking_config, thinking_config}, acc when not is_nil(thinking_config) ->
-        api_format = convert_thinking_config_to_api(thinking_config)
+  defp put_generation_opt(_, acc), do: acc
 
-        if map_size(api_format) > 0 do
-          Map.put(acc, "thinkingConfig", api_format)
-        else
-          acc
-        end
+  defp put_response_modalities(acc, modalities) do
+    api_modalities =
+      modalities
+      |> Enum.map(&Modality.to_api/1)
+      |> Enum.reject(&is_nil/1)
 
-      # Image config support for Gemini 3 Pro Image
-      {:image_config, image_config}, acc when not is_nil(image_config) ->
-        api_format = convert_image_config_to_api(image_config)
+    if api_modalities == [] do
+      acc
+    else
+      Map.put(acc, :responseModalities, api_modalities)
+    end
+  end
 
-        if map_size(api_format) > 0 do
-          Map.put(acc, "imageConfig", api_format)
-        else
-          acc
-        end
+  defp put_speech_config(acc, api_speech) do
+    if api_speech && map_size(api_speech) > 0 do
+      Map.put(acc, "speechConfig", api_speech)
+    else
+      acc
+    end
+  end
 
-      # Ignore unknown options
-      _, acc ->
-        acc
-    end)
+  defp put_media_resolution(acc, resolution) do
+    case media_resolution_to_api(resolution) do
+      nil -> acc
+      api_value -> Map.put(acc, :mediaResolution, api_value)
+    end
+  end
+
+  defp put_thinking_config(acc, thinking_config) do
+    api_format = convert_thinking_config_to_api(thinking_config)
+
+    if map_size(api_format) > 0 do
+      Map.put(acc, "thinkingConfig", api_format)
+    else
+      acc
+    end
+  end
+
+  defp put_image_config(acc, image_config) do
+    api_format = convert_image_config_to_api(image_config)
+
+    if map_size(api_format) > 0 do
+      Map.put(acc, "imageConfig", api_format)
+    else
+      acc
+    end
   end
 
   @spec build_count_tokens_request(String.t() | GenerateContentRequest.t(), request_opts()) ::

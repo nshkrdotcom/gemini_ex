@@ -26,7 +26,7 @@ defmodule Gemini.Types.Response.EmbedContentBatchStats do
       # => 80.0
 
       # Check if complete
-      EmbedContentBatchStats.is_complete?(stats)
+      EmbedContentBatchStats.complete?(stats)
       # => false
   """
 
@@ -133,13 +133,13 @@ defmodule Gemini.Types.Response.EmbedContentBatchStats do
         pending_request_count: 0
       }
 
-      EmbedContentBatchStats.is_complete?(stats)
+      EmbedContentBatchStats.complete?(stats)
       # => true
   """
-  @spec is_complete?(t()) :: boolean()
-  def is_complete?(%__MODULE__{pending_request_count: nil}), do: false
-  def is_complete?(%__MODULE__{pending_request_count: 0}), do: true
-  def is_complete?(%__MODULE__{pending_request_count: _}), do: false
+  @spec complete?(t()) :: boolean()
+  def complete?(%__MODULE__{pending_request_count: nil}), do: false
+  def complete?(%__MODULE__{pending_request_count: 0}), do: true
+  def complete?(%__MODULE__{pending_request_count: _}), do: false
 
   @doc """
   Calculates the success rate of completed requests.

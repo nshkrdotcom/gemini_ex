@@ -31,6 +31,8 @@ defmodule Gemini.Auth.VertexStrategy do
     "https://www.googleapis.com/auth/cloud-platform"
   ]
 
+  @oauth2_token_uri "https://oauth2.googleapis.com/token"
+
   @required_service_account_keys [
     :type,
     :project_id,
@@ -123,39 +125,47 @@ defmodule Gemini.Auth.VertexStrategy do
   end
 
   def headers(%{} = credentials) do
-    # If no explicit credentials provided, try ADC
-    if map_size(credentials) == 0 or
-         (Map.has_key?(credentials, :project_id) and Map.has_key?(credentials, :location) and
-            map_size(credentials) == 2) do
-      Logger.debug("[VertexStrategy] No explicit credentials, attempting ADC")
-
-      case ADC.load_credentials() do
-        {:ok, adc_creds} ->
-          case ADC.get_access_token(adc_creds) do
-            {:ok, access_token} ->
-              {:ok,
-               [
-                 {"Content-Type", "application/json"},
-                 {"Authorization", "Bearer #{access_token}"}
-               ]
-               |> maybe_add_quota_project_header(
-                 Map.put_new(credentials, :quota_project_id, quota_project_id_from_adc(adc_creds))
-               )}
-
-            {:error, reason} ->
-              Logger.error("[VertexStrategy] Failed to get ADC token: #{inspect(reason)}")
-              {:error, "Failed to get access token from ADC: #{reason}"}
-          end
-
-        {:error, reason} ->
-          Logger.error("[VertexStrategy] ADC not available: #{inspect(reason)}")
-
-          {:error,
-           "No valid Vertex AI credentials found. Expected :access_token, :jwt_token, :service_account_key, or :service_account_data. ADC also failed: #{reason}"}
-      end
+    if use_adc?(credentials) do
+      headers_from_adc(credentials)
     else
       {:error,
        "No valid Vertex AI credentials found. Expected :access_token, :jwt_token, :service_account_key, or :service_account_data. Got: #{inspect(Map.keys(credentials))}"}
+    end
+  end
+
+  defp use_adc?(credentials) do
+    map_size(credentials) == 0 or
+      (Map.has_key?(credentials, :project_id) and Map.has_key?(credentials, :location) and
+         map_size(credentials) == 2)
+  end
+
+  defp headers_from_adc(credentials) do
+    Logger.debug("[VertexStrategy] No explicit credentials, attempting ADC")
+
+    case ADC.load_credentials() do
+      {:ok, adc_creds} ->
+        case ADC.get_access_token(adc_creds) do
+          {:ok, access_token} ->
+            headers = [
+              {"Content-Type", "application/json"},
+              {"Authorization", "Bearer #{access_token}"}
+            ]
+
+            updated_credentials =
+              Map.put_new(credentials, :quota_project_id, quota_project_id_from_adc(adc_creds))
+
+            {:ok, maybe_add_quota_project_header(headers, updated_credentials)}
+
+          {:error, reason} ->
+            Logger.error("[VertexStrategy] Failed to get ADC token: #{inspect(reason)}")
+            {:error, "Failed to get access token from ADC: #{reason}"}
+        end
+
+      {:error, reason} ->
+        Logger.error("[VertexStrategy] ADC not available: #{inspect(reason)}")
+
+        {:error,
+         "No valid Vertex AI credentials found. Expected :access_token, :jwt_token, :service_account_key, or :service_account_data. ADC also failed: #{reason}"}
     end
   end
 
@@ -199,11 +209,14 @@ defmodule Gemini.Auth.VertexStrategy do
 
   @impl true
   def refresh_credentials(%{refresh_token: refresh_token} = credentials)
-      when is_binary(refresh_token) do
-    # TODO: Implement OAuth2 token refresh
-    # This would typically involve making a request to Google's OAuth2 token endpoint
-    # For now, return the existing credentials
-    {:ok, credentials}
+      when is_binary(refresh_token) and refresh_token != "" do
+    with {:ok, client_id} <- fetch_required_oauth_value(credentials, :client_id, "client_id"),
+         {:ok, client_secret} <-
+           fetch_required_oauth_value(credentials, :client_secret, "client_secret"),
+         {:ok, access_token} <-
+           refresh_oauth2_token(refresh_token, client_id, client_secret, token_uri(credentials)) do
+      {:ok, Map.put(credentials, :access_token, access_token)}
+    end
   end
 
   def refresh_credentials(%{adc_credentials: adc_creds} = credentials) do
@@ -432,9 +445,10 @@ defmodule Gemini.Auth.VertexStrategy do
   # Private helper functions
 
   defp generate_access_token(%{service_account_key: key_path}) do
-    with {:ok, key_data} <- JWT.load_service_account_key(key_path) do
-      generate_access_token(%{service_account_data: key_data})
-    else
+    case JWT.load_service_account_key(key_path) do
+      {:ok, key_data} ->
+        generate_access_token(%{service_account_data: key_data})
+
       {:error, reason} ->
         {:error, "Failed to load service account key: #{reason}"}
     end
@@ -517,10 +531,6 @@ defmodule Gemini.Auth.VertexStrategy do
   @spec exchange_jwt_for_access_token(String.t(), String.t()) ::
           {:ok, String.t()} | {:error, String.t()}
   defp exchange_jwt_for_access_token(assertion, token_uri) do
-    headers = [
-      {"Content-Type", "application/x-www-form-urlencoded"}
-    ]
-
     # Note: scope is NOT included here - it's in the JWT assertion itself
     body =
       URI.encode_query(%{
@@ -528,31 +538,72 @@ defmodule Gemini.Auth.VertexStrategy do
         "assertion" => assertion
       })
 
-    case Req.post(token_uri, headers: headers, body: body) do
-      {:ok, %Req.Response{status: 200, body: response_body}} ->
-        case response_body do
-          %{"access_token" => access_token} ->
-            {:ok, access_token}
+    request_oauth2_token(token_uri, body, "Token exchange")
+  end
 
-          _ ->
-            case Jason.decode(response_body) do
-              {:ok, %{"access_token" => access_token}} ->
-                {:ok, access_token}
+  defp refresh_oauth2_token(refresh_token, client_id, client_secret, token_uri) do
+    body =
+      URI.encode_query(%{
+        "client_id" => client_id,
+        "client_secret" => client_secret,
+        "refresh_token" => refresh_token,
+        "grant_type" => "refresh_token"
+      })
 
-              {:ok, response} ->
-                {:error, "Unexpected token response: #{inspect(response)}"}
+    request_oauth2_token(token_uri, body, "Token refresh")
+  end
 
-              {:error, reason} ->
-                {:error, "Failed to parse token response: #{reason}"}
-            end
-        end
+  defp request_oauth2_token(token_uri, body, context) do
+    headers = [{"Content-Type", "application/x-www-form-urlencoded"}]
 
-      {:ok, %Req.Response{status: status, body: body}} ->
-        error_body = if is_binary(body), do: body, else: inspect(body)
-        {:error, "Token exchange failed with HTTP #{status}: #{error_body}"}
+    token_uri
+    |> Req.post(headers: headers, body: body)
+    |> handle_token_response(context)
+  end
+
+  defp handle_token_response({:ok, %Req.Response{status: 200, body: response_body}}, context) do
+    parse_access_token_response(response_body, context)
+  end
+
+  defp handle_token_response({:ok, %Req.Response{status: status, body: body}}, context) do
+    error_body = if is_binary(body), do: body, else: inspect(body)
+    {:error, "#{context} failed with HTTP #{status}: #{error_body}"}
+  end
+
+  defp handle_token_response({:error, reason}, context) do
+    {:error, "#{context} request failed: #{inspect(reason)}"}
+  end
+
+  defp parse_access_token_response(%{"access_token" => access_token}, _context)
+       when is_binary(access_token) do
+    {:ok, access_token}
+  end
+
+  defp parse_access_token_response(response_body, context) when is_binary(response_body) do
+    case Jason.decode(response_body) do
+      {:ok, %{"access_token" => access_token}} when is_binary(access_token) ->
+        {:ok, access_token}
+
+      {:ok, response} ->
+        {:error, "Unexpected #{context} response: #{inspect(response)}"}
 
       {:error, reason} ->
-        {:error, "Token exchange request failed: #{reason}"}
+        {:error, "Failed to parse #{context} response: #{reason}"}
+    end
+  end
+
+  defp parse_access_token_response(response_body, context) do
+    {:error, "Unexpected #{context} response: #{inspect(response_body)}"}
+  end
+
+  defp token_uri(credentials) do
+    Map.get(credentials, :token_uri) || @oauth2_token_uri
+  end
+
+  defp fetch_required_oauth_value(credentials, key, label) do
+    case Map.get(credentials, key) do
+      value when is_binary(value) and value != "" -> {:ok, value}
+      _ -> {:error, "Missing OAuth2 #{label} for refresh token flow"}
     end
   end
 end

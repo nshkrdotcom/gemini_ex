@@ -64,9 +64,9 @@ defmodule Gemini.Tools.AutomaticFunctionCalling do
 
   """
 
+  alias Altar.ADM.FunctionCall
   alias Gemini.Tools.Executor
   alias Gemini.Types.FunctionResponse
-  alias Altar.ADM.FunctionCall
 
   defmodule Config do
     @moduledoc """

@@ -366,10 +366,11 @@ defmodule Gemini.Auth.VertexStrategyTest do
   end
 
   describe "refresh_credentials/1" do
-    test "refreshes OAuth2 credentials" do
+    test "requires client_id and client_secret for OAuth2 refresh" do
       credentials = %{refresh_token: "test-refresh-token"}
 
-      assert {:ok, ^credentials} = VertexStrategy.refresh_credentials(credentials)
+      assert {:error, "Missing OAuth2 client_id for refresh token flow"} =
+               VertexStrategy.refresh_credentials(credentials)
     end
 
     test "refreshes service account key credentials" do

@@ -64,24 +64,24 @@ defmodule Gemini.Types.Response.EmbedContentBatchOutput do
 
   ## Examples
 
-      EmbedContentBatchOutput.is_file_based?(output)
+      EmbedContentBatchOutput.file_based?(output)
       # => true
   """
-  @spec is_file_based?(t()) :: boolean()
-  def is_file_based?(%__MODULE__{responses_file: file}) when is_binary(file), do: true
-  def is_file_based?(_), do: false
+  @spec file_based?(t()) :: boolean()
+  def file_based?(%__MODULE__{responses_file: file}) when is_binary(file), do: true
+  def file_based?(_), do: false
 
   @doc """
   Checks if the output is inline.
 
   ## Examples
 
-      EmbedContentBatchOutput.is_inline?(output)
+      EmbedContentBatchOutput.inline?(output)
       # => false
   """
-  @spec is_inline?(t()) :: boolean()
-  def is_inline?(%__MODULE__{inlined_responses: %InlinedEmbedContentResponses{}}), do: true
-  def is_inline?(_), do: false
+  @spec inline?(t()) :: boolean()
+  def inline?(%__MODULE__{inlined_responses: %InlinedEmbedContentResponses{}}), do: true
+  def inline?(_), do: false
 
   # Private helpers
 

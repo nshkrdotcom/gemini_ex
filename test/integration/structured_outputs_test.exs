@@ -15,10 +15,7 @@ defmodule Gemini.Integration.StructuredOutputsTest do
 
   describe "structured outputs" do
     test "generates JSON matching simple schema", %{has_auth: has_auth} do
-      unless has_auth do
-        IO.puts("Skipping structured outputs test - no API key configured")
-        assert true
-      else
+      if has_auth do
         schema = %{
           "type" => "object",
           "properties" => %{
@@ -41,14 +38,14 @@ defmodule Gemini.Integration.StructuredOutputsTest do
 
         assert Map.has_key?(json, "answer")
         assert is_binary(json["answer"])
+      else
+        IO.puts("Skipping structured outputs test - no API key configured")
+        assert true
       end
     end
 
     test "handles anyOf for union types", %{has_auth: has_auth} do
-      unless has_auth do
-        IO.puts("Skipping structured outputs test - no API key configured")
-        assert true
-      else
+      if has_auth do
         schema = %{
           "type" => "object",
           "properties" => %{
@@ -82,14 +79,14 @@ defmodule Gemini.Integration.StructuredOutputsTest do
         assert Map.has_key?(json, "status")
         status = json["status"]
         assert Map.has_key?(status, "success") or Map.has_key?(status, "error")
+      else
+        IO.puts("Skipping structured outputs test - no API key configured")
+        assert true
       end
     end
 
     test "respects numeric constraints", %{has_auth: has_auth} do
-      unless has_auth do
-        IO.puts("Skipping structured outputs test - no API key configured")
-        assert true
-      else
+      if has_auth do
         schema = %{
           "type" => "object",
           "properties" => %{
@@ -127,16 +124,16 @@ defmodule Gemini.Integration.StructuredOutputsTest do
             IO.puts("Raw text: #{text}")
             assert true
         end
+      else
+        IO.puts("Skipping structured outputs test - no API key configured")
+        assert true
       end
     end
   end
 
   describe "streaming with structured outputs" do
     test "streams valid partial JSON", %{has_auth: has_auth} do
-      unless has_auth do
-        IO.puts("Skipping structured outputs streaming test - no API key configured")
-        assert true
-      else
+      if has_auth do
         schema = %{
           "type" => "object",
           "properties" => %{
@@ -154,16 +151,17 @@ defmodule Gemini.Integration.StructuredOutputsTest do
           )
 
         full_text =
-          responses
-          |> Enum.map(fn resp ->
+          Enum.map_join(responses, "", fn resp ->
             {:ok, text} = Gemini.extract_text(resp)
             text
           end)
-          |> Enum.join()
 
         {:ok, json} = Jason.decode(full_text)
         assert Map.has_key?(json, "story")
         assert is_binary(json["story"])
+      else
+        IO.puts("Skipping structured outputs streaming test - no API key configured")
+        assert true
       end
     end
   end

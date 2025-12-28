@@ -41,9 +41,9 @@ defmodule Gemini.Types.Response.EmbedContentBatch do
   alias Gemini.Types.Request.InputEmbedContentConfig
 
   alias Gemini.Types.Response.{
+    BatchState,
     EmbedContentBatchOutput,
-    EmbedContentBatchStats,
-    BatchState
+    EmbedContentBatchStats
   }
 
   @enforce_keys [:model, :name, :display_name]
@@ -114,39 +114,39 @@ defmodule Gemini.Types.Response.EmbedContentBatch do
 
   ## Examples
 
-      EmbedContentBatch.is_complete?(batch)
+      EmbedContentBatch.complete?(batch)
       # => true
   """
-  @spec is_complete?(t()) :: boolean()
-  def is_complete?(%__MODULE__{state: :completed}), do: true
-  def is_complete?(%__MODULE__{state: :failed}), do: true
-  def is_complete?(%__MODULE__{state: :cancelled}), do: true
-  def is_complete?(_), do: false
+  @spec complete?(t()) :: boolean()
+  def complete?(%__MODULE__{state: :completed}), do: true
+  def complete?(%__MODULE__{state: :failed}), do: true
+  def complete?(%__MODULE__{state: :cancelled}), do: true
+  def complete?(_), do: false
 
   @doc """
   Checks if the batch failed.
 
   ## Examples
 
-      EmbedContentBatch.is_failed?(batch)
+      EmbedContentBatch.failed?(batch)
       # => false
   """
-  @spec is_failed?(t()) :: boolean()
-  def is_failed?(%__MODULE__{state: :failed}), do: true
-  def is_failed?(_), do: false
+  @spec failed?(t()) :: boolean()
+  def failed?(%__MODULE__{state: :failed}), do: true
+  def failed?(_), do: false
 
   @doc """
   Checks if the batch is currently processing.
 
   ## Examples
 
-      EmbedContentBatch.is_processing?(batch)
+      EmbedContentBatch.processing?(batch)
       # => true
   """
-  @spec is_processing?(t()) :: boolean()
-  def is_processing?(%__MODULE__{state: :processing}), do: true
-  def is_processing?(%__MODULE__{state: :pending}), do: true
-  def is_processing?(_), do: false
+  @spec processing?(t()) :: boolean()
+  def processing?(%__MODULE__{state: :processing}), do: true
+  def processing?(%__MODULE__{state: :pending}), do: true
+  def processing?(_), do: false
 
   @doc """
   Calculates the progress percentage of the batch.

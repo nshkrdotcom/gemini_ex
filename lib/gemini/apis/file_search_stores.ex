@@ -91,13 +91,14 @@ defmodule Gemini.APIs.FileSearchStores do
   5. **Clean Up**: Delete stores when no longer needed to avoid costs
   """
 
+  alias Gemini.APIs.Files
   alias Gemini.Client.HTTP
 
   alias Gemini.Types.{
-    FileSearchStore,
     CreateFileSearchStoreConfig,
-    ListFileSearchStoresResponse,
-    FileSearchDocument
+    FileSearchDocument,
+    FileSearchStore,
+    ListFileSearchStoresResponse
   }
 
   @type create_opts :: [
@@ -373,7 +374,7 @@ defmodule Gemini.APIs.FileSearchStores do
     # First upload the file
     upload_opts = Keyword.take(opts, [:display_name, :mime_type, :auth])
 
-    with {:ok, file} <- Gemini.APIs.Files.upload(file_path, upload_opts),
+    with {:ok, file} <- Files.upload(file_path, upload_opts),
          {:ok, doc} <- import_file(store_name, file.name, opts) do
       {:ok, doc}
     else
@@ -542,9 +543,9 @@ defmodule Gemini.APIs.FileSearchStores do
 
       params ->
         query_string =
-          params
-          |> Enum.map(fn {k, v} -> "#{k}=#{URI.encode_www_form(to_string(v))}" end)
-          |> Enum.join("&")
+          Enum.map_join(params, "&", fn {k, v} ->
+            "#{k}=#{URI.encode_www_form(to_string(v))}"
+          end)
 
         "#{base}?#{query_string}"
     end
@@ -568,66 +569,86 @@ defmodule Gemini.APIs.FileSearchStores do
   end
 
   defp do_wait_for_active(name, opts, poll_interval, timeout, start_time, on_status) do
-    elapsed = System.monotonic_time(:millisecond) - start_time
-
-    if elapsed >= timeout do
+    if timed_out?(start_time, timeout) do
       {:error, :timeout}
     else
-      case get(name, opts) do
-        {:ok, store} ->
-          if on_status, do: on_status.(store)
-
-          case store.state do
-            :active ->
-              {:ok, store}
-
-            :failed ->
-              {:error, :store_creation_failed}
-
-            _ ->
-              Process.sleep(poll_interval)
-              do_wait_for_active(name, opts, poll_interval, timeout, start_time, on_status)
-          end
-
-        {:error, reason} ->
-          {:error, reason}
-      end
+      poll_for_store(name, opts, poll_interval, timeout, start_time, on_status)
     end
   end
 
   defp do_wait_for_document(document_name, opts, poll_interval, timeout, start_time, on_status) do
-    elapsed = System.monotonic_time(:millisecond) - start_time
-
-    if elapsed >= timeout do
+    if timed_out?(start_time, timeout) do
       {:error, :timeout}
     else
-      case get_document(document_name, opts) do
-        {:ok, doc} ->
-          if on_status, do: on_status.(doc)
-
-          case doc.state do
-            :active ->
-              {:ok, doc}
-
-            :failed ->
-              {:error, :document_processing_failed}
-
-            _ ->
-              Process.sleep(poll_interval)
-
-              do_wait_for_document(
-                document_name,
-                opts,
-                poll_interval,
-                timeout,
-                start_time,
-                on_status
-              )
-          end
-
-        {:error, reason} ->
-          {:error, reason}
-      end
+      poll_for_document(document_name, opts, poll_interval, timeout, start_time, on_status)
     end
+  end
+
+  defp poll_for_store(name, opts, poll_interval, timeout, start_time, on_status) do
+    case get(name, opts) do
+      {:ok, store} ->
+        maybe_report_status(on_status, store)
+        handle_store_state(store, name, opts, poll_interval, timeout, start_time, on_status)
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp handle_store_state(%{state: :active} = store, _name, _opts, _poll, _timeout, _start, _cb),
+    do: {:ok, store}
+
+  defp handle_store_state(%{state: :failed}, _name, _opts, _poll, _timeout, _start, _cb),
+    do: {:error, :store_creation_failed}
+
+  defp handle_store_state(_store, name, opts, poll_interval, timeout, start_time, on_status) do
+    Process.sleep(poll_interval)
+    do_wait_for_active(name, opts, poll_interval, timeout, start_time, on_status)
+  end
+
+  defp poll_for_document(document_name, opts, poll_interval, timeout, start_time, on_status) do
+    case get_document(document_name, opts) do
+      {:ok, doc} ->
+        maybe_report_status(on_status, doc)
+
+        handle_document_state(
+          doc,
+          document_name,
+          opts,
+          poll_interval,
+          timeout,
+          start_time,
+          on_status
+        )
+
+      {:error, reason} ->
+        {:error, reason}
+    end
+  end
+
+  defp handle_document_state(%{state: :active} = doc, _name, _opts, _poll, _timeout, _start, _cb),
+    do: {:ok, doc}
+
+  defp handle_document_state(%{state: :failed}, _name, _opts, _poll, _timeout, _start, _cb),
+    do: {:error, :document_processing_failed}
+
+  defp handle_document_state(_doc, name, opts, poll_interval, timeout, start_time, on_status) do
+    Process.sleep(poll_interval)
+
+    do_wait_for_document(
+      name,
+      opts,
+      poll_interval,
+      timeout,
+      start_time,
+      on_status
+    )
+  end
+
+  defp maybe_report_status(nil, _resource), do: :ok
+  defp maybe_report_status(callback, resource), do: callback.(resource)
+
+  defp timed_out?(start_time, timeout) do
+    System.monotonic_time(:millisecond) - start_time >= timeout
   end
 end

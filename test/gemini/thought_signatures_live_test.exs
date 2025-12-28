@@ -10,6 +10,8 @@ defmodule Gemini.ThoughtSignaturesLiveTest do
   @moduletag timeout: 60_000
 
   alias Gemini.Chat
+  alias Gemini.Config
+  alias Gemini.Types.{Content, GenerationConfig, Part}
 
   import Gemini.Test.ModelHelpers
 
@@ -26,12 +28,12 @@ defmodule Gemini.ThoughtSignaturesLiveTest do
         :ok
       else
         # Use Gemini 3 Pro which returns thought signatures
-        config = Gemini.Types.GenerationConfig.thinking_level(:high)
+        config = GenerationConfig.thinking_level(:high)
 
         result =
           Gemini.generate(
             "Explain briefly why the sky is blue.",
-            model: Gemini.Config.get_model(:pro_3_preview),
+            model: Config.get_model(:pro_3_preview),
             generation_config: config
           )
 
@@ -125,10 +127,10 @@ defmodule Gemini.ThoughtSignaturesLiveTest do
       else
         # Create a part with a thought signature
         part =
-          Gemini.Types.Part.text("Hello, how are you?")
-          |> Gemini.Types.Part.with_thought_signature("context_engineering_is_the_way_to_go")
+          Part.text("Hello, how are you?")
+          |> Part.with_thought_signature("context_engineering_is_the_way_to_go")
 
-        content = %Gemini.Types.Content{role: "user", parts: [part]}
+        content = %Content{role: "user", parts: [part]}
 
         # Try to generate with this content
         result = Gemini.generate([content], model: default_model())

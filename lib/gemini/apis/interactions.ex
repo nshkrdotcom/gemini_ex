@@ -180,40 +180,26 @@ defmodule Gemini.APIs.Interactions do
   # Internal helpers
 
   defp validate_create_opts(opts) do
-    model = Keyword.get(opts, :model)
-    agent = Keyword.get(opts, :agent)
-    generation_config = Keyword.get(opts, :generation_config)
-    agent_config = Keyword.get(opts, :agent_config)
-    response_format = Keyword.get(opts, :response_format)
-    response_mime_type = Keyword.get(opts, :response_mime_type)
+    validation_ctx = %{
+      model: Keyword.get(opts, :model),
+      agent: Keyword.get(opts, :agent),
+      generation_config: Keyword.get(opts, :generation_config),
+      agent_config: Keyword.get(opts, :agent_config),
+      response_format: Keyword.get(opts, :response_format),
+      response_mime_type: Keyword.get(opts, :response_mime_type)
+    }
 
-    cond do
-      is_nil(model) and is_nil(agent) ->
-        {:error, Error.validation_error("Interactions.create requires either :model or :agent")}
+    validators = [
+      &validate_model_or_agent/1,
+      &validate_model_agent_exclusive/1,
+      &validate_model_config_pairing/1,
+      &validate_agent_config_pairing/1,
+      &validate_response_format/1
+    ]
 
-      not is_nil(model) and not is_nil(agent) ->
-        {:error, Error.validation_error("Invalid request: specified both :model and :agent")}
-
-      not is_nil(model) and not is_nil(agent_config) ->
-        {:error,
-         Error.validation_error(
-           "Invalid request: specified :model and :agent_config. If specifying :model, use :generation_config."
-         )}
-
-      not is_nil(agent) and not is_nil(generation_config) ->
-        {:error,
-         Error.validation_error(
-           "Invalid request: specified :agent and :generation_config. If specifying :agent, use :agent_config."
-         )}
-
-      not is_nil(response_format) and is_nil(response_mime_type) ->
-        {:error,
-         Error.validation_error(
-           "Invalid request: :response_mime_type is required when :response_format is set"
-         )}
-
-      true ->
-        :ok
+    case Enum.find_value(validators, fn validator -> validator.(validation_ctx) end) do
+      nil -> :ok
+      {:error, _} = error -> error
     end
   end
 
@@ -330,28 +316,9 @@ defmodule Gemini.APIs.Interactions do
   defp build_create_body(input, opts, stream?) do
     model = Keyword.get(opts, :model)
     agent = Keyword.get(opts, :agent)
-
-    generation_config =
-      case Keyword.get(opts, :generation_config) do
-        nil -> nil
-        %GenerationConfig{} = cfg -> GenerationConfig.to_api(cfg)
-        cfg when is_map(cfg) -> cfg
-        other -> other
-      end
-
-    agent_config =
-      case Keyword.get(opts, :agent_config) do
-        nil -> nil
-        %{} = cfg -> AgentConfig.to_api(cfg)
-        other -> other
-      end
-
-    tools =
-      case Keyword.get(opts, :tools) do
-        nil -> nil
-        list when is_list(list) -> Enum.map(list, &Tool.to_api/1)
-        other -> other
-      end
+    generation_config = normalize_generation_config(Keyword.get(opts, :generation_config))
+    agent_config = normalize_agent_config(Keyword.get(opts, :agent_config))
+    tools = normalize_tools(Keyword.get(opts, :tools))
 
     body =
       %{}
@@ -369,12 +336,7 @@ defmodule Gemini.APIs.Interactions do
       |> maybe_put("system_instruction", Keyword.get(opts, :system_instruction))
       |> maybe_put("tools", tools)
 
-    body =
-      if stream? do
-        Map.put(body, "stream", true)
-      else
-        body
-      end
+    body = maybe_put_stream(body, stream?)
 
     {:ok, body}
   end
@@ -520,20 +482,17 @@ defmodule Gemini.APIs.Interactions do
   defp do_wait_for_completion(id, opts, poll_interval_ms, timeout_ms, start_ms, on_status) do
     case get(id, Keyword.put(opts, :stream, false)) do
       {:ok, %Interaction{} = interaction} ->
-        if is_function(on_status, 1), do: on_status.(interaction)
+        maybe_report_status(on_status, interaction)
 
-        if terminal_status?(interaction.status) do
-          {:ok, interaction}
-        else
-          now_ms = System.monotonic_time(:millisecond)
-
-          if now_ms - start_ms > timeout_ms do
-            {:error, Error.network_error("Timed out waiting for interaction completion")}
-          else
-            if poll_interval_ms > 0, do: Process.sleep(poll_interval_ms)
-            do_wait_for_completion(id, opts, poll_interval_ms, timeout_ms, start_ms, on_status)
-          end
-        end
+        handle_interaction_status(
+          interaction,
+          id,
+          opts,
+          poll_interval_ms,
+          timeout_ms,
+          start_ms,
+          on_status
+        )
 
       {:ok, other} ->
         {:error, Error.invalid_response("Unexpected get/2 response: #{inspect(other)}")}
@@ -548,4 +507,97 @@ defmodule Gemini.APIs.Interactions do
   defp terminal_status?("cancelled"), do: true
   defp terminal_status?("requires_action"), do: true
   defp terminal_status?(_), do: false
+
+  defp validate_model_or_agent(%{model: nil, agent: nil}) do
+    {:error, Error.validation_error("Interactions.create requires either :model or :agent")}
+  end
+
+  defp validate_model_or_agent(_ctx), do: nil
+
+  defp validate_model_agent_exclusive(%{model: model, agent: agent})
+       when not is_nil(model) and not is_nil(agent) do
+    {:error, Error.validation_error("Invalid request: specified both :model and :agent")}
+  end
+
+  defp validate_model_agent_exclusive(_ctx), do: nil
+
+  defp validate_model_config_pairing(%{model: model, agent_config: agent_config})
+       when not is_nil(model) and not is_nil(agent_config) do
+    {:error,
+     Error.validation_error(
+       "Invalid request: specified :model and :agent_config. If specifying :model, use :generation_config."
+     )}
+  end
+
+  defp validate_model_config_pairing(_ctx), do: nil
+
+  defp validate_agent_config_pairing(%{agent: agent, generation_config: generation_config})
+       when not is_nil(agent) and not is_nil(generation_config) do
+    {:error,
+     Error.validation_error(
+       "Invalid request: specified :agent and :generation_config. If specifying :agent, use :agent_config."
+     )}
+  end
+
+  defp validate_agent_config_pairing(_ctx), do: nil
+
+  defp validate_response_format(%{response_format: response_format, response_mime_type: nil})
+       when not is_nil(response_format) do
+    {:error,
+     Error.validation_error(
+       "Invalid request: :response_mime_type is required when :response_format is set"
+     )}
+  end
+
+  defp validate_response_format(_ctx), do: nil
+
+  defp normalize_generation_config(nil), do: nil
+  defp normalize_generation_config(%GenerationConfig{} = cfg), do: GenerationConfig.to_api(cfg)
+  defp normalize_generation_config(cfg) when is_map(cfg), do: cfg
+  defp normalize_generation_config(other), do: other
+
+  defp normalize_agent_config(nil), do: nil
+  defp normalize_agent_config(%{} = cfg), do: AgentConfig.to_api(cfg)
+  defp normalize_agent_config(other), do: other
+
+  defp normalize_tools(nil), do: nil
+  defp normalize_tools(list) when is_list(list), do: Enum.map(list, &Tool.to_api/1)
+  defp normalize_tools(other), do: other
+
+  defp maybe_put_stream(body, true), do: Map.put(body, "stream", true)
+  defp maybe_put_stream(body, false), do: body
+
+  defp maybe_report_status(on_status, interaction) do
+    if is_function(on_status, 1), do: on_status.(interaction)
+  end
+
+  defp handle_interaction_status(
+         interaction,
+         id,
+         opts,
+         poll_interval_ms,
+         timeout_ms,
+         start_ms,
+         on_status
+       ) do
+    cond do
+      terminal_status?(interaction.status) ->
+        {:ok, interaction}
+
+      timed_out?(start_ms, timeout_ms) ->
+        {:error, Error.network_error("Timed out waiting for interaction completion")}
+
+      true ->
+        maybe_sleep(poll_interval_ms)
+        do_wait_for_completion(id, opts, poll_interval_ms, timeout_ms, start_ms, on_status)
+    end
+  end
+
+  defp maybe_sleep(poll_interval_ms) do
+    if poll_interval_ms > 0, do: Process.sleep(poll_interval_ms)
+  end
+
+  defp timed_out?(start_ms, timeout_ms) do
+    System.monotonic_time(:millisecond) - start_ms > timeout_ms
+  end
 end

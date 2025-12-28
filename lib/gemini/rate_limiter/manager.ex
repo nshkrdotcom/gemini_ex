@@ -54,7 +54,7 @@ defmodule Gemini.RateLimiter.Manager do
 
   use GenServer
 
-  alias Gemini.RateLimiter.{Config, State, ConcurrencyGate, RetryManager}
+  alias Gemini.RateLimiter.{ConcurrencyGate, Config, RetryManager, State}
   alias Gemini.Telemetry
 
   @type execute_opts :: keyword()
@@ -264,17 +264,19 @@ defmodule Gemini.RateLimiter.Manager do
 
     case reserve_budget(state_key, opts, config) do
       {:ok, reservation_ctx, estimate_ctx} ->
-        execute_with_concurrency(
-          request_fn,
-          model,
-          concurrency_key,
-          state_key,
-          config,
-          start_time,
-          opts,
-          reservation_ctx,
-          estimate_ctx
-        )
+        execution_ctx = %{
+          request_fn: request_fn,
+          model: model,
+          concurrency_key: concurrency_key,
+          state_key: state_key,
+          config: config,
+          start_time: start_time,
+          opts: opts,
+          reservation_ctx: reservation_ctx,
+          estimate_ctx: estimate_ctx
+        }
+
+        execute_with_concurrency(execution_ctx)
 
       {:error, {:rate_limited, retry_at, details}} ->
         emit_rate_limit_error(state_key, :over_budget, start_time, details)
@@ -304,68 +306,37 @@ defmodule Gemini.RateLimiter.Manager do
     end
   end
 
-  defp execute_with_concurrency(
-         request_fn,
-         model,
-         concurrency_key,
-         state_key,
-         config,
-         start_time,
-         opts,
-         reservation_ctx,
-         estimate_ctx
-       ) do
-    # Acquire concurrency permit if enabled
-    permit_result =
-      if Config.concurrency_enabled?(config) do
-        ConcurrencyGate.acquire(concurrency_key, config)
-      else
-        :ok
-      end
-
-    case permit_result do
-      :ok ->
+  defp execute_with_concurrency(%{
+         request_fn: request_fn,
+         model: model,
+         concurrency_key: concurrency_key,
+         state_key: state_key,
+         config: config,
+         start_time: start_time,
+         opts: opts,
+         reservation_ctx: reservation_ctx,
+         estimate_ctx: estimate_ctx
+       }) do
+    case acquire_concurrency_permit(concurrency_key, config) do
+      {:ok, permit?} ->
         result =
           try do
             execute_with_retry(request_fn, model, concurrency_key, state_key, config, opts)
           after
-            if Config.concurrency_enabled?(config) do
-              ConcurrencyGate.release(concurrency_key)
-            end
+            maybe_release_permit(concurrency_key, permit?)
           end
 
-        reconcile_budget(
-          state_key,
-          reservation_ctx,
-          result,
-          config,
-          opts,
-          estimate_ctx
-        )
-
-        emit_request_complete(model, start_time, result, opts)
-        result
-
-      {:error, :no_permit_available} ->
-        State.release_reservation(state_key, reservation_ctx,
-          window_duration_ms: config.window_duration_ms
-        )
-
-        emit_request_error(model, start_time, :no_permit_available, opts)
-        {:error, {:rate_limited, nil, %{reason: :no_permit_available}}}
-
-      {:error, :concurrency_disabled} ->
-        # Concurrency disabled, proceed without permit
-        result = execute_with_retry(request_fn, model, concurrency_key, state_key, config, opts)
         reconcile_budget(state_key, reservation_ctx, result, config, opts, estimate_ctx)
         emit_request_complete(model, start_time, result, opts)
         result
 
-      {:error, reason} ->
-        State.release_reservation(state_key, reservation_ctx,
-          window_duration_ms: config.window_duration_ms
-        )
+      {:error, :no_permit_available} ->
+        release_reservation(state_key, reservation_ctx, config)
+        emit_request_error(model, start_time, :no_permit_available, opts)
+        {:error, {:rate_limited, nil, %{reason: :no_permit_available}}}
 
+      {:error, reason} ->
+        release_reservation(state_key, reservation_ctx, config)
         emit_request_error(model, start_time, reason, opts)
         {:error, reason}
     end
@@ -380,65 +351,25 @@ defmodule Gemini.RateLimiter.Manager do
          reservation_ctx,
          opts
        ) do
-    permit_result =
-      if Config.concurrency_enabled?(config) do
-        ConcurrencyGate.acquire(concurrency_key, config)
-      else
-        :ok
-      end
-
-    case permit_result do
-      :ok ->
-        release_fn =
-          build_release_fn(
-            state_key,
-            reservation_ctx,
-            concurrency_key,
-            config
-          )
-
-        case start_fn.() do
-          {:ok, value} ->
-            emit_stream_event(:started, model, Keyword.get(opts, :location))
-            {:ok, {value, release_fn}}
-
-          {:error, reason} ->
-            release_fn.(:error, nil)
-            {:error, reason}
-        end
+    case acquire_concurrency_permit(concurrency_key, config) do
+      {:ok, permit?} ->
+        start_stream_with_release(
+          start_fn,
+          model,
+          state_key,
+          reservation_ctx,
+          concurrency_key,
+          config,
+          opts,
+          permit?
+        )
 
       {:error, :no_permit_available} ->
-        State.release_reservation(state_key, reservation_ctx,
-          window_duration_ms: config.window_duration_ms
-        )
-
+        release_reservation(state_key, reservation_ctx, config)
         {:error, {:rate_limited, nil, %{reason: :no_permit_available}}}
 
-      {:error, :concurrency_disabled} ->
-        release_fn =
-          build_release_fn(
-            state_key,
-            reservation_ctx,
-            concurrency_key,
-            config,
-            permit?: false
-          )
-
-        case start_fn.() do
-          {:ok, value} ->
-            emit_stream_event(:started, model, Keyword.get(opts, :location))
-            {:ok, {value, release_fn}}
-
-          {:error, reason} ->
-            release_fn.(:error, nil)
-            {:error, reason}
-        end
-
       {:error, reason} ->
-        State.release_reservation(state_key, reservation_ctx,
-          window_duration_ms: config.window_duration_ms
-        )
-
+        release_reservation(state_key, reservation_ctx, config)
         {:error, reason}
     end
   end
@@ -463,6 +394,57 @@ defmodule Gemini.RateLimiter.Manager do
     end
 
     RetryManager.execute_with_retry(wrapped_fn, state_key, config, opts)
+  end
+
+  defp acquire_concurrency_permit(concurrency_key, config) do
+    if Config.concurrency_enabled?(config) do
+      case ConcurrencyGate.acquire(concurrency_key, config) do
+        :ok -> {:ok, true}
+        {:error, :concurrency_disabled} -> {:ok, false}
+        {:error, _} = error -> error
+      end
+    else
+      {:ok, false}
+    end
+  end
+
+  defp maybe_release_permit(_concurrency_key, false), do: :ok
+  defp maybe_release_permit(concurrency_key, true), do: ConcurrencyGate.release(concurrency_key)
+
+  defp release_reservation(state_key, reservation_ctx, config) do
+    State.release_reservation(state_key, reservation_ctx,
+      window_duration_ms: config.window_duration_ms
+    )
+  end
+
+  defp start_stream_with_release(
+         start_fn,
+         model,
+         state_key,
+         reservation_ctx,
+         concurrency_key,
+         config,
+         opts,
+         permit?
+       ) do
+    release_fn =
+      build_release_fn(
+        state_key,
+        reservation_ctx,
+        concurrency_key,
+        config,
+        permit?: permit?
+      )
+
+    case start_fn.() do
+      {:ok, value} ->
+        emit_stream_event(:started, model, Keyword.get(opts, :location))
+        {:ok, {value, release_fn}}
+
+      {:error, reason} ->
+        release_fn.(:error, nil)
+        {:error, reason}
+    end
   end
 
   defp reserve_budget(state_key, opts, config) do
@@ -505,7 +487,6 @@ defmodule Gemini.RateLimiter.Manager do
        ) do
     retry_at = Map.get(budget_ctx, :window_end)
     details = rate_limit_details(budget_ctx, estimate_ctx)
-    max_wait_ms = config.max_budget_wait_ms
 
     cond do
       Map.get(budget_ctx, :request_too_large) ->
@@ -515,41 +496,56 @@ defmodule Gemini.RateLimiter.Manager do
         {:error, {:rate_limited, retry_at, details}}
 
       true ->
-        # Blocking mode: wait for window to clear once, then re-check
-        if retry_at do
-          wait_ms = max(0, DateTime.diff(retry_at, DateTime.utc_now(), :millisecond))
-
-          capped_wait =
-            case max_wait_ms do
-              nil -> {wait_ms, false}
-              cap when wait_ms > cap -> {cap, true}
-              _ -> {wait_ms, false}
-            end
-
-          {actual_wait_ms, capped?} = capped_wait
-
-          wait_metadata =
-            Map.merge(details, %{wait_ms: actual_wait_ms, wait_capped: capped?})
-
-          emit_rate_limit_wait(state_key, retry_at, :over_budget, wait_metadata)
-
-          if actual_wait_ms > 0 do
-            Process.sleep(actual_wait_ms)
-          end
-        end
-
-        case attempt_fun.() do
-          {:ok, reservation_ctx} ->
-            emit_budget_reserved(state_key, reservation_ctx, estimate_ctx)
-            {:ok, reservation_ctx, estimate_ctx}
-
-          {:error, {:over_budget, over_again}} ->
-            emit_budget_rejected(state_key, over_again, estimate_ctx)
-            next_retry = Map.get(over_again, :window_end)
-            {:error, {:rate_limited, next_retry, rate_limit_details(over_again, estimate_ctx)}}
-        end
+        handle_blocking_over_budget(
+          state_key,
+          retry_at,
+          details,
+          attempt_fun,
+          estimate_ctx,
+          config
+        )
     end
   end
+
+  defp handle_blocking_over_budget(
+         state_key,
+         retry_at,
+         details,
+         attempt_fun,
+         estimate_ctx,
+         config
+       ) do
+    maybe_wait_for_budget(state_key, retry_at, details, config.max_budget_wait_ms)
+
+    case attempt_fun.() do
+      {:ok, reservation_ctx} ->
+        emit_budget_reserved(state_key, reservation_ctx, estimate_ctx)
+        {:ok, reservation_ctx, estimate_ctx}
+
+      {:error, {:over_budget, over_again}} ->
+        emit_budget_rejected(state_key, over_again, estimate_ctx)
+        next_retry = Map.get(over_again, :window_end)
+        {:error, {:rate_limited, next_retry, rate_limit_details(over_again, estimate_ctx)}}
+    end
+  end
+
+  defp maybe_wait_for_budget(_state_key, nil, _details, _max_wait_ms), do: :ok
+
+  defp maybe_wait_for_budget(state_key, retry_at, details, max_wait_ms) do
+    wait_ms = max(0, DateTime.diff(retry_at, DateTime.utc_now(), :millisecond))
+    {actual_wait_ms, capped?} = cap_wait(wait_ms, max_wait_ms)
+
+    wait_metadata = Map.merge(details, %{wait_ms: actual_wait_ms, wait_capped: capped?})
+    emit_rate_limit_wait(state_key, retry_at, :over_budget, wait_metadata)
+
+    if actual_wait_ms > 0 do
+      Process.sleep(actual_wait_ms)
+    end
+  end
+
+  defp cap_wait(wait_ms, nil), do: {wait_ms, false}
+  defp cap_wait(wait_ms, cap) when wait_ms > cap, do: {cap, true}
+  defp cap_wait(wait_ms, _cap), do: {wait_ms, false}
 
   defp build_estimate_context(opts, config) do
     estimated_input_tokens = Keyword.get(opts, :estimated_input_tokens, 0)
@@ -633,7 +629,7 @@ defmodule Gemini.RateLimiter.Manager do
          reservation_ctx,
          concurrency_key,
          config,
-         opts \\ []
+         opts
        ) do
     permit? = Keyword.get(opts, :permit?, true) and Config.concurrency_enabled?(config)
     released = :atomics.new(1, [])
@@ -642,25 +638,9 @@ defmodule Gemini.RateLimiter.Manager do
     fn outcome, usage_map ->
       case :atomics.compare_exchange(released, 1, 0, 1) do
         :ok ->
-          if usage_map do
-            State.reconcile_reservation(
-              state_key,
-              reservation_ctx,
-              usage_map,
-              window_duration_ms: config.window_duration_ms
-            )
-          else
-            State.release_reservation(
-              state_key,
-              reservation_ctx,
-              window_duration_ms: config.window_duration_ms
-            )
-          end
-
-          if permit?, do: ConcurrencyGate.release(concurrency_key)
-
-          {model, location, _metric} = state_key
-          emit_stream_event(outcome_to_stream_event(outcome), model, location)
+          reconcile_release(state_key, reservation_ctx, usage_map, config)
+          maybe_release_permit(concurrency_key, permit?)
+          emit_release_event(outcome, state_key)
 
         _ ->
           :ok
@@ -672,6 +652,28 @@ defmodule Gemini.RateLimiter.Manager do
   defp outcome_to_stream_event(:error), do: :error
   defp outcome_to_stream_event(:stopped), do: :stopped
   defp outcome_to_stream_event(_), do: :completed
+
+  defp reconcile_release(state_key, reservation_ctx, usage_map, config) do
+    if usage_map do
+      State.reconcile_reservation(
+        state_key,
+        reservation_ctx,
+        usage_map,
+        window_duration_ms: config.window_duration_ms
+      )
+    else
+      State.release_reservation(
+        state_key,
+        reservation_ctx,
+        window_duration_ms: config.window_duration_ms
+      )
+    end
+  end
+
+  defp emit_release_event(outcome, state_key) do
+    {model, location, _metric} = state_key
+    emit_stream_event(outcome_to_stream_event(outcome), model, location)
+  end
 
   defp extract_usage_from_result({:ok, response}) when is_map(response),
     do: extract_usage(response)

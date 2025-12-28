@@ -57,7 +57,7 @@ defmodule Gemini.APIs.Operations do
   """
 
   alias Gemini.Client.HTTP
-  alias Gemini.Types.{Operation, ListOperationsResponse}
+  alias Gemini.Types.{ListOperationsResponse, Operation}
 
   @type operation_opts :: [{:auth, :gemini | :vertex_ai}]
 
@@ -362,20 +362,12 @@ defmodule Gemini.APIs.Operations do
   defp do_wait(name, opts, poll_interval, timeout, start_time, on_progress) do
     case get(name, opts) do
       {:ok, operation} ->
-        if on_progress, do: on_progress.(operation)
+        maybe_report_progress(on_progress, operation)
 
-        if Operation.complete?(operation) do
-          {:ok, operation}
-        else
-          elapsed = System.monotonic_time(:millisecond) - start_time
-
-          if elapsed >= timeout do
-            {:error, :timeout}
-          else
-            Process.sleep(poll_interval)
-            do_wait(name, opts, poll_interval, timeout, start_time, on_progress)
-          end
-        end
+        handle_operation_wait(operation, timeout, start_time, fn ->
+          Process.sleep(poll_interval)
+          do_wait(name, opts, poll_interval, timeout, start_time, on_progress)
+        end)
 
       {:error, reason} ->
         {:error, reason}
@@ -394,34 +386,41 @@ defmodule Gemini.APIs.Operations do
        ) do
     case get(name, opts) do
       {:ok, operation} ->
-        if on_progress, do: on_progress.(operation)
+        maybe_report_progress(on_progress, operation)
 
-        if Operation.complete?(operation) do
-          {:ok, operation}
-        else
-          elapsed = System.monotonic_time(:millisecond) - start_time
+        handle_operation_wait(operation, timeout, start_time, fn ->
+          Process.sleep(current_delay)
+          next_delay = min(current_delay * multiplier, max_delay)
 
-          if elapsed >= timeout do
-            {:error, :timeout}
-          else
-            Process.sleep(current_delay)
-            next_delay = min(current_delay * multiplier, max_delay)
-
-            do_wait_backoff(
-              name,
-              opts,
-              next_delay,
-              max_delay,
-              multiplier,
-              timeout,
-              start_time,
-              on_progress
-            )
-          end
-        end
+          do_wait_backoff(
+            name,
+            opts,
+            next_delay,
+            max_delay,
+            multiplier,
+            timeout,
+            start_time,
+            on_progress
+          )
+        end)
 
       {:error, reason} ->
         {:error, reason}
     end
+  end
+
+  defp handle_operation_wait(operation, timeout, start_time, continue_fun) do
+    cond do
+      Operation.complete?(operation) -> {:ok, operation}
+      timed_out?(start_time, timeout) -> {:error, :timeout}
+      true -> continue_fun.()
+    end
+  end
+
+  defp maybe_report_progress(nil, _operation), do: :ok
+  defp maybe_report_progress(callback, operation), do: callback.(operation)
+
+  defp timed_out?(start_time, timeout) do
+    System.monotonic_time(:millisecond) - start_time >= timeout
   end
 end

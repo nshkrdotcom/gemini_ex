@@ -9,10 +9,10 @@ defmodule Gemini.Client.HTTPStreaming do
   - Backpressure support
   """
 
-  alias Gemini.SSE.Parser
-  alias Gemini.Error
-  alias Gemini.Telemetry
   alias Gemini.Config
+  alias Gemini.Error
+  alias Gemini.SSE.Parser
+  alias Gemini.Telemetry
 
   require Logger
 
@@ -98,20 +98,16 @@ defmodule Gemini.Client.HTTPStreaming do
         callback.(event)
       end
 
-      result =
-        stream_with_retries(
-          url,
-          headers,
-          body,
-          telemetry_callback,
-          timeout,
-          max_retries,
-          0,
-          max_backoff_ms,
-          connect_timeout,
-          method,
-          add_sse_params?
-        )
+      stream_config = %{
+        timeout: timeout,
+        max_retries: max_retries,
+        max_backoff_ms: max_backoff_ms,
+        connect_timeout: connect_timeout,
+        method: method,
+        add_sse_params?: add_sse_params?
+      }
+
+      result = stream_with_retries(url, headers, body, telemetry_callback, stream_config, 0)
 
       case result do
         {:ok, :completed} ->
@@ -182,13 +178,8 @@ defmodule Gemini.Client.HTTPStreaming do
           list(),
           map() | nil,
           stream_callback(),
-          integer(),
-          integer(),
-          integer(),
-          integer(),
-          integer(),
-          :get | :post,
-          boolean()
+          map(),
+          non_neg_integer()
         ) ::
           {:ok, :completed} | {:error, term()}
   defp stream_with_retries(
@@ -196,50 +187,24 @@ defmodule Gemini.Client.HTTPStreaming do
          headers,
          body,
          callback,
-         timeout,
-         max_retries,
-         attempt,
-         max_backoff_ms,
-         connect_timeout,
-         method,
-         add_sse_params?
+         config,
+         attempt
        ) do
-    case do_stream(
-           url,
-           headers,
-           body,
-           callback,
-           timeout,
-           connect_timeout,
-           method,
-           add_sse_params?
-         ) do
+    case do_stream(url, headers, body, callback, config) do
       {:ok, :completed} ->
         {:ok, :completed}
 
-      {:error, error} when attempt < max_retries ->
+      {:error, error} when attempt < config.max_retries ->
         Logger.warning("Stream attempt #{attempt + 1} failed: #{inspect(error)}, retrying...")
 
         # Exponential backoff
-        delay = min(1000 * :math.pow(2, attempt), max_backoff_ms) |> round()
+        delay = min(1000 * :math.pow(2, attempt), config.max_backoff_ms) |> round()
         Process.sleep(delay)
 
-        stream_with_retries(
-          url,
-          headers,
-          body,
-          callback,
-          timeout,
-          max_retries,
-          attempt + 1,
-          max_backoff_ms,
-          connect_timeout,
-          method,
-          add_sse_params?
-        )
+        stream_with_retries(url, headers, body, callback, config, attempt + 1)
 
       {:error, error} ->
-        Logger.error("Stream failed after #{max_retries} retries: #{inspect(error)}")
+        Logger.error("Stream failed after #{config.max_retries} retries: #{inspect(error)}")
         {:error, error}
     end
   end
@@ -249,17 +214,14 @@ defmodule Gemini.Client.HTTPStreaming do
           list(),
           map() | nil,
           stream_callback(),
-          integer(),
-          integer(),
-          :get | :post,
-          boolean()
+          map()
         ) ::
           {:ok, :completed} | {:error, term()}
-  defp do_stream(url, headers, body, callback, timeout, connect_timeout, method, add_sse_params?) do
-    sse_url = if add_sse_params?, do: add_sse_params(url), else: url
+  defp do_stream(url, headers, body, callback, config) do
+    sse_url = if config.add_sse_params?, do: add_sse_params(url), else: url
 
     # Use a more direct approach with custom HTTP handling
-    case stream_with_finch(sse_url, headers, body, callback, timeout, connect_timeout, method) do
+    case stream_with_finch(sse_url, headers, body, callback, config) do
       {:ok, :completed} ->
         {:ok, :completed}
 
@@ -273,67 +235,28 @@ defmodule Gemini.Client.HTTPStreaming do
           list(),
           map() | nil,
           stream_callback(),
-          integer(),
-          integer(),
-          :get | :post
+          map()
         ) ::
           {:ok, :completed} | {:error, term()}
-  defp stream_with_finch(url, headers, body, callback, timeout, connect_timeout, method) do
-    Logger.debug("Starting real-time streaming with Req to #{url} (#{method})")
+  defp stream_with_finch(url, headers, body, callback, config) do
+    Logger.debug("Starting real-time streaming with Req to #{url} (#{config.method})")
 
     # Use Req's `:self` option for real-time streaming
     req_opts =
       [
-        method: method,
+        method: config.method,
         url: url,
         headers: add_sse_headers(headers),
-        receive_timeout: timeout,
-        connect_options: [timeout: connect_timeout],
+        receive_timeout: config.timeout,
+        connect_options: [timeout: config.connect_timeout],
         # Use :self to get messages as they arrive
         into: :self
       ]
       |> maybe_put_json(body)
 
     try do
-      case Req.request(req_opts) do
-        {:ok, response} ->
-          # Check for HTTP errors before starting to stream
-          if response.status >= 400 do
-            # For error responses, the body may be present in `response.body` or may arrive as
-            # streaming messages (Req `into: :self`).
-            error_body = get_error_response_body(response, timeout)
-            normalized_body = normalize_error_body(error_body)
-            error_msg = extract_error_message(normalized_body) || "HTTP #{response.status}"
-
-            error_details =
-              case normalized_body do
-                nil -> %{}
-                "" -> %{}
-                body -> %{"body" => body}
-              end
-
-            error = Error.http_error(response.status, error_msg, error_details)
-            error_event = %{type: :error, data: nil, error: error}
-            callback.(error_event)
-            {:error, error}
-          else
-            # Process streaming messages in real-time
-            parser = Parser.new()
-            stream_loop(response, parser, callback, timeout)
-          end
-
-        {:error, %{reason: reason}} ->
-          error = Error.network_error("Transport error: #{inspect(reason)}")
-          error_event = %{type: :error, data: nil, error: error}
-          callback.(error_event)
-          {:error, error}
-
-        {:error, reason} ->
-          error = Error.network_error("Request failed: #{inspect(reason)}")
-          error_event = %{type: :error, data: nil, error: error}
-          callback.(error_event)
-          {:error, reason}
-      end
+      Req.request(req_opts)
+      |> handle_stream_response(callback, config.timeout)
     catch
       {:stop_stream, :completed} ->
         {:ok, :completed}
@@ -344,6 +267,49 @@ defmodule Gemini.Client.HTTPStreaming do
       {:stop_stream, error} ->
         {:error, error}
     end
+  end
+
+  defp handle_stream_response({:ok, response}, callback, timeout) do
+    # Check for HTTP errors before starting to stream
+    if response.status >= 400 do
+      handle_stream_error_response(response, callback, timeout)
+    else
+      parser = Parser.new()
+      stream_loop(response, parser, callback, timeout)
+    end
+  end
+
+  defp handle_stream_response({:error, %{reason: reason}}, callback, _timeout) do
+    error = Error.network_error("Transport error: #{inspect(reason)}")
+    emit_stream_error(callback, error)
+    {:error, error}
+  end
+
+  defp handle_stream_response({:error, reason}, callback, _timeout) do
+    error = Error.network_error("Request failed: #{inspect(reason)}")
+    emit_stream_error(callback, error)
+    {:error, reason}
+  end
+
+  defp handle_stream_error_response(response, callback, timeout) do
+    # For error responses, the body may be present in `response.body` or may arrive as
+    # streaming messages (Req `into: :self`).
+    error_body = get_error_response_body(response, timeout)
+    normalized_body = normalize_error_body(error_body)
+    error_msg = extract_error_message(normalized_body) || "HTTP #{response.status}"
+    error_details = build_error_details(normalized_body)
+
+    error = Error.http_error(response.status, error_msg, error_details)
+    emit_stream_error(callback, error)
+    {:error, error}
+  end
+
+  defp build_error_details(nil), do: %{}
+  defp build_error_details(""), do: %{}
+  defp build_error_details(body), do: %{"body" => body}
+
+  defp emit_stream_error(callback, error) do
+    callback.(%{type: :error, data: nil, error: error})
   end
 
   # Collect error response body from streaming messages
@@ -405,78 +371,92 @@ defmodule Gemini.Client.HTTPStreaming do
   defp stream_loop(response, parser, callback, timeout) do
     receive do
       message ->
-        case Req.parse_message(response, message) do
-          {:ok, [{:data, chunk}]} ->
-            Logger.debug("Received streaming chunk of size #{byte_size(chunk)}")
+        case handle_stream_message(response, parser, callback, message) do
+          {:continue, next_parser} ->
+            stream_loop(response, next_parser, callback, timeout)
 
-            case Parser.parse_chunk(chunk, parser) do
-              {:ok, events, new_parser} ->
-                case deliver_events(events, new_parser, callback) do
-                  {:completed, _next_parser} ->
-                    {:ok, :completed}
-
-                  {:continue, next_parser} ->
-                    stream_loop(response, next_parser, callback, timeout)
-                end
-
-              {:error, error} ->
-                error_event = %{type: :error, data: nil, error: error}
-                callback.(error_event)
-                stream_loop(response, parser, callback, timeout)
-            end
-
-          {:ok, [:done]} ->
-            Logger.debug("Stream completed")
-
-            case Parser.finalize(parser) do
-              {:ok, remaining_events} ->
-                Enum.each(remaining_events, fn event ->
-                  stream_event = %{type: :data, data: event.data, error: nil}
-                  callback.(stream_event)
-                end)
-            end
-
-            # Send final completion event
-            completion_event = %{type: :complete, data: nil, error: nil}
-            callback.(completion_event)
-            {:ok, :completed}
-
-          {:ok, other} ->
-            Logger.debug("Received other message: #{inspect(other)}")
-            stream_loop(response, parser, callback, timeout)
-
-          :unknown ->
-            Logger.debug("Received unknown message: #{inspect(message)}")
-            stream_loop(response, parser, callback, timeout)
+          {:stop, result} ->
+            result
         end
     after
       timeout ->
         error = Error.network_error("Stream timeout after #{timeout}ms")
-        error_event = %{type: :error, data: nil, error: error}
-        callback.(error_event)
+        emit_stream_error(callback, error)
         {:error, :timeout}
     end
+  end
+
+  defp handle_stream_message(response, parser, callback, message) do
+    case Req.parse_message(response, message) do
+      {:ok, [{:data, chunk}]} ->
+        handle_stream_chunk(chunk, parser, callback)
+
+      {:ok, [:done]} ->
+        {:stop, finalize_stream(parser, callback)}
+
+      {:ok, other} ->
+        Logger.debug("Received other message: #{inspect(other)}")
+        {:continue, parser}
+
+      :unknown ->
+        Logger.debug("Received unknown message: #{inspect(message)}")
+        {:continue, parser}
+    end
+  end
+
+  defp handle_stream_chunk(chunk, parser, callback) do
+    Logger.debug("Received streaming chunk of size #{byte_size(chunk)}")
+
+    case Parser.parse_chunk(chunk, parser) do
+      {:ok, events, new_parser} ->
+        case deliver_events(events, new_parser, callback) do
+          {:completed, _next_parser} -> {:stop, {:ok, :completed}}
+          {:continue, next_parser} -> {:continue, next_parser}
+        end
+
+      {:error, error} ->
+        emit_stream_error(callback, error)
+        {:continue, parser}
+    end
+  end
+
+  defp finalize_stream(parser, callback) do
+    Logger.debug("Stream completed")
+
+    case Parser.finalize(parser) do
+      {:ok, remaining_events} ->
+        Enum.each(remaining_events, fn event -> emit_data_event(callback, event) end)
+    end
+
+    emit_completion_event(callback)
+    {:ok, :completed}
+  end
+
+  defp emit_data_event(callback, event) do
+    callback.(%{type: :data, data: event.data, error: nil})
+  end
+
+  defp emit_completion_event(callback) do
+    callback.(%{type: :complete, data: nil, error: nil})
   end
 
   defp deliver_events(events, parser, callback) do
     Enum.reduce_while(events, {:continue, parser}, fn event, {_status, current_parser} ->
       stream_event = %{type: :data, data: event.data, error: nil}
+      callback_result = callback.(stream_event)
+      done? = Parser.stream_done?(event)
 
-      case callback.(stream_event) do
-        :stop ->
-          {:halt, {:completed, current_parser}}
-
-        _ ->
-          if Parser.stream_done?(event) do
-            completion_event = %{type: :complete, data: nil, error: nil}
-            callback.(completion_event)
-            {:halt, {:completed, current_parser}}
-          else
-            {:cont, {:continue, current_parser}}
-          end
+      if callback_result == :stop or done? do
+        maybe_emit_completion_event(callback, done?)
+        {:halt, {:completed, current_parser}}
+      else
+        {:cont, {:continue, current_parser}}
       end
     end)
   end
+
+  defp maybe_emit_completion_event(callback, true), do: emit_completion_event(callback)
+  defp maybe_emit_completion_event(_callback, false), do: :ok
 
   @spec add_sse_params(String.t()) :: String.t()
   defp add_sse_params(url) do

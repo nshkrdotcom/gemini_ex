@@ -27,7 +27,7 @@ defmodule Gemini.Types.Live do
 
   use TypedStruct
 
-  alias Gemini.Types.{GenerationConfig, SafetySetting, Content}
+  alias Gemini.Types.{Content, GenerationConfig, SafetySetting}
   alias Gemini.Types.Live.{AudioTranscriptionConfig, SpeechConfig}
 
   @typedoc "Turn detection mode for automatic turn-taking"
@@ -84,8 +84,10 @@ defmodule Gemini.Types.Live do
     - `audio_format`: Output audio format
     """
 
+    alias Gemini.Types.Live, as: Live
+
     field(:voice_config, map())
-    field(:audio_format, Gemini.Types.Live.audio_format())
+    field(:audio_format, Live.audio_format())
   end
 
   typedstruct module: RealtimeInputConfig do
@@ -98,8 +100,10 @@ defmodule Gemini.Types.Live do
     - `turn_detection`: Turn detection mode
     """
 
+    alias Gemini.Types.Live, as: Live
+
     field(:audio_transcription, AudioTranscriptionConfig.t())
-    field(:turn_detection, Gemini.Types.Live.turn_detection())
+    field(:turn_detection, Live.turn_detection())
   end
 
   typedstruct module: BidiGenerateContentSetup do

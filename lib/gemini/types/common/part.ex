@@ -20,8 +20,10 @@ defmodule Gemini.Types.Part do
 
   use TypedStruct
 
+  alias Altar.ADM.FunctionCall
   alias Gemini.Types.{Blob, FileData, FunctionResponse}
   alias Gemini.Types.MediaResolution, as: CommonMediaResolution
+
   alias __MODULE__.MediaResolution, as: PartMediaResolution
 
   defmodule MediaResolution do
@@ -43,7 +45,7 @@ defmodule Gemini.Types.Part do
   typedstruct do
     field(:text, String.t() | nil, default: nil)
     field(:inline_data, Blob.t() | nil, default: nil)
-    field(:function_call, Altar.ADM.FunctionCall.t() | nil, default: nil)
+    field(:function_call, FunctionCall.t() | nil, default: nil)
 
     field(:media_resolution, CommonMediaResolution.t() | PartMediaResolution.t() | nil,
       default: nil
@@ -59,7 +61,7 @@ defmodule Gemini.Types.Part do
   @type text_content :: String.t() | nil
 
   @typedoc "Inline data (base64 encoded)."
-  @type inline_data :: Gemini.Types.Blob.t() | nil
+  @type inline_data :: Blob.t() | nil
 
   @doc """
   Create a text part.

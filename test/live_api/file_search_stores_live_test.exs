@@ -13,8 +13,8 @@ defmodule Gemini.APIs.FileSearchStoresLiveTest do
 
   use ExUnit.Case, async: false
 
-  alias Gemini.APIs.{FileSearchStores, Files}
-  alias Gemini.Types.{CreateFileSearchStoreConfig, FileSearchStore, FileSearchDocument}
+  alias Gemini.APIs.{Files, FileSearchStores}
+  alias Gemini.Types.{CreateFileSearchStoreConfig, FileSearchDocument, FileSearchStore}
 
   # Use Elixir.File for standard library file operations
   @elixir_file Elixir.File
@@ -50,10 +50,7 @@ defmodule Gemini.APIs.FileSearchStoresLiveTest do
   describe "create/2" do
     @tag :live_api
     test "creates a file search store", %{vertex_configured: configured} do
-      unless configured do
-        IO.puts("Skipping: Vertex AI not configured")
-        :ok
-      else
+      if configured do
         config = %CreateFileSearchStoreConfig{
           display_name: "Test Store #{System.unique_integer([:positive])}",
           description: "Test store for live API testing"
@@ -69,15 +66,15 @@ defmodule Gemini.APIs.FileSearchStoresLiveTest do
 
         # Cleanup
         FileSearchStores.delete(store.name, force: true, auth: :vertex_ai)
+      else
+        IO.puts("Skipping: Vertex AI not configured")
+        :ok
       end
     end
 
     @tag :live_api
     test "creates store with vector config", %{vertex_configured: configured} do
-      unless configured do
-        IO.puts("Skipping: Vertex AI not configured")
-        :ok
-      else
+      if configured do
         config = %CreateFileSearchStoreConfig{
           display_name: "Vector Test Store #{System.unique_integer([:positive])}",
           vector_config: %{
@@ -92,6 +89,9 @@ defmodule Gemini.APIs.FileSearchStoresLiveTest do
 
         # Cleanup
         FileSearchStores.delete(store.name, force: true, auth: :vertex_ai)
+      else
+        IO.puts("Skipping: Vertex AI not configured")
+        :ok
       end
     end
   end
@@ -99,10 +99,7 @@ defmodule Gemini.APIs.FileSearchStoresLiveTest do
   describe "get/2" do
     @tag :live_api
     test "retrieves store by name", %{vertex_configured: configured} do
-      unless configured do
-        IO.puts("Skipping: Vertex AI not configured")
-        :ok
-      else
+      if configured do
         # Create a test store
         config = %CreateFileSearchStoreConfig{
           display_name: "Get Test Store #{System.unique_integer([:positive])}"
@@ -118,18 +115,21 @@ defmodule Gemini.APIs.FileSearchStoresLiveTest do
 
         # Cleanup
         FileSearchStores.delete(store.name, force: true, auth: :vertex_ai)
+      else
+        IO.puts("Skipping: Vertex AI not configured")
+        :ok
       end
     end
 
     @tag :live_api
     test "returns error for non-existent store", %{vertex_configured: configured} do
-      unless configured do
-        IO.puts("Skipping: Vertex AI not configured")
-        :ok
-      else
+      if configured do
         result = FileSearchStores.get("fileSearchStores/nonexistent12345", auth: :vertex_ai)
 
         assert {:error, _} = result
+      else
+        IO.puts("Skipping: Vertex AI not configured")
+        :ok
       end
     end
   end
@@ -137,10 +137,7 @@ defmodule Gemini.APIs.FileSearchStoresLiveTest do
   describe "list/1" do
     @tag :live_api
     test "lists file search stores", %{vertex_configured: configured} do
-      unless configured do
-        IO.puts("Skipping: Vertex AI not configured")
-        :ok
-      else
+      if configured do
         # Create a test store to ensure we have at least one
         config = %CreateFileSearchStoreConfig{
           display_name: "List Test Store #{System.unique_integer([:positive])}"
@@ -156,15 +153,15 @@ defmodule Gemini.APIs.FileSearchStoresLiveTest do
 
         # Cleanup
         FileSearchStores.delete(created.name, force: true, auth: :vertex_ai)
+      else
+        IO.puts("Skipping: Vertex AI not configured")
+        :ok
       end
     end
 
     @tag :live_api
     test "lists with pagination", %{vertex_configured: configured} do
-      unless configured do
-        IO.puts("Skipping: Vertex AI not configured")
-        :ok
-      else
+      if configured do
         {:ok, response} = FileSearchStores.list(page_size: 1, auth: :vertex_ai)
 
         assert is_list(response.file_search_stores)
@@ -172,6 +169,9 @@ defmodule Gemini.APIs.FileSearchStoresLiveTest do
         if length(response.file_search_stores) > 0 do
           assert length(response.file_search_stores) <= 1
         end
+      else
+        IO.puts("Skipping: Vertex AI not configured")
+        :ok
       end
     end
   end
@@ -179,10 +179,7 @@ defmodule Gemini.APIs.FileSearchStoresLiveTest do
   describe "delete/2" do
     @tag :live_api
     test "deletes an empty store", %{vertex_configured: configured} do
-      unless configured do
-        IO.puts("Skipping: Vertex AI not configured")
-        :ok
-      else
+      if configured do
         # Create a test store
         config = %CreateFileSearchStoreConfig{
           display_name: "Delete Test Store #{System.unique_integer([:positive])}"
@@ -192,15 +189,15 @@ defmodule Gemini.APIs.FileSearchStoresLiveTest do
 
         # Delete it
         assert :ok = FileSearchStores.delete(store.name, auth: :vertex_ai)
+      else
+        IO.puts("Skipping: Vertex AI not configured")
+        :ok
       end
     end
 
     @tag :live_api
     test "force deletes store with documents", %{vertex_configured: configured} do
-      unless configured do
-        IO.puts("Skipping: Vertex AI not configured")
-        :ok
-      else
+      if configured do
         # Create a test store
         config = %CreateFileSearchStoreConfig{
           display_name: "Force Delete Test Store #{System.unique_integer([:positive])}"
@@ -223,6 +220,9 @@ defmodule Gemini.APIs.FileSearchStoresLiveTest do
 
         # Force delete the store
         assert :ok = FileSearchStores.delete(store.name, force: true, auth: :vertex_ai)
+      else
+        IO.puts("Skipping: Vertex AI not configured")
+        :ok
       end
     end
   end
@@ -230,10 +230,7 @@ defmodule Gemini.APIs.FileSearchStoresLiveTest do
   describe "wait_for_active/2" do
     @tag :live_api
     test "waits for store to become active", %{vertex_configured: configured} do
-      unless configured do
-        IO.puts("Skipping: Vertex AI not configured")
-        :ok
-      else
+      if configured do
         # Create a test store
         config = %CreateFileSearchStoreConfig{
           display_name: "Wait Test Store #{System.unique_integer([:positive])}"
@@ -254,15 +251,15 @@ defmodule Gemini.APIs.FileSearchStoresLiveTest do
 
         # Cleanup
         FileSearchStores.delete(store.name, force: true, auth: :vertex_ai)
+      else
+        IO.puts("Skipping: Vertex AI not configured")
+        :ok
       end
     end
 
     @tag :live_api
     test "times out if store doesn't become active", %{vertex_configured: configured} do
-      unless configured do
-        IO.puts("Skipping: Vertex AI not configured")
-        :ok
-      else
+      if configured do
         # Create a test store
         config = %CreateFileSearchStoreConfig{
           display_name: "Timeout Test Store #{System.unique_integer([:positive])}"
@@ -287,6 +284,9 @@ defmodule Gemini.APIs.FileSearchStoresLiveTest do
 
         # Cleanup
         FileSearchStores.delete(store.name, force: true, auth: :vertex_ai)
+      else
+        IO.puts("Skipping: Vertex AI not configured")
+        :ok
       end
     end
   end
@@ -295,10 +295,7 @@ defmodule Gemini.APIs.FileSearchStoresLiveTest do
     @tag :live_api
     @tag timeout: 180_000
     test "imports a file into the store", %{vertex_configured: configured} do
-      unless configured do
-        IO.puts("Skipping: Vertex AI not configured")
-        :ok
-      else
+      if configured do
         # Create a test store
         config = %CreateFileSearchStoreConfig{
           display_name: "Import Test Store #{System.unique_integer([:positive])}"
@@ -327,6 +324,9 @@ defmodule Gemini.APIs.FileSearchStoresLiveTest do
 
         # Cleanup store
         FileSearchStores.delete(store.name, force: true, auth: :vertex_ai)
+      else
+        IO.puts("Skipping: Vertex AI not configured")
+        :ok
       end
     end
   end
@@ -335,10 +335,7 @@ defmodule Gemini.APIs.FileSearchStoresLiveTest do
     @tag :live_api
     @tag timeout: 180_000
     test "uploads and imports a file directly", %{vertex_configured: configured} do
-      unless configured do
-        IO.puts("Skipping: Vertex AI not configured")
-        :ok
-      else
+      if configured do
         # Create a test store
         config = %CreateFileSearchStoreConfig{
           display_name: "Upload Test Store #{System.unique_integer([:positive])}"
@@ -366,6 +363,9 @@ defmodule Gemini.APIs.FileSearchStoresLiveTest do
 
         # Cleanup
         FileSearchStores.delete(store.name, force: true, auth: :vertex_ai)
+      else
+        IO.puts("Skipping: Vertex AI not configured")
+        :ok
       end
     end
   end
@@ -374,10 +374,7 @@ defmodule Gemini.APIs.FileSearchStoresLiveTest do
     @tag :live_api
     @tag timeout: 180_000
     test "retrieves document metadata", %{vertex_configured: configured} do
-      unless configured do
-        IO.puts("Skipping: Vertex AI not configured")
-        :ok
-      else
+      if configured do
         # Create a test store
         config = %CreateFileSearchStoreConfig{
           display_name: "Doc Test Store #{System.unique_integer([:positive])}"
@@ -408,6 +405,9 @@ defmodule Gemini.APIs.FileSearchStoresLiveTest do
 
         # Cleanup store
         FileSearchStores.delete(store.name, force: true, auth: :vertex_ai)
+      else
+        IO.puts("Skipping: Vertex AI not configured")
+        :ok
       end
     end
   end
@@ -416,10 +416,7 @@ defmodule Gemini.APIs.FileSearchStoresLiveTest do
     @tag :live_api
     @tag timeout: 180_000
     test "waits for document to be processed", %{vertex_configured: configured} do
-      unless configured do
-        IO.puts("Skipping: Vertex AI not configured")
-        :ok
-      else
+      if configured do
         # Create a test store
         config = %CreateFileSearchStoreConfig{
           display_name: "Doc Wait Test Store #{System.unique_integer([:positive])}"
@@ -465,6 +462,9 @@ defmodule Gemini.APIs.FileSearchStoresLiveTest do
 
         # Cleanup
         FileSearchStores.delete(store.name, force: true, auth: :vertex_ai)
+      else
+        IO.puts("Skipping: Vertex AI not configured")
+        :ok
       end
     end
   end
@@ -472,10 +472,7 @@ defmodule Gemini.APIs.FileSearchStoresLiveTest do
   describe "list_all/1" do
     @tag :live_api
     test "retrieves all stores across pages", %{vertex_configured: configured} do
-      unless configured do
-        IO.puts("Skipping: Vertex AI not configured")
-        :ok
-      else
+      if configured do
         # Create a couple of test stores
         config1 = %CreateFileSearchStoreConfig{
           display_name: "List All Test 1 #{System.unique_integer([:positive])}"
@@ -498,6 +495,9 @@ defmodule Gemini.APIs.FileSearchStoresLiveTest do
         # Cleanup
         FileSearchStores.delete(store1.name, force: true, auth: :vertex_ai)
         FileSearchStores.delete(store2.name, force: true, auth: :vertex_ai)
+      else
+        IO.puts("Skipping: Vertex AI not configured")
+        :ok
       end
     end
   end

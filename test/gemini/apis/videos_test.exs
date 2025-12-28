@@ -2,7 +2,16 @@ defmodule Gemini.APIs.VideosTest do
   use ExUnit.Case, async: true
 
   alias Gemini.APIs.Videos
-  alias Gemini.Types.Generation.Video.{VideoGenerationConfig, GeneratedVideo, VideoOperation}
+  alias Gemini.Types.Blob
+  alias Gemini.Types.Generation.Video, as: Video
+
+  alias Gemini.Types.Generation.Video.{
+    GeneratedVideo,
+    VideoGenerationConfig,
+    VideoGenerationReferenceImage,
+    VideoOperation
+  }
+
   alias Gemini.Types.Operation
 
   @moduletag :unit
@@ -41,7 +50,7 @@ defmodule Gemini.APIs.VideosTest do
         compression_format: :h265,
         safety_filter_level: :block_few,
         negative_prompt: "low quality",
-        seed: 12345,
+        seed: 12_345,
         guidance_scale: 10.0,
         person_generation: :allow_adult
       }
@@ -53,17 +62,17 @@ defmodule Gemini.APIs.VideosTest do
       assert config.compression_format == :h265
       assert config.safety_filter_level == :block_few
       assert config.negative_prompt == "low quality"
-      assert config.seed == 12345
+      assert config.seed == 12_345
       assert config.guidance_scale == 10.0
       assert config.person_generation == :allow_adult
     end
 
     test "accepts Veo 3.x fields" do
-      image = %Gemini.Types.Blob{data: "image-data", mime_type: "image/png"}
-      last_frame = %Gemini.Types.Blob{data: "frame-data", mime_type: "image/png"}
+      image = %Blob{data: "image-data", mime_type: "image/png"}
+      last_frame = %Blob{data: "frame-data", mime_type: "image/png"}
 
-      reference = %Gemini.Types.Generation.Video.VideoGenerationReferenceImage{
-        image: %Gemini.Types.Blob{data: "ref-data", mime_type: "image/png"},
+      reference = %VideoGenerationReferenceImage{
+        image: %Blob{data: "ref-data", mime_type: "image/png"},
         reference_type: "asset"
       }
 
@@ -94,7 +103,7 @@ defmodule Gemini.APIs.VideosTest do
         "raiInfo" => %{"blocked_reason" => nil}
       }
 
-      video = Gemini.Types.Generation.Video.parse_generated_video(api_response)
+      video = Video.parse_generated_video(api_response)
 
       assert %GeneratedVideo{} = video
       assert video.video_uri == "gs://bucket/video.mp4"
@@ -111,7 +120,7 @@ defmodule Gemini.APIs.VideosTest do
         "mimeType" => "video/mp4"
       }
 
-      video = Gemini.Types.Generation.Video.parse_generated_video(api_response)
+      video = Video.parse_generated_video(api_response)
 
       assert video.video_uri == "gs://bucket/video.mp4"
     end
@@ -122,7 +131,7 @@ defmodule Gemini.APIs.VideosTest do
         "mimeType" => "video/mp4"
       }
 
-      video = Gemini.Types.Generation.Video.parse_generated_video(api_response)
+      video = Video.parse_generated_video(api_response)
 
       assert video.video_data == "base64videodata..."
     end
@@ -136,7 +145,7 @@ defmodule Gemini.APIs.VideosTest do
         metadata: %{"progressPercent" => 50.0}
       }
 
-      video_op = Gemini.Types.Generation.Video.wrap_operation(operation)
+      video_op = Video.wrap_operation(operation)
 
       assert %VideoOperation{} = video_op
       assert video_op.operation == operation
@@ -146,23 +155,23 @@ defmodule Gemini.APIs.VideosTest do
 
     test "complete? returns true when operation is done" do
       operation = %Operation{name: "ops/123", done: true}
-      video_op = Gemini.Types.Generation.Video.wrap_operation(operation)
+      video_op = Video.wrap_operation(operation)
 
-      assert Gemini.Types.Generation.Video.complete?(video_op)
+      assert Video.complete?(video_op)
     end
 
     test "complete? returns false when operation is not done" do
       operation = %Operation{name: "ops/123", done: false}
-      video_op = Gemini.Types.Generation.Video.wrap_operation(operation)
+      video_op = Video.wrap_operation(operation)
 
-      refute Gemini.Types.Generation.Video.complete?(video_op)
+      refute Video.complete?(video_op)
     end
 
     test "succeeded? returns true when operation succeeded" do
       operation = %Operation{name: "ops/123", done: true, error: nil}
-      video_op = Gemini.Types.Generation.Video.wrap_operation(operation)
+      video_op = Video.wrap_operation(operation)
 
-      assert Gemini.Types.Generation.Video.succeeded?(video_op)
+      assert Video.succeeded?(video_op)
     end
 
     test "failed? returns true when operation failed" do
@@ -172,9 +181,9 @@ defmodule Gemini.APIs.VideosTest do
         error: %{message: "Failed", code: 500}
       }
 
-      video_op = Gemini.Types.Generation.Video.wrap_operation(operation)
+      video_op = Video.wrap_operation(operation)
 
-      assert Gemini.Types.Generation.Video.failed?(video_op)
+      assert Video.failed?(video_op)
     end
   end
 
@@ -191,7 +200,7 @@ defmodule Gemini.APIs.VideosTest do
         }
       }
 
-      {:ok, videos} = Gemini.Types.Generation.Video.extract_videos(operation)
+      {:ok, videos} = Video.extract_videos(operation)
 
       assert length(videos) == 2
       assert Enum.all?(videos, &match?(%GeneratedVideo{}, &1))
@@ -209,7 +218,7 @@ defmodule Gemini.APIs.VideosTest do
         }
       }
 
-      {:ok, videos} = Gemini.Types.Generation.Video.extract_videos(operation)
+      {:ok, videos} = Video.extract_videos(operation)
 
       assert length(videos) == 1
       assert hd(videos).video_uri == "gs://bucket/video.mp4"
@@ -222,7 +231,7 @@ defmodule Gemini.APIs.VideosTest do
         error: %{message: "Generation failed", code: 500}
       }
 
-      {:error, error} = Gemini.Types.Generation.Video.extract_videos(operation)
+      {:error, error} = Video.extract_videos(operation)
 
       assert error == %{message: "Generation failed", code: 500}
     end
@@ -233,7 +242,7 @@ defmodule Gemini.APIs.VideosTest do
         done: false
       }
 
-      {:error, error} = Gemini.Types.Generation.Video.extract_videos(operation)
+      {:error, error} = Video.extract_videos(operation)
 
       assert error == "Operation not yet complete"
     end
@@ -241,30 +250,30 @@ defmodule Gemini.APIs.VideosTest do
 
   describe "type conversions" do
     test "format_compression_format converts atoms to API format" do
-      assert Gemini.Types.Generation.Video.format_compression_format(:h264) == "h264"
-      assert Gemini.Types.Generation.Video.format_compression_format(:h265) == "h265"
+      assert Video.format_compression_format(:h264) == "h264"
+      assert Video.format_compression_format(:h265) == "h265"
     end
 
     test "format_safety_filter_level converts atoms to API format" do
-      assert Gemini.Types.Generation.Video.format_safety_filter_level(:block_most) ==
+      assert Video.format_safety_filter_level(:block_most) ==
                "blockMost"
 
-      assert Gemini.Types.Generation.Video.format_safety_filter_level(:block_some) ==
+      assert Video.format_safety_filter_level(:block_some) ==
                "blockSome"
 
-      assert Gemini.Types.Generation.Video.format_safety_filter_level(:block_few) == "blockFew"
+      assert Video.format_safety_filter_level(:block_few) == "blockFew"
 
-      assert Gemini.Types.Generation.Video.format_safety_filter_level(:block_none) ==
+      assert Video.format_safety_filter_level(:block_none) ==
                "blockNone"
     end
 
     test "format_person_generation converts atoms to API format" do
-      assert Gemini.Types.Generation.Video.format_person_generation(:allow_adult) ==
+      assert Video.format_person_generation(:allow_adult) ==
                "allowAdult"
 
-      assert Gemini.Types.Generation.Video.format_person_generation(:allow_all) == "allowAll"
+      assert Video.format_person_generation(:allow_all) == "allowAll"
 
-      assert Gemini.Types.Generation.Video.format_person_generation(:allow_none) == "allowNone"
+      assert Video.format_person_generation(:allow_none) == "allowNone"
     end
   end
 
@@ -279,7 +288,7 @@ defmodule Gemini.APIs.VideosTest do
         resolution: "1080p"
       }
 
-      params = Gemini.Types.Generation.Video.build_generation_params("A cat", config)
+      params = Video.build_generation_params("A cat", config)
 
       assert params["prompt"] == "A cat"
       assert params["videoConfig"]["sampleCount"] == 2
@@ -294,14 +303,14 @@ defmodule Gemini.APIs.VideosTest do
       config = %VideoGenerationConfig{
         number_of_videos: 1,
         negative_prompt: "low quality",
-        seed: 12345,
+        seed: 12_345,
         guidance_scale: 10.0
       }
 
-      params = Gemini.Types.Generation.Video.build_generation_params("A cat", config)
+      params = Video.build_generation_params("A cat", config)
 
       assert params["negativePrompt"] == "low quality"
-      assert params["seed"] == 12345
+      assert params["seed"] == 12_345
       assert params["guidanceScale"] == 10.0
     end
 
@@ -310,7 +319,7 @@ defmodule Gemini.APIs.VideosTest do
         number_of_videos: 1
       }
 
-      params = Gemini.Types.Generation.Video.build_generation_params("A cat", config)
+      params = Video.build_generation_params("A cat", config)
 
       refute Map.has_key?(params, "negativePrompt")
       refute Map.has_key?(params, "seed")
@@ -320,11 +329,11 @@ defmodule Gemini.APIs.VideosTest do
 
   describe "__test_build_generation_request__/2" do
     test "includes image and reference inputs in instances" do
-      image = %Gemini.Types.Blob{data: "image-data", mime_type: "image/png"}
-      last_frame = %Gemini.Types.Blob{data: "frame-data", mime_type: "image/png"}
+      image = %Blob{data: "image-data", mime_type: "image/png"}
+      last_frame = %Blob{data: "frame-data", mime_type: "image/png"}
 
-      reference = %Gemini.Types.Generation.Video.VideoGenerationReferenceImage{
-        image: %Gemini.Types.Blob{data: "ref-data", mime_type: "image/png"},
+      reference = %VideoGenerationReferenceImage{
+        image: %Blob{data: "ref-data", mime_type: "image/png"},
         reference_type: "asset"
       }
 

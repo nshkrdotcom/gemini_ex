@@ -18,11 +18,11 @@ defmodule Gemini.Client.HTTP do
   See `Gemini.RateLimiter` for configuration options.
   """
 
-  alias Gemini.Config
   alias Gemini.Auth
+  alias Gemini.Config
   alias Gemini.Error
-  alias Gemini.Telemetry
   alias Gemini.RateLimiter
+  alias Gemini.Telemetry
 
   @doc """
   Make a GET request using the configured authentication.
@@ -75,26 +75,7 @@ defmodule Gemini.Client.HTTP do
         {:error, Error.config_error("No authentication configured")}
 
       %{type: auth_type, credentials: credentials} ->
-        url = build_authenticated_url(auth_type, path, credentials)
-
-        case Auth.build_headers(auth_type, credentials) do
-          {:ok, headers} ->
-            model = extract_model_from_path(path)
-
-            # Execute through rate limiter
-            request_fn = fn ->
-              execute_request(method, url, headers, body, opts)
-            end
-
-            if Keyword.get(opts, :disable_rate_limiter, false) do
-              request_fn.()
-            else
-              RateLimiter.execute_with_usage_tracking(request_fn, model, opts)
-            end
-
-          {:error, reason} ->
-            {:error, Error.auth_error(reason)}
-        end
+        execute_authenticated_request(method, path, body, auth_type, credentials, opts)
     end
   end
 
@@ -172,113 +153,7 @@ defmodule Gemini.Client.HTTP do
         {:error, Error.config_error("No authentication configured")}
 
       %{type: auth_type, credentials: credentials} ->
-        url = build_authenticated_url(auth_type, path, credentials)
-
-        case Auth.build_headers(auth_type, credentials) do
-          {:ok, headers} ->
-            add_sse_params? = Keyword.get(opts, :add_sse_params, true)
-
-            sse_url =
-              cond do
-                not add_sse_params? ->
-                  url
-
-                String.contains?(url, "alt=sse") ->
-                  url
-
-                String.contains?(url, "?") ->
-                  "#{url}&alt=sse"
-
-                true ->
-                  "#{url}?alt=sse"
-              end
-
-            stream_id = Telemetry.generate_stream_id()
-            metadata = Telemetry.build_stream_metadata(sse_url, :post, stream_id, opts)
-            measurements = %{system_time: System.system_time()}
-
-            Telemetry.execute([:gemini, :stream, :start], measurements, metadata)
-
-            timeout = Keyword.get(opts, :timeout, Config.timeout())
-
-            req_opts = [
-              url: sse_url,
-              headers: headers,
-              receive_timeout: timeout,
-              json: body,
-              into: :self
-            ]
-
-            try do
-              result =
-                case Req.post(req_opts) do
-                  {:ok, %Req.Response{status: status, body: body}} when status in 200..299 ->
-                    result =
-                      case parse_sse_stream(body) do
-                        {:ok, events} ->
-                          duration = Telemetry.calculate_duration(start_time)
-
-                          stop_measurements = %{
-                            total_duration: duration,
-                            total_chunks: length(events)
-                          }
-
-                          Telemetry.execute(
-                            [:gemini, :stream, :stop],
-                            stop_measurements,
-                            metadata
-                          )
-
-                          {:ok, events}
-
-                        {:error, parse_error} ->
-                          Telemetry.execute(
-                            [:gemini, :stream, :exception],
-                            measurements,
-                            Map.put(metadata, :reason, parse_error)
-                          )
-
-                          {:error, parse_error}
-                      end
-
-                    result
-
-                  {:ok, %Req.Response{status: status}} ->
-                    error = {:http_error, status, "Stream request failed"}
-
-                    Telemetry.execute(
-                      [:gemini, :stream, :exception],
-                      measurements,
-                      Map.put(metadata, :reason, error)
-                    )
-
-                    {:error, Error.http_error(status, "Stream request failed")}
-
-                  {:error, reason} ->
-                    Telemetry.execute(
-                      [:gemini, :stream, :exception],
-                      measurements,
-                      Map.put(metadata, :reason, reason)
-                    )
-
-                    {:error, Error.network_error(reason)}
-                end
-
-              result
-            rescue
-              exception ->
-                Telemetry.execute(
-                  [:gemini, :stream, :exception],
-                  measurements,
-                  Map.put(metadata, :reason, exception)
-                )
-
-                reraise exception, __STACKTRACE__
-            end
-
-          {:error, reason} ->
-            {:error, Error.auth_error(reason)}
-        end
+        stream_with_auth(path, body, auth_type, credentials, opts, start_time)
     end
   end
 
@@ -312,6 +187,138 @@ defmodule Gemini.Client.HTTP do
   end
 
   # Private functions
+
+  defp execute_authenticated_request(method, path, body, auth_type, credentials, opts) do
+    url = build_authenticated_url(auth_type, path, credentials)
+
+    case Auth.build_headers(auth_type, credentials) do
+      {:ok, headers} ->
+        model = extract_model_from_path(path)
+
+        request_fn = fn ->
+          execute_request(method, url, headers, body, opts)
+        end
+
+        maybe_rate_limited_request(request_fn, model, opts)
+
+      {:error, reason} ->
+        {:error, Error.auth_error(reason)}
+    end
+  end
+
+  defp maybe_rate_limited_request(request_fn, model, opts) do
+    if Keyword.get(opts, :disable_rate_limiter, false) do
+      request_fn.()
+    else
+      RateLimiter.execute_with_usage_tracking(request_fn, model, opts)
+    end
+  end
+
+  defp stream_with_auth(path, body, auth_type, credentials, opts, start_time) do
+    url = build_authenticated_url(auth_type, path, credentials)
+
+    case Auth.build_headers(auth_type, credentials) do
+      {:ok, headers} ->
+        sse_url = build_sse_url(url, opts)
+
+        stream_id = Telemetry.generate_stream_id()
+        metadata = Telemetry.build_stream_metadata(sse_url, :post, stream_id, opts)
+        measurements = %{system_time: System.system_time()}
+
+        Telemetry.execute([:gemini, :stream, :start], measurements, metadata)
+
+        req_opts = stream_request_opts(sse_url, headers, body, opts)
+
+        try do
+          Req.post(req_opts)
+          |> handle_stream_response(start_time, metadata, measurements)
+        rescue
+          exception ->
+            emit_stream_exception(metadata, measurements, exception)
+            reraise exception, __STACKTRACE__
+        end
+
+      {:error, reason} ->
+        {:error, Error.auth_error(reason)}
+    end
+  end
+
+  defp stream_request_opts(url, headers, body, opts) do
+    timeout = Keyword.get(opts, :timeout, Config.timeout())
+
+    [
+      url: url,
+      headers: headers,
+      receive_timeout: timeout,
+      json: body,
+      into: :self
+    ]
+  end
+
+  defp build_sse_url(url, opts) do
+    if Keyword.get(opts, :add_sse_params, true) do
+      cond do
+        String.contains?(url, "alt=sse") -> url
+        String.contains?(url, "?") -> "#{url}&alt=sse"
+        true -> "#{url}?alt=sse"
+      end
+    else
+      url
+    end
+  end
+
+  defp handle_stream_response(
+         {:ok, %Req.Response{status: status, body: body}},
+         start_time,
+         metadata,
+         measurements
+       )
+       when status in 200..299 do
+    handle_stream_body(body, start_time, metadata, measurements)
+  end
+
+  defp handle_stream_response(
+         {:ok, %Req.Response{status: status}},
+         _start_time,
+         metadata,
+         measurements
+       ) do
+    error = {:http_error, status, "Stream request failed"}
+    emit_stream_exception(metadata, measurements, error)
+    {:error, Error.http_error(status, "Stream request failed")}
+  end
+
+  defp handle_stream_response({:error, reason}, _start_time, metadata, measurements) do
+    emit_stream_exception(metadata, measurements, reason)
+    {:error, Error.network_error(reason)}
+  end
+
+  defp handle_stream_body(body, start_time, metadata, measurements) do
+    case parse_sse_stream(body) do
+      {:ok, events} ->
+        duration = Telemetry.calculate_duration(start_time)
+
+        stop_measurements = %{
+          total_duration: duration,
+          total_chunks: length(events)
+        }
+
+        Telemetry.execute([:gemini, :stream, :stop], stop_measurements, metadata)
+        {:ok, events}
+
+      {:error, parse_error} ->
+        emit_stream_exception(metadata, measurements, parse_error)
+        {:error, parse_error}
+    end
+  end
+
+  defp emit_stream_exception(metadata, measurements, reason) do
+    Telemetry.execute(
+      [:gemini, :stream, :exception],
+      measurements,
+      Map.put(metadata, :reason, reason)
+    )
+  end
 
   defp build_authenticated_url(auth_type, path, credentials) do
     base_url = Auth.get_base_url(auth_type, credentials)
@@ -371,24 +378,7 @@ defmodule Gemini.Client.HTTP do
   end
 
   defp handle_response({:ok, %Req.Response{status: status, body: body}}) do
-    {error_info, error_details} =
-      case body do
-        %{"error" => error} = decoded ->
-          {error, decoded}
-
-        json_string when is_binary(json_string) ->
-          case Jason.decode(json_string) do
-            {:ok, %{"error" => error} = decoded} -> {error, decoded}
-            {:ok, decoded} when is_map(decoded) -> {decoded, %{"error" => decoded}}
-            _ -> build_default_error(status)
-          end
-
-        decoded when is_map(decoded) ->
-          {decoded, %{"error" => decoded}}
-
-        _ ->
-          build_default_error(status)
-      end
+    {error_info, error_details} = parse_error_body(body, status)
 
     {:error, Error.api_error(status, error_info, error_details)}
   end
@@ -402,48 +392,67 @@ defmodule Gemini.Client.HTTP do
     {message, %{"error" => message}}
   end
 
+  defp parse_error_body(%{"error" => error} = decoded, _status), do: {error, decoded}
+
+  defp parse_error_body(body, status) when is_binary(body) do
+    case Jason.decode(body) do
+      {:ok, decoded} -> parse_error_body(decoded, status)
+      _ -> build_default_error(status)
+    end
+  end
+
+  defp parse_error_body(decoded, _status) when is_map(decoded) do
+    {decoded, %{"error" => decoded}}
+  end
+
+  defp parse_error_body(_body, status), do: build_default_error(status)
+
   # Parse Server-Sent Events format
   defp parse_sse_stream(data) when is_binary(data) do
-    try do
-      events =
-        data
-        |> String.split("\n\n")
-        |> Enum.filter(&(String.trim(&1) != ""))
-        |> Enum.map(&parse_sse_event/1)
-        |> Enum.filter(&(&1 != nil))
+    events =
+      data
+      |> String.split("\n\n")
+      |> Enum.filter(&(String.trim(&1) != ""))
+      |> Enum.map(&parse_sse_event/1)
+      |> Enum.filter(&(&1 != nil))
 
-      {:ok, events}
-    rescue
-      exception ->
-        {:error,
-         Error.invalid_response("Failed to parse SSE stream: #{Exception.message(exception)}")}
-    end
+    {:ok, events}
+  rescue
+    exception ->
+      {:error,
+       Error.invalid_response("Failed to parse SSE stream: #{Exception.message(exception)}")}
   end
 
   defp parse_sse_stream(_),
     do: {:error, Error.invalid_response("Invalid SSE stream payload")}
 
   defp parse_sse_event(event_data) do
-    lines = String.split(event_data, "\n")
+    event_data
+    |> String.split("\n")
+    |> Enum.reduce(%{}, &parse_sse_line/2)
+    |> extract_sse_data()
+  end
 
-    Enum.reduce(lines, %{}, fn line, acc ->
-      case String.split(line, ": ", parts: 2) do
-        ["data", json_data] ->
-          case Jason.decode(json_data) do
-            {:ok, decoded} -> Map.put(acc, :data, decoded)
-            _ -> acc
-          end
+  defp parse_sse_line(line, acc) do
+    case String.split(line, ": ", parts: 2) do
+      ["data", json_data] ->
+        maybe_put_sse_data(acc, json_data)
 
-        [field, value] ->
-          Map.put(acc, String.to_atom(field), value)
+      [field, value] ->
+        Map.put(acc, String.to_atom(field), value)
 
-        _ ->
-          acc
-      end
-    end)
-    |> case do
-      %{data: data} -> data
-      _ -> nil
+      _ ->
+        acc
     end
   end
+
+  defp maybe_put_sse_data(acc, json_data) do
+    case Jason.decode(json_data) do
+      {:ok, decoded} -> Map.put(acc, :data, decoded)
+      _ -> acc
+    end
+  end
+
+  defp extract_sse_data(%{data: data}), do: data
+  defp extract_sse_data(_), do: nil
 end

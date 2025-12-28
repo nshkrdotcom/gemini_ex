@@ -2,12 +2,13 @@ defmodule Gemini.APIs.ImagesTest do
   use ExUnit.Case, async: true
 
   alias Gemini.APIs.Images
+  alias Gemini.Types.Generation.Image, as: Image
 
   alias Gemini.Types.Generation.Image.{
-    ImageGenerationConfig,
     EditImageConfig,
-    UpscaleImageConfig,
-    GeneratedImage
+    GeneratedImage,
+    ImageGenerationConfig,
+    UpscaleImageConfig
   }
 
   @moduletag :unit
@@ -57,7 +58,7 @@ defmodule Gemini.APIs.ImagesTest do
         output_mime_type: "image/jpeg",
         output_compression_quality: 90,
         negative_prompt: "blurry, low quality",
-        seed: 12345,
+        seed: 12_345,
         guidance_scale: 7.5,
         language: "en",
         add_watermark: false
@@ -70,7 +71,7 @@ defmodule Gemini.APIs.ImagesTest do
       assert config.output_mime_type == "image/jpeg"
       assert config.output_compression_quality == 90
       assert config.negative_prompt == "blurry, low quality"
-      assert config.seed == 12345
+      assert config.seed == 12_345
       assert config.guidance_scale == 7.5
       assert config.language == "en"
       assert config.add_watermark == false
@@ -108,7 +109,7 @@ defmodule Gemini.APIs.ImagesTest do
         guidance_scale: 15.0,
         number_of_images: 2,
         safety_filter_level: :block_most,
-        seed: 54321,
+        seed: 54_321,
         output_mime_type: "image/jpeg"
       }
 
@@ -119,7 +120,7 @@ defmodule Gemini.APIs.ImagesTest do
       assert config.guidance_scale == 15.0
       assert config.number_of_images == 2
       assert config.safety_filter_level == :block_most
-      assert config.seed == 54321
+      assert config.seed == 54_321
       assert config.output_mime_type == "image/jpeg"
     end
   end
@@ -163,7 +164,7 @@ defmodule Gemini.APIs.ImagesTest do
         "raiInfo" => %{"blocked_reason" => nil}
       }
 
-      image = Gemini.Types.Generation.Image.parse_generated_image(api_response)
+      image = Image.parse_generated_image(api_response)
 
       assert %GeneratedImage{} = image
       assert image.image_data == "base64data..."
@@ -176,52 +177,52 @@ defmodule Gemini.APIs.ImagesTest do
 
   describe "type conversions" do
     test "format_safety_filter_level converts atoms to API format" do
-      assert Gemini.Types.Generation.Image.format_safety_filter_level(:block_most) ==
+      assert Image.format_safety_filter_level(:block_most) ==
                "blockMost"
 
-      assert Gemini.Types.Generation.Image.format_safety_filter_level(:block_some) ==
+      assert Image.format_safety_filter_level(:block_some) ==
                "blockSome"
 
-      assert Gemini.Types.Generation.Image.format_safety_filter_level(:block_few) == "blockFew"
+      assert Image.format_safety_filter_level(:block_few) == "blockFew"
 
-      assert Gemini.Types.Generation.Image.format_safety_filter_level(:block_none) ==
+      assert Image.format_safety_filter_level(:block_none) ==
                "blockNone"
     end
 
     test "format_person_generation converts atoms to API format" do
-      assert Gemini.Types.Generation.Image.format_person_generation(:allow_adult) ==
+      assert Image.format_person_generation(:allow_adult) ==
                "allowAdult"
 
-      assert Gemini.Types.Generation.Image.format_person_generation(:allow_all) == "allowAll"
+      assert Image.format_person_generation(:allow_all) == "allowAll"
 
-      assert Gemini.Types.Generation.Image.format_person_generation(:allow_none) == "allowNone"
+      assert Image.format_person_generation(:allow_none) == "allowNone"
     end
 
     test "format_edit_mode converts atoms to API format" do
-      assert Gemini.Types.Generation.Image.format_edit_mode(:inpainting) == "inpainting"
-      assert Gemini.Types.Generation.Image.format_edit_mode(:outpainting) == "outpainting"
+      assert Image.format_edit_mode(:inpainting) == "inpainting"
+      assert Image.format_edit_mode(:outpainting) == "outpainting"
 
-      assert Gemini.Types.Generation.Image.format_edit_mode(:product_image) == "productImage"
+      assert Image.format_edit_mode(:product_image) == "productImage"
     end
 
     test "format_upscale_factor converts atoms to API format" do
-      assert Gemini.Types.Generation.Image.format_upscale_factor(:x2) == "x2"
-      assert Gemini.Types.Generation.Image.format_upscale_factor(:x4) == "x4"
+      assert Image.format_upscale_factor(:x2) == "x2"
+      assert Image.format_upscale_factor(:x4) == "x4"
     end
 
     test "parse_safety_filter_level converts strings to atoms" do
-      assert Gemini.Types.Generation.Image.parse_safety_filter_level("BLOCK_MOST") ==
+      assert Image.parse_safety_filter_level("BLOCK_MOST") ==
                :block_most
 
-      assert Gemini.Types.Generation.Image.parse_safety_filter_level("BLOCK_SOME") ==
+      assert Image.parse_safety_filter_level("BLOCK_SOME") ==
                :block_some
 
-      assert Gemini.Types.Generation.Image.parse_safety_filter_level("BLOCK_FEW") == :block_few
+      assert Image.parse_safety_filter_level("BLOCK_FEW") == :block_few
 
-      assert Gemini.Types.Generation.Image.parse_safety_filter_level("BLOCK_NONE") ==
+      assert Image.parse_safety_filter_level("BLOCK_NONE") ==
                :block_none
 
-      assert Gemini.Types.Generation.Image.parse_safety_filter_level(:block_some) ==
+      assert Image.parse_safety_filter_level(:block_some) ==
                :block_some
     end
   end
@@ -236,7 +237,7 @@ defmodule Gemini.APIs.ImagesTest do
         add_watermark: true
       }
 
-      params = Gemini.Types.Generation.Image.build_generation_params("A cat", config)
+      params = Image.build_generation_params("A cat", config)
 
       assert params["prompt"] == "A cat"
       assert params["sampleCount"] == 2
@@ -250,17 +251,17 @@ defmodule Gemini.APIs.ImagesTest do
       config = %ImageGenerationConfig{
         number_of_images: 1,
         negative_prompt: "blurry",
-        seed: 12345,
+        seed: 12_345,
         guidance_scale: 7.5,
         language: "en",
         output_mime_type: "image/jpeg",
         output_compression_quality: 90
       }
 
-      params = Gemini.Types.Generation.Image.build_generation_params("A cat", config)
+      params = Image.build_generation_params("A cat", config)
 
       assert params["negativePrompt"] == "blurry"
-      assert params["seed"] == 12345
+      assert params["seed"] == 12_345
       assert params["guidanceScale"] == 7.5
       assert params["language"] == "en"
       assert params["outputMimeType"] == "image/jpeg"
@@ -275,7 +276,7 @@ defmodule Gemini.APIs.ImagesTest do
       }
 
       params =
-        Gemini.Types.Generation.Image.build_edit_params("Edit", "image_data", "mask_data", config)
+        Image.build_edit_params("Edit", "image_data", "mask_data", config)
 
       assert params["prompt"] == "Edit"
       assert params["image"]["bytesBase64Encoded"] == "image_data"
@@ -290,7 +291,7 @@ defmodule Gemini.APIs.ImagesTest do
         edit_mode: :inpainting
       }
 
-      params = Gemini.Types.Generation.Image.build_edit_params("Edit", "image_data", nil, config)
+      params = Image.build_edit_params("Edit", "image_data", nil, config)
 
       assert params["prompt"] == "Edit"
       assert params["image"]["bytesBase64Encoded"] == "image_data"
@@ -304,7 +305,7 @@ defmodule Gemini.APIs.ImagesTest do
         output_compression_quality: 95
       }
 
-      params = Gemini.Types.Generation.Image.build_upscale_params("image_data", config)
+      params = Image.build_upscale_params("image_data", config)
 
       assert params["image"]["bytesBase64Encoded"] == "image_data"
       assert params["upscaleFactor"] == "x4"

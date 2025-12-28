@@ -2,7 +2,7 @@ defmodule Gemini.APIs.CoordinatorGenerationConfigNewFieldsTest do
   use ExUnit.Case, async: true
 
   alias Gemini.APIs.Coordinator
-  alias Gemini.Types.{GenerationConfig, SpeechConfig, VoiceConfig, PrebuiltVoiceConfig}
+  alias Gemini.Types.{GenerationConfig, PrebuiltVoiceConfig, SpeechConfig, VoiceConfig}
 
   describe "__test_build_generation_config__/1" do
     test "includes seed and modalities" do

@@ -158,23 +158,31 @@ defmodule Gemini.Test.FakeGemini do
     if times do
       counter = :counters.new(1, [:atomics])
 
-      Bypass.expect(bypass, "POST", ~r/.*/, fn conn ->
-        current = :counters.get(counter, 1)
-        :counters.add(counter, 1, 1)
-
-        if current < times do
-          handler.(conn)
-        else
-          conn
-          |> Plug.Conn.put_resp_content_type("application/json")
-          |> Plug.Conn.resp(200, Jason.encode!(@default_model_response))
-        end
-      end)
+      Bypass.expect(bypass, "POST", ~r/.*/, retry_handler(handler, counter, times))
     else
       Bypass.expect(bypass, "POST", ~r/.*/, handler)
     end
 
     bypass
+  end
+
+  defp retry_handler(handler, counter, times) do
+    fn conn ->
+      current = :counters.get(counter, 1)
+      :counters.add(counter, 1, 1)
+
+      if current < times do
+        handler.(conn)
+      else
+        success_response(conn)
+      end
+    end
+  end
+
+  defp success_response(conn) do
+    conn
+    |> Plug.Conn.put_resp_content_type("application/json")
+    |> Plug.Conn.resp(200, Jason.encode!(@default_model_response))
   end
 
   @doc """

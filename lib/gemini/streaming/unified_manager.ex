@@ -16,11 +16,15 @@ defmodule Gemini.Streaming.UnifiedManager do
   use GenServer
   require Logger
 
+  alias Altar.ADM.FunctionCall
+  alias Gemini.Auth
+  alias Gemini.Auth.MultiAuthCoordinator
+  alias Gemini.Chat
   alias Gemini.Client.HTTPStreaming
   alias Gemini.Config
-  alias Gemini.Auth.MultiAuthCoordinator
+  alias Gemini.RateLimiter
   alias Gemini.Streaming.ToolOrchestrator
-  alias Gemini.Chat
+  alias Gemini.Types.{Content, Part}
 
   @type stream_id :: String.t()
   @type subscriber_ref :: {pid(), reference()}
@@ -219,87 +223,10 @@ defmodule Gemini.Streaming.UnifiedManager do
 
   @impl true
   def handle_call({:start_stream, model, request_body, opts}, _from, state) do
-    if map_size(state.streams) >= state.max_streams do
+    if max_streams_reached?(state) do
       {:reply, {:error, :max_streams_reached}, state}
     else
-      # Extract auth strategy from options, default to detected auth type
-      auth_strategy = Keyword.get(opts, :auth, Gemini.Config.current_api_type())
-
-      # Validate auth strategy
-      case validate_auth_strategy(auth_strategy) do
-        :ok ->
-          # Generate unique stream ID
-          stream_id = generate_stream_id(state.stream_counter)
-
-          # Create initial stream state
-          stream_state = %{
-            stream_id: stream_id,
-            stream_pid: nil,
-            model: model,
-            request_body: request_body,
-            status: :starting,
-            error: nil,
-            started_at: DateTime.utc_now(),
-            subscribers: [],
-            events_count: 0,
-            last_event_at: nil,
-            config: opts,
-            auth_strategy: auth_strategy,
-            release_fn: nil
-          }
-
-          # Check if this is an automatic tool calling stream
-          case Keyword.get(opts, :auto_execute_tools, false) do
-            true ->
-              # Start tool orchestrator for automatic tool calling
-              case start_auto_tool_stream(stream_state) do
-                {:ok, orchestrator_pid, release_fn} ->
-                  updated_stream = %{
-                    stream_state
-                    | stream_pid: orchestrator_pid,
-                      status: :active,
-                      release_fn: release_fn
-                  }
-
-                  new_state = %{
-                    state
-                    | streams: Map.put(state.streams, stream_id, updated_stream),
-                      stream_counter: state.stream_counter + 1
-                  }
-
-                  {:reply, {:ok, stream_id}, new_state}
-
-                {:error, reason} ->
-                  {:reply, {:error, reason}, state}
-              end
-
-            false ->
-              # Start regular streaming process
-              case start_stream_process(stream_state) do
-                {:ok, stream_pid, release_fn} ->
-                  updated_stream = %{
-                    stream_state
-                    | stream_pid: stream_pid,
-                      status: :active,
-                      release_fn: release_fn
-                  }
-
-                  new_state = %{
-                    state
-                    | streams: Map.put(state.streams, stream_id, updated_stream),
-                      stream_counter: state.stream_counter + 1
-                  }
-
-                  {:reply, {:ok, stream_id}, new_state}
-
-                {:error, reason} ->
-                  {:reply, {:error, reason}, state}
-              end
-          end
-
-        {:error, reason} ->
-          {:reply, {:error, reason}, state}
-      end
+      start_stream_with_opts(model, request_body, opts, state)
     end
   end
 
@@ -536,6 +463,71 @@ defmodule Gemini.Streaming.UnifiedManager do
 
   # Private helper functions
 
+  defp start_stream_with_opts(model, request_body, opts, state) do
+    auth_strategy = Keyword.get(opts, :auth, Gemini.Config.current_api_type())
+
+    case validate_auth_strategy(auth_strategy) do
+      :ok ->
+        init_and_start_stream(model, request_body, opts, auth_strategy, state)
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
+    end
+  end
+
+  defp init_and_start_stream(model, request_body, opts, auth_strategy, state) do
+    stream_id = generate_stream_id(state.stream_counter)
+
+    stream_state = %{
+      stream_id: stream_id,
+      stream_pid: nil,
+      model: model,
+      request_body: request_body,
+      status: :starting,
+      error: nil,
+      started_at: DateTime.utc_now(),
+      subscribers: [],
+      events_count: 0,
+      last_event_at: nil,
+      config: opts,
+      auth_strategy: auth_strategy,
+      release_fn: nil
+    }
+
+    case start_stream_backend(stream_state, opts) do
+      {:ok, stream_pid, release_fn} ->
+        updated_stream = %{
+          stream_state
+          | stream_pid: stream_pid,
+            status: :active,
+            release_fn: release_fn
+        }
+
+        new_state = %{
+          state
+          | streams: Map.put(state.streams, stream_id, updated_stream),
+            stream_counter: state.stream_counter + 1
+        }
+
+        {:reply, {:ok, stream_id}, new_state}
+
+      {:error, reason} ->
+        {:reply, {:error, reason}, state}
+    end
+  end
+
+  defp start_stream_backend(stream_state, opts) do
+    if Keyword.get(opts, :auto_execute_tools, false) do
+      start_auto_tool_stream(stream_state)
+    else
+      start_stream_process(stream_state)
+    end
+  end
+
+  defp max_streams_reached?(state) do
+    map_size(state.streams) >= state.max_streams
+  end
+
   @spec validate_auth_strategy(term()) :: :ok | {:error, String.t()}
   defp validate_auth_strategy(:gemini), do: :ok
   defp validate_auth_strategy(:vertex_ai), do: :ok
@@ -551,39 +543,15 @@ defmodule Gemini.Streaming.UnifiedManager do
 
   @spec start_stream_process(stream_state()) :: {:ok, pid(), function()} | {:error, term()}
   defp start_stream_process(stream_state) do
-    start_fn = fn ->
-      case MultiAuthCoordinator.coordinate_auth(stream_state.auth_strategy, stream_state.config) do
-        {:ok, auth_strategy, headers} ->
-          case get_streaming_url_and_headers(stream_state, auth_strategy, headers) do
-            {:ok, url, final_headers} ->
-              HTTPStreaming.stream_to_process(
-                url,
-                final_headers,
-                stream_state.request_body,
-                stream_state.stream_id,
-                self()
-              )
-
-            {:error, reason} ->
-              {:error, reason}
-          end
-
-        {:error, reason} ->
-          {:error, "Auth failed: #{reason}"}
-      end
-    end
+    start_fn = fn -> stream_request_with_auth(stream_state) end
 
     with {:ok, {result, release_fn}} <-
-           Gemini.RateLimiter.execute_streaming(
+           RateLimiter.execute_streaming(
              start_fn,
              stream_state.model,
              stream_state.config
            ) do
-      case result do
-        {:ok, stream_pid} -> {:ok, stream_pid, release_fn}
-        {:error, reason} -> {:error, reason}
-        other -> {:ok, other, release_fn}
-      end
+      handle_stream_start_result(result, release_fn)
     end
   end
 
@@ -606,16 +574,12 @@ defmodule Gemini.Streaming.UnifiedManager do
     end
 
     with {:ok, {result, release_fn}} <-
-           Gemini.RateLimiter.execute_streaming(
+           RateLimiter.execute_streaming(
              start_fn,
              stream_state.model,
              stream_state.config
            ) do
-      case result do
-        {:ok, orchestrator_pid} -> {:ok, orchestrator_pid, release_fn}
-        {:error, reason} -> {:error, reason}
-        other -> {:ok, other, release_fn}
-      end
+      handle_stream_start_result(result, release_fn)
     end
   end
 
@@ -636,25 +600,25 @@ defmodule Gemini.Streaming.UnifiedManager do
     %{chat | history: contents}
   end
 
-  @spec convert_api_content_to_struct(map()) :: Gemini.Types.Content.t()
+  @spec convert_api_content_to_struct(map()) :: Content.t()
   defp convert_api_content_to_struct(%{role: role, parts: parts}) do
     converted_parts = Enum.map(parts, &convert_api_part_to_struct/1)
-    %Gemini.Types.Content{role: role, parts: converted_parts}
+    %Content{role: role, parts: converted_parts}
   end
 
-  @spec convert_api_part_to_struct(map()) :: Gemini.Types.Part.t()
+  @spec convert_api_part_to_struct(map()) :: Part.t()
   defp convert_api_part_to_struct(part) do
     cond do
       Map.has_key?(part, :text) ->
-        %Gemini.Types.Part{text: part.text}
+        %Part{text: part.text}
 
       Map.has_key?(part, :functionCall) ->
-        case Altar.ADM.FunctionCall.new(part.functionCall) do
+        case FunctionCall.new(part.functionCall) do
           {:ok, function_call} ->
-            %Gemini.Types.Part{function_call: function_call}
+            %Part{function_call: function_call}
 
           {:error, _} ->
-            %Gemini.Types.Part{text: ""}
+            %Part{text: ""}
         end
 
       Map.has_key?(part, :functionResponse) ->
@@ -662,7 +626,7 @@ defmodule Gemini.Streaming.UnifiedManager do
         part
 
       true ->
-        %Gemini.Types.Part{text: ""}
+        %Part{text: ""}
     end
   end
 
@@ -670,35 +634,57 @@ defmodule Gemini.Streaming.UnifiedManager do
           {:ok, String.t(), [{String.t(), String.t()}]} | {:error, term()}
   defp get_streaming_url_and_headers(stream_state, auth_strategy, auth_headers) do
     # Get credentials for URL building (we need to get them again for the URL builder)
-    case MultiAuthCoordinator.get_credentials(auth_strategy, stream_state.config) do
-      {:ok, credentials} ->
-        with base_url when is_binary(base_url) <-
-               Gemini.Auth.get_base_url(auth_strategy, credentials) do
-          path =
-            Gemini.Auth.build_path(
-              auth_strategy,
-              stream_state.model,
-              "streamGenerateContent",
-              credentials
+    with {:ok, credentials} <-
+           MultiAuthCoordinator.get_credentials(auth_strategy, stream_state.config),
+         base_url when is_binary(base_url) <- Auth.get_base_url(auth_strategy, credentials) do
+      path =
+        Auth.build_path(
+          auth_strategy,
+          stream_state.model,
+          "streamGenerateContent",
+          credentials
+        )
+
+      url = "#{base_url}/#{path}"
+      {:ok, url, ensure_content_type_header(auth_headers)}
+    else
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  defp stream_request_with_auth(stream_state) do
+    case MultiAuthCoordinator.coordinate_auth(stream_state.auth_strategy, stream_state.config) do
+      {:ok, auth_strategy, headers} ->
+        case get_streaming_url_and_headers(stream_state, auth_strategy, headers) do
+          {:ok, url, final_headers} ->
+            HTTPStreaming.stream_to_process(
+              url,
+              final_headers,
+              stream_state.request_body,
+              stream_state.stream_id,
+              self()
             )
 
-          url = "#{base_url}/#{path}"
-
-          # Ensure content-type header is present
-          final_headers =
-            if List.keyfind(auth_headers, "Content-Type", 0) do
-              auth_headers
-            else
-              [{"Content-Type", "application/json"} | auth_headers]
-            end
-
-          {:ok, url, final_headers}
-        else
-          {:error, reason} -> {:error, reason}
+          {:error, reason} ->
+            {:error, reason}
         end
 
       {:error, reason} ->
-        {:error, reason}
+        {:error, "Auth failed: #{reason}"}
+    end
+  end
+
+  defp handle_stream_start_result({:ok, stream_pid}, release_fn),
+    do: {:ok, stream_pid, release_fn}
+
+  defp handle_stream_start_result({:error, reason}, _release_fn), do: {:error, reason}
+  defp handle_stream_start_result(other, release_fn), do: {:ok, other, release_fn}
+
+  defp ensure_content_type_header(headers) do
+    if List.keyfind(headers, "Content-Type", 0) do
+      headers
+    else
+      [{"Content-Type", "application/json"} | headers]
     end
   end
 

@@ -1146,30 +1146,37 @@ defmodule Gemini.Types.Interactions.Content do
           | MCPServerToolResultContent.t()
           | FileSearchResultContent.t()
 
+  @type_to_module %{
+    "text" => TextContent,
+    "image" => ImageContent,
+    "audio" => AudioContent,
+    "document" => DocumentContent,
+    "video" => VideoContent,
+    "thought" => ThoughtContent,
+    "function_call" => FunctionCallContent,
+    "function_result" => FunctionResultContent,
+    "code_execution_call" => CodeExecutionCallContent,
+    "code_execution_result" => CodeExecutionResultContent,
+    "url_context_call" => URLContextCallContent,
+    "url_context_result" => URLContextResultContent,
+    "google_search_call" => GoogleSearchCallContent,
+    "google_search_result" => GoogleSearchResultContent,
+    "mcp_server_tool_call" => MCPServerToolCallContent,
+    "mcp_server_tool_result" => MCPServerToolResultContent,
+    "file_search_result" => FileSearchResultContent
+  }
+
   @spec from_api(map() | t() | nil) :: t() | nil
   def from_api(nil), do: nil
   def from_api(%_{} = content), do: content
 
   def from_api(%{} = data) do
-    case Map.get(data, "type") do
-      "text" -> TextContent.from_api(data)
-      "image" -> ImageContent.from_api(data)
-      "audio" -> AudioContent.from_api(data)
-      "document" -> DocumentContent.from_api(data)
-      "video" -> VideoContent.from_api(data)
-      "thought" -> ThoughtContent.from_api(data)
-      "function_call" -> FunctionCallContent.from_api(data)
-      "function_result" -> FunctionResultContent.from_api(data)
-      "code_execution_call" -> CodeExecutionCallContent.from_api(data)
-      "code_execution_result" -> CodeExecutionResultContent.from_api(data)
-      "url_context_call" -> URLContextCallContent.from_api(data)
-      "url_context_result" -> URLContextResultContent.from_api(data)
-      "google_search_call" -> GoogleSearchCallContent.from_api(data)
-      "google_search_result" -> GoogleSearchResultContent.from_api(data)
-      "mcp_server_tool_call" -> MCPServerToolCallContent.from_api(data)
-      "mcp_server_tool_result" -> MCPServerToolResultContent.from_api(data)
-      "file_search_result" -> FileSearchResultContent.from_api(data)
-      _ -> nil
+    data
+    |> Map.get("type")
+    |> then(&Map.get(@type_to_module, &1))
+    |> case do
+      nil -> nil
+      module -> module.from_api(data)
     end
   end
 

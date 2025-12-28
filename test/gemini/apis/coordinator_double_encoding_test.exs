@@ -1,11 +1,12 @@
 defmodule Gemini.APIs.CoordinatorDoubleEncodingTest do
   use ExUnit.Case, async: true
 
-  alias Gemini.Types.{Content, Part, Blob}
+  alias Gemini.APIs.Coordinator
+  alias Gemini.Types.{Blob, Content, Part}
 
   # Helper to normalize input
   defp normalize_test_input(input) do
-    Gemini.APIs.Coordinator.__test_normalize_content__(input)
+    Coordinator.__test_normalize_content__(input)
   end
 
   @moduledoc """

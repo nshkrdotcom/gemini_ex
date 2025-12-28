@@ -228,14 +228,12 @@ defmodule Gemini.Types.Response.Model do
   def model_family(%__MODULE__{} = model) do
     base_id = effective_base_id(model)
 
-    cond do
-      String.starts_with?(base_id, "gemini-embedding") ->
-        "gemini-embedding"
-
-      true ->
-        base_id
-        |> String.split("-", parts: 2)
-        |> hd()
+    if String.starts_with?(base_id, "gemini-embedding") do
+      "gemini-embedding"
+    else
+      base_id
+      |> String.split("-", parts: 2)
+      |> hd()
     end
   end
 

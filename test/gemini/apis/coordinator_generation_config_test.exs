@@ -423,8 +423,8 @@ defmodule Gemini.APIs.CoordinatorGenerationConfigTest do
   describe "Comparison with working Generate module" do
     # Create a test version of Generate's build_generate_request for comparison
     defmodule TestGenerate do
-      alias Gemini.Types.Request.GenerateContentRequest
       alias Gemini.Types.Content
+      alias Gemini.Types.Request.GenerateContentRequest
 
       def build_generate_request(contents, opts) do
         contents_list = normalize_contents(contents)

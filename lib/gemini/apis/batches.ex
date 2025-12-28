@@ -504,23 +504,31 @@ defmodule Gemini.APIs.Batches do
   defp do_wait(name, opts, poll_interval, timeout, start_time, on_progress) do
     case get(name, opts) do
       {:ok, batch} ->
-        if on_progress, do: on_progress.(batch)
-
-        if BatchJob.complete?(batch) do
-          {:ok, batch}
-        else
-          elapsed = System.monotonic_time(:millisecond) - start_time
-
-          if elapsed >= timeout do
-            {:error, :timeout}
-          else
-            Process.sleep(poll_interval)
-            do_wait(name, opts, poll_interval, timeout, start_time, on_progress)
-          end
-        end
+        maybe_report_progress(on_progress, batch)
+        handle_batch_state(batch, name, opts, poll_interval, timeout, start_time, on_progress)
 
       {:error, reason} ->
         {:error, reason}
     end
+  end
+
+  defp handle_batch_state(batch, name, opts, poll_interval, timeout, start_time, on_progress) do
+    if BatchJob.complete?(batch) do
+      {:ok, batch}
+    else
+      if timed_out?(start_time, timeout) do
+        {:error, :timeout}
+      else
+        Process.sleep(poll_interval)
+        do_wait(name, opts, poll_interval, timeout, start_time, on_progress)
+      end
+    end
+  end
+
+  defp maybe_report_progress(nil, _batch), do: :ok
+  defp maybe_report_progress(callback, batch), do: callback.(batch)
+
+  defp timed_out?(start_time, timeout) do
+    System.monotonic_time(:millisecond) - start_time >= timeout
   end
 end

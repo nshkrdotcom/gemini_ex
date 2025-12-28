@@ -276,71 +276,10 @@ defmodule Gemini.Config do
   3. Default to Gemini with API key
   """
   def auth_config do
-    cond do
-      gemini_api_key() ->
-        %{
-          type: :gemini,
-          credentials: %{api_key: gemini_api_key()}
-        }
-
-      vertex_access_token() && vertex_project_id() ->
-        %{
-          type: :vertex_ai,
-          credentials: %{
-            access_token: vertex_access_token(),
-            project_id: vertex_project_id(),
-            location: vertex_location()
-          }
-        }
-
-      vertex_service_account() &&
-          (vertex_project_id() ||
-             load_project_from_service_account(vertex_service_account()) |> elem_or_nil()) ->
-        service_account_path = vertex_service_account()
-
-        # Load and parse the service account file to get project_id if not provided
-        project_id =
-          case vertex_project_id() do
-            nil ->
-              case load_project_from_service_account(service_account_path) do
-                {:ok, project} -> project
-                _ -> nil
-              end
-
-            project ->
-              project
-          end
-
-        if project_id do
-          %{
-            type: :vertex_ai,
-            credentials: %{
-              service_account_key: service_account_path,
-              project_id: project_id,
-              location: vertex_location()
-            }
-          }
-        else
-          nil
-        end
-
-      true ->
-        # Check application config
-        app_auth = Application.get_env(:gemini, :auth) || Application.get_env(:gemini_ex, :auth)
-
-        case app_auth do
-          nil ->
-            # Default to looking for basic API key config
-            case Application.get_env(:gemini_ex, :api_key) ||
-                   Application.get_env(:gemini, :api_key) do
-              nil -> nil
-              api_key -> %{type: :gemini, credentials: %{api_key: api_key}}
-            end
-
-          config ->
-            config
-        end
-    end
+    gemini_auth_config_from_env() ||
+      vertex_access_token_config_from_env() ||
+      vertex_service_account_config_from_env() ||
+      auth_config_from_app()
   end
 
   @doc """
@@ -349,6 +288,84 @@ defmodule Gemini.Config do
   """
   def api_key do
     gemini_api_key() || Application.get_env(:gemini_ex, :api_key)
+  end
+
+  defp gemini_auth_config_from_env do
+    case gemini_api_key() do
+      nil ->
+        nil
+
+      api_key ->
+        %{
+          type: :gemini,
+          credentials: %{api_key: api_key}
+        }
+    end
+  end
+
+  defp vertex_access_token_config_from_env do
+    if vertex_access_token() && vertex_project_id() do
+      %{
+        type: :vertex_ai,
+        credentials: %{
+          access_token: vertex_access_token(),
+          project_id: vertex_project_id(),
+          location: vertex_location()
+        }
+      }
+    else
+      nil
+    end
+  end
+
+  defp vertex_service_account_config_from_env do
+    service_account_path = vertex_service_account()
+
+    if service_account_path do
+      project_id = project_id_from_env_or_service_account(service_account_path)
+
+      if project_id do
+        %{
+          type: :vertex_ai,
+          credentials: %{
+            service_account_key: service_account_path,
+            project_id: project_id,
+            location: vertex_location()
+          }
+        }
+      else
+        nil
+      end
+    end
+  end
+
+  defp project_id_from_env_or_service_account(service_account_path) do
+    case vertex_project_id() do
+      nil ->
+        case load_project_from_service_account(service_account_path) do
+          {:ok, project} -> project
+          _ -> nil
+        end
+
+      project ->
+        project
+    end
+  end
+
+  defp auth_config_from_app do
+    app_auth = Application.get_env(:gemini, :auth) || Application.get_env(:gemini_ex, :auth)
+
+    case app_auth do
+      nil ->
+        case Application.get_env(:gemini_ex, :api_key) ||
+               Application.get_env(:gemini, :api_key) do
+          nil -> nil
+          api_key -> %{type: :gemini, credentials: %{api_key: api_key}}
+        end
+
+      config ->
+        config
+    end
   end
 
   # ===========================================================================
@@ -833,19 +850,25 @@ defmodule Gemini.Config do
   defp validate_model_compat(key, name, model_api, requested_api, opts) do
     compatible? = model_api == :both or model_api == requested_api
 
-    unless compatible? do
-      msg = "Model #{key} (#{name}) may not be available on #{requested_api}"
+    if compatible? do
+      :ok
+    else
+      handle_incompatible_model(key, name, requested_api, opts)
+    end
+  end
 
-      if Keyword.get(opts, :strict, false) do
-        suggestion = suggest_alternative(key, requested_api)
+  defp handle_incompatible_model(key, name, requested_api, opts) do
+    msg = "Model #{key} (#{name}) may not be available on #{requested_api}"
 
-        raise ArgumentError,
-              msg <>
-                ". Use a universal model or one specific to #{requested_api}." <>
-                if(suggestion, do: " Suggested alternative: #{suggestion}", else: "")
-      else
-        Logger.warning("[Gemini.Config] #{msg}")
-      end
+    if Keyword.get(opts, :strict, false) do
+      suggestion = suggest_alternative(key, requested_api)
+
+      raise ArgumentError,
+            msg <>
+              ". Use a universal model or one specific to #{requested_api}." <>
+              if(suggestion, do: " Suggested alternative: #{suggestion}", else: "")
+    else
+      Logger.warning("[Gemini.Config] #{msg}")
     end
   end
 
@@ -1075,9 +1098,6 @@ defmodule Gemini.Config do
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
-
-  defp elem_or_nil({:ok, value}), do: value
-  defp elem_or_nil(_), do: nil
 
   defp validate_vertex_config!(%{access_token: token, project_id: project, location: location})
        when is_binary(token) and is_binary(project) and is_binary(location) do

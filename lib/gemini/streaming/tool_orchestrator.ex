@@ -15,12 +15,13 @@ defmodule Gemini.Streaming.ToolOrchestrator do
   use GenServer
   require Logger
 
-  alias Gemini.Client.HTTPStreaming
+  alias Altar.ADM.FunctionCall
   alias Gemini.Auth.MultiAuthCoordinator
   alias Gemini.Chat
+  alias Gemini.Client.HTTPStreaming
+  alias Gemini.Config
   alias Gemini.Tools
   alias Gemini.Types.Content
-  alias Gemini.Config
 
   @type orchestrator_state :: %{
           stream_id: String.t(),
@@ -296,39 +297,7 @@ defmodule Gemini.Streaming.ToolOrchestrator do
 
   @spec format_parts_for_api([map()]) :: [map()]
   defp format_parts_for_api(parts) do
-    Enum.map(parts, fn part ->
-      cond do
-        is_map(part) and Map.has_key?(part, :text) and part.text != nil ->
-          %{text: part.text}
-
-        is_map(part) and Map.has_key?(part, :function_call) and part.function_call != nil ->
-          %{
-            functionCall: %{
-              name: part.function_call.name,
-              args: part.function_call.args
-            }
-          }
-
-        is_map(part) and Map.has_key?(part, "functionResponse") ->
-          # functionResponse parts are already in the correct format
-          part
-
-        is_map(part) and Map.has_key?(part, :functionResponse) ->
-          # functionResponse parts are already in the correct format
-          part
-
-        is_map(part) and Map.has_key?(part, :inline_data) and part.inline_data != nil ->
-          %{
-            inlineData: %{
-              mimeType: part.inline_data.mime_type,
-              data: part.inline_data.data
-            }
-          }
-
-        true ->
-          %{text: ""}
-      end
-    end)
+    Enum.map(parts, &format_part_for_api/1)
   end
 
   @spec build_generation_config(keyword()) :: map()
@@ -413,34 +382,46 @@ defmodule Gemini.Streaming.ToolOrchestrator do
   @spec extract_function_calls_from_chunk(map()) :: [Altar.ADM.FunctionCall.t()]
   defp extract_function_calls_from_chunk(data) do
     case data do
-      %{"candidates" => candidates} ->
-        candidates
-        |> Enum.flat_map(fn candidate ->
-          case candidate do
-            %{"content" => %{"parts" => parts}} ->
-              parts
-              |> Enum.filter(&Map.has_key?(&1, "functionCall"))
-              |> Enum.map(&convert_to_function_call/1)
-              |> Enum.filter(&match?({:ok, _}, &1))
-              |> Enum.map(fn {:ok, call} -> call end)
-
-            _ ->
-              []
-          end
-        end)
-
-      _ ->
-        []
+      %{"candidates" => candidates} -> Enum.flat_map(candidates, &extract_calls_from_candidate/1)
+      _ -> []
     end
   end
 
-  @spec convert_to_function_call(map()) :: {:ok, Altar.ADM.FunctionCall.t()} | {:error, term()}
+  @spec convert_to_function_call(map()) :: {:ok, FunctionCall.t()} | {:error, term()}
   defp convert_to_function_call(%{"functionCall" => %{"name" => name, "args" => args}}) do
     call_id = "call_#{:rand.uniform(1_000_000)}"
-    Altar.ADM.FunctionCall.new(%{call_id: call_id, name: name, args: args})
+    FunctionCall.new(%{call_id: call_id, name: name, args: args})
   end
 
   defp convert_to_function_call(_), do: {:error, "Invalid function call format"}
+
+  defp format_part_for_api(%{text: text}) when not is_nil(text), do: %{text: text}
+
+  defp format_part_for_api(%{function_call: %{name: name, args: args}}),
+    do: %{functionCall: %{name: name, args: args}}
+
+  defp format_part_for_api(%{"functionResponse" => _} = part), do: part
+  defp format_part_for_api(%{functionResponse: _} = part), do: part
+
+  defp format_part_for_api(%{inline_data: %{mime_type: mime_type, data: data}}),
+    do: %{inlineData: %{mimeType: mime_type, data: data}}
+
+  defp format_part_for_api(_), do: %{text: ""}
+
+  defp extract_calls_from_candidate(%{"content" => %{"parts" => parts}}) do
+    Enum.flat_map(parts, &extract_call_from_part/1)
+  end
+
+  defp extract_calls_from_candidate(_), do: []
+
+  defp extract_call_from_part(%{"functionCall" => _} = part) do
+    case convert_to_function_call(part) do
+      {:ok, call} -> [call]
+      _ -> []
+    end
+  end
+
+  defp extract_call_from_part(_), do: []
 
   @spec handle_tool_execution_success(orchestrator_state(), [Altar.ADM.ToolResult.t()]) ::
           {:noreply, orchestrator_state()} | {:stop, :normal, orchestrator_state()}

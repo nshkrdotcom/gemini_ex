@@ -13,9 +13,9 @@ defmodule Gemini.Streaming.ManagerV2 do
   use GenServer
   require Logger
 
+  alias Gemini.Auth
   alias Gemini.Client.HTTPStreaming
   alias Gemini.Config
-  alias Gemini.Auth
   alias Gemini.Generate
 
   @type stream_id :: String.t()
@@ -377,85 +377,83 @@ defmodule Gemini.Streaming.ManagerV2 do
   @spec create_stream(term(), keyword(), pid(), manager_state()) ::
           {:ok, stream_id(), manager_state()} | {:error, term()}
   defp create_stream(contents, opts, subscriber_pid, state) do
-    try do
-      # Generate unique stream ID
-      stream_id = generate_stream_id(state.stream_counter)
+    # Generate unique stream ID
+    stream_id = generate_stream_id(state.stream_counter)
 
-      # Get authentication configuration
-      auth_config = Config.auth_config()
+    # Get authentication configuration
+    auth_config = Config.auth_config()
 
-      if is_nil(auth_config) do
-        throw({:error, :no_auth_config})
-      end
-
-      # Build request
-      model = Keyword.get(opts, :model, Config.default_model())
-      request_body = Generate.build_generate_request(contents, opts)
-
-      # Build streaming URL
-      base_url = Auth.get_base_url(auth_config.type, auth_config.credentials)
-
-      path =
-        Auth.build_path(auth_config.type, model, "streamGenerateContent", auth_config.credentials)
-
-      case Auth.build_headers(auth_config.type, auth_config.credentials) do
-        {:error, reason} ->
-          throw({:error, {:auth_failed, reason}})
-
-        {:ok, headers} ->
-          full_url = "#{base_url}/#{path}"
-
-          # Create monitor for initial subscriber
-          monitor_ref = Process.monitor(subscriber_pid)
-          subscriber_ref = {subscriber_pid, monitor_ref}
-
-          # Initialize stream state
-          stream_state = %{
-            stream_id: stream_id,
-            stream_pid: nil,
-            model: model,
-            request_body: request_body,
-            status: :starting,
-            error: nil,
-            started_at: DateTime.utc_now(),
-            subscribers: [subscriber_ref],
-            events_count: 0,
-            last_event_at: nil,
-            config: opts
-          }
-
-          # Start HTTP streaming
-          stream_opts = [
-            timeout: Keyword.get(opts, :timeout, state.default_timeout),
-            max_retries: Keyword.get(opts, :max_retries, 3)
-          ]
-
-          {:ok, stream_pid} =
-            HTTPStreaming.stream_to_process(
-              full_url,
-              headers,
-              request_body,
-              stream_id,
-              self(),
-              stream_opts
-            )
-
-          updated_stream = %{stream_state | stream_pid: stream_pid, status: :active}
-
-          new_state = %{
-            state
-            | streams: Map.put(state.streams, stream_id, updated_stream),
-              stream_counter: state.stream_counter + 1
-          }
-
-          Logger.info("Started stream #{stream_id} for model #{model}")
-          {:ok, stream_id, new_state}
-      end
-    rescue
-      error -> {:error, {:create_stream_error, error}}
-    catch
-      {:error, reason} -> {:error, reason}
+    if is_nil(auth_config) do
+      throw({:error, :no_auth_config})
     end
+
+    # Build request
+    model = Keyword.get(opts, :model, Config.default_model())
+    request_body = Generate.build_generate_request(contents, opts)
+
+    # Build streaming URL
+    base_url = Auth.get_base_url(auth_config.type, auth_config.credentials)
+
+    path =
+      Auth.build_path(auth_config.type, model, "streamGenerateContent", auth_config.credentials)
+
+    case Auth.build_headers(auth_config.type, auth_config.credentials) do
+      {:error, reason} ->
+        throw({:error, {:auth_failed, reason}})
+
+      {:ok, headers} ->
+        full_url = "#{base_url}/#{path}"
+
+        # Create monitor for initial subscriber
+        monitor_ref = Process.monitor(subscriber_pid)
+        subscriber_ref = {subscriber_pid, monitor_ref}
+
+        # Initialize stream state
+        stream_state = %{
+          stream_id: stream_id,
+          stream_pid: nil,
+          model: model,
+          request_body: request_body,
+          status: :starting,
+          error: nil,
+          started_at: DateTime.utc_now(),
+          subscribers: [subscriber_ref],
+          events_count: 0,
+          last_event_at: nil,
+          config: opts
+        }
+
+        # Start HTTP streaming
+        stream_opts = [
+          timeout: Keyword.get(opts, :timeout, state.default_timeout),
+          max_retries: Keyword.get(opts, :max_retries, 3)
+        ]
+
+        {:ok, stream_pid} =
+          HTTPStreaming.stream_to_process(
+            full_url,
+            headers,
+            request_body,
+            stream_id,
+            self(),
+            stream_opts
+          )
+
+        updated_stream = %{stream_state | stream_pid: stream_pid, status: :active}
+
+        new_state = %{
+          state
+          | streams: Map.put(state.streams, stream_id, updated_stream),
+            stream_counter: state.stream_counter + 1
+        }
+
+        Logger.info("Started stream #{stream_id} for model #{model}")
+        {:ok, stream_id, new_state}
+    end
+  rescue
+    error -> {:error, {:create_stream_error, error}}
+  catch
+    {:error, reason} -> {:error, reason}
   end
 
   @spec generate_stream_id(non_neg_integer()) :: stream_id()

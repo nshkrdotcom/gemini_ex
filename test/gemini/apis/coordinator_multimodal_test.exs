@@ -1,6 +1,7 @@
 defmodule Gemini.APIs.CoordinatorMultimodalTest do
   use ExUnit.Case, async: true
 
+  alias Gemini.APIs.Coordinator
   alias Gemini.Types.{Content, Part}
 
   # Test the normalization by calling the private functions via a wrapper
@@ -208,11 +209,11 @@ defmodule Gemini.APIs.CoordinatorMultimodalTest do
   # We use the actual implementation via the public API but inspect the structure
 
   defp normalize_test_input(input) do
-    Gemini.APIs.Coordinator.__test_normalize_content__(input)
+    Coordinator.__test_normalize_content__(input)
   end
 
   defp detect_mime_test(binary_data) do
     base64_data = Base.encode64(binary_data)
-    Gemini.APIs.Coordinator.__test_detect_mime__(base64_data)
+    Coordinator.__test_detect_mime__(base64_data)
   end
 end

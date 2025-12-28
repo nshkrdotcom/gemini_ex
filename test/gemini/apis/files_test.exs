@@ -189,29 +189,30 @@ defmodule Gemini.APIs.FilesTest do
   end
 
   # Helper to test MIME detection
+  @mime_by_ext %{
+    ".avi" => "video/x-msvideo",
+    ".flac" => "audio/flac",
+    ".gif" => "image/gif",
+    ".html" => "text/html",
+    ".jpeg" => "image/jpeg",
+    ".jpg" => "image/jpeg",
+    ".json" => "application/json",
+    ".mov" => "video/quicktime",
+    ".mp3" => "audio/mpeg",
+    ".mp4" => "video/mp4",
+    ".ogg" => "audio/ogg",
+    ".pdf" => "application/pdf",
+    ".png" => "image/png",
+    ".txt" => "text/plain",
+    ".wav" => "audio/wav",
+    ".webm" => "video/webm",
+    ".webp" => "image/webp"
+  }
+
   defp detect_mime(filename) do
     # Access private function through module
     ext = Path.extname(filename) |> String.downcase()
 
-    case ext do
-      ".png" -> "image/png"
-      ".jpg" -> "image/jpeg"
-      ".jpeg" -> "image/jpeg"
-      ".gif" -> "image/gif"
-      ".webp" -> "image/webp"
-      ".mp4" -> "video/mp4"
-      ".mov" -> "video/quicktime"
-      ".avi" -> "video/x-msvideo"
-      ".webm" -> "video/webm"
-      ".mp3" -> "audio/mpeg"
-      ".wav" -> "audio/wav"
-      ".ogg" -> "audio/ogg"
-      ".flac" -> "audio/flac"
-      ".pdf" -> "application/pdf"
-      ".txt" -> "text/plain"
-      ".html" -> "text/html"
-      ".json" -> "application/json"
-      _ -> "application/octet-stream"
-    end
+    Map.get(@mime_by_ext, ext, "application/octet-stream")
   end
 end

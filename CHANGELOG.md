@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.7] - 2025-12-27
+
+### Changed
+- **Code Quality Improvements**: Extensive refactoring across the codebase for better maintainability
+  - Simplified conditional logic patterns (replaced complex `cond` with clearer `if/else`)
+  - Extracted helper functions to reduce function complexity and improve readability
+  - Improved pattern matching and function composition
+  - Replaced `Enum.map` + `Enum.join` patterns with `Enum.map_join` for efficiency
+  - Better error handling patterns with reduced nesting
+  - Enhanced function organization and naming consistency
+
+- **Dependency Updates**:
+  - `altar`: 0.1.2 → 0.2.0 (ALTAR protocol improvements)
+  - `supertester`: 0.3.1 → 0.4.0 (testing framework enhancements)
+  - Added `stream_data` ~> 1.2.0 as explicit dependency
+
+### Technical
+- Function extraction and modularization throughout all API modules
+- Consistent error handling patterns across coordinators
+- Improved telemetry callback handling with safer invocation patterns
+- Better separation of concerns in authentication and streaming layers
+- Enhanced readability in type serialization and parsing logic
+
+### Notes
+- All changes are internal refactoring - no breaking changes to public API
+- Zero compilation warnings maintained
+- Full test suite passing (425+ tests)
+
 ## [0.8.6] - 2025-12-20
 
 ### Changed
@@ -1722,6 +1750,8 @@ config :gemini_ex,
 - Minimal latency overhead
 - Concurrent request processing
 
+[0.8.7]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.8.7
+[0.8.6]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.8.6
 [0.8.5]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.8.5
 [0.8.4]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.8.4
 [0.8.3]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.8.3

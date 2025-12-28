@@ -153,7 +153,7 @@ defmodule Gemini.Types.Response.EmbedContentBatchStatsTest do
     end
   end
 
-  describe "is_complete?/1" do
+  describe "complete?/1" do
     test "returns true when no pending requests" do
       stats = %EmbedContentBatchStats{
         request_count: 100,
@@ -162,7 +162,7 @@ defmodule Gemini.Types.Response.EmbedContentBatchStatsTest do
         pending_request_count: 0
       }
 
-      assert EmbedContentBatchStats.is_complete?(stats) == true
+      assert EmbedContentBatchStats.complete?(stats) == true
     end
 
     test "returns false when pending requests remain" do
@@ -173,7 +173,7 @@ defmodule Gemini.Types.Response.EmbedContentBatchStatsTest do
         pending_request_count: 50
       }
 
-      assert EmbedContentBatchStats.is_complete?(stats) == false
+      assert EmbedContentBatchStats.complete?(stats) == false
     end
 
     test "returns false when pending count is nil" do
@@ -185,7 +185,7 @@ defmodule Gemini.Types.Response.EmbedContentBatchStatsTest do
       }
 
       # If we don't know pending count, assume not complete
-      assert EmbedContentBatchStats.is_complete?(stats) == false
+      assert EmbedContentBatchStats.complete?(stats) == false
     end
 
     test "returns true when pending count is explicitly zero" do
@@ -196,7 +196,7 @@ defmodule Gemini.Types.Response.EmbedContentBatchStatsTest do
         pending_request_count: 0
       }
 
-      assert EmbedContentBatchStats.is_complete?(stats) == true
+      assert EmbedContentBatchStats.complete?(stats) == true
     end
 
     test "returns true for batch with all failures completed" do
@@ -207,7 +207,7 @@ defmodule Gemini.Types.Response.EmbedContentBatchStatsTest do
         pending_request_count: 0
       }
 
-      assert EmbedContentBatchStats.is_complete?(stats) == true
+      assert EmbedContentBatchStats.complete?(stats) == true
     end
   end
 

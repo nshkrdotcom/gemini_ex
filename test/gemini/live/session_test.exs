@@ -1,9 +1,9 @@
 defmodule Gemini.Live.SessionTest do
   use ExUnit.Case, async: true
 
-  alias Gemini.Live.Session
   alias Gemini.Live.Message
-  alias Gemini.Live.Message.{ClientMessage, LiveClientSetup, ClientContent, ServerMessage}
+  alias Gemini.Live.Message.{ClientContent, ClientMessage, LiveClientSetup, ServerMessage}
+  alias Gemini.Live.Session
 
   # We'll use a simple callback-based testing approach instead of Mox for WebSocket
   # since the WebSocket connection is managed internally by :gun

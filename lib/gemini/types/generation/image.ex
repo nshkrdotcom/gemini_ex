@@ -103,11 +103,11 @@ defmodule Gemini.Types.Generation.Image do
     field(:number_of_images, pos_integer(), default: 1)
     field(:aspect_ratio, String.t(), default: "1:1")
 
-    field(:safety_filter_level, Gemini.Types.Generation.Image.safety_filter_level(),
+    field(:safety_filter_level, :block_most | :block_some | :block_few | :block_none,
       default: :block_some
     )
 
-    field(:person_generation, Gemini.Types.Generation.Image.person_generation(),
+    field(:person_generation, :allow_adult | :allow_all | :allow_none | :dont_allow,
       default: :allow_none
     )
 
@@ -141,13 +141,13 @@ defmodule Gemini.Types.Generation.Image do
     """
 
     field(:prompt, String.t())
-    field(:edit_mode, Gemini.Types.Generation.Image.edit_mode(), default: :inpainting)
+    field(:edit_mode, :inpainting | :outpainting | :product_image, default: :inpainting)
     field(:mask_mode, atom(), default: :foreground)
     field(:mask_dilation, integer(), default: 0)
     field(:guidance_scale, float())
     field(:number_of_images, pos_integer(), default: 1)
 
-    field(:safety_filter_level, Gemini.Types.Generation.Image.safety_filter_level(),
+    field(:safety_filter_level, :block_most | :block_some | :block_few | :block_none,
       default: :block_some
     )
 
@@ -167,7 +167,7 @@ defmodule Gemini.Types.Generation.Image do
     - `output_compression_quality` - JPEG quality 0-100 (only for JPEG)
     """
 
-    field(:upscale_factor, Gemini.Types.Generation.Image.upscale_factor(), default: :x2)
+    field(:upscale_factor, :x2 | :x4, default: :x2)
     field(:output_mime_type, String.t(), default: "image/png")
     field(:output_compression_quality, integer())
   end

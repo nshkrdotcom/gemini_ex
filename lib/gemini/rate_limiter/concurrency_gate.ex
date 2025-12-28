@@ -91,11 +91,11 @@ defmodule Gemini.RateLimiter.ConcurrencyGate do
   def acquire(model, %Config{} = config) do
     ensure_tables_exist()
 
-    unless Config.concurrency_enabled?(config) do
-      {:error, :concurrency_disabled}
-    else
+    if Config.concurrency_enabled?(config) do
       max = effective_max(model, config)
       do_acquire(model, max, config.non_blocking, config.permit_timeout_ms)
+    else
+      {:error, :concurrency_disabled}
     end
   end
 
@@ -268,36 +268,7 @@ defmodule Gemini.RateLimiter.ConcurrencyGate do
 
   defp try_acquire(model, max) do
     with_lock(model, fn ->
-      case :ets.lookup(@ets_table, model) do
-        [{^model, state}] ->
-          effective = state.adaptive_max || state.max
-
-          if state.current < effective do
-            holders = Map.get(state, :holders, %{})
-            {new_holders, _watcher} = ensure_holder_tracking(model, self(), holders)
-
-            new_state = %{state | current: state.current + 1, holders: new_holders}
-            :ets.insert(@ets_table, {model, new_state})
-            :ok
-          else
-            :full
-          end
-
-        [] ->
-          # First request for this model, initialize and acquire
-          {new_holders, _watcher} = ensure_holder_tracking(model, self(), %{})
-
-          state = %{
-            current: 1,
-            max: max,
-            adaptive_max: nil,
-            waiting: [],
-            holders: new_holders
-          }
-
-          :ets.insert(@ets_table, {model, state})
-          :ok
-      end
+      do_try_acquire(model, max)
     end)
   end
 
@@ -356,26 +327,69 @@ defmodule Gemini.RateLimiter.ConcurrencyGate do
     ensure_tables_exist()
 
     with_lock(model, fn ->
-      case :ets.lookup(@ets_table, model) do
-        [{^model, state}] ->
-          holders = Map.get(state, :holders, %{})
-
-          case Map.pop(holders, holder_pid) do
-            {nil, _} ->
-              :ok
-
-            {{count, _watcher}, remaining_holders} ->
-              new_current = max(0, state.current - count)
-              new_state = %{state | current: new_current, holders: remaining_holders}
-              :ets.insert(@ets_table, {model, new_state})
-          end
-
-        [] ->
-          :ok
-      end
+      handle_holder_down_locked(model, holder_pid)
     end)
 
     :ok
+  end
+
+  defp do_try_acquire(model, max) do
+    case :ets.lookup(@ets_table, model) do
+      [{^model, state}] -> maybe_acquire_existing(model, state)
+      [] -> init_and_acquire(model, max)
+    end
+  end
+
+  defp maybe_acquire_existing(model, state) do
+    effective = state.adaptive_max || state.max
+
+    if state.current < effective do
+      holders = Map.get(state, :holders, %{})
+      {new_holders, _watcher} = ensure_holder_tracking(model, self(), holders)
+
+      new_state = %{state | current: state.current + 1, holders: new_holders}
+      :ets.insert(@ets_table, {model, new_state})
+      :ok
+    else
+      :full
+    end
+  end
+
+  defp init_and_acquire(model, max) do
+    # First request for this model, initialize and acquire
+    {new_holders, _watcher} = ensure_holder_tracking(model, self(), %{})
+
+    state = %{
+      current: 1,
+      max: max,
+      adaptive_max: nil,
+      waiting: [],
+      holders: new_holders
+    }
+
+    :ets.insert(@ets_table, {model, state})
+    :ok
+  end
+
+  defp handle_holder_down_locked(model, holder_pid) do
+    case :ets.lookup(@ets_table, model) do
+      [{^model, state}] -> update_state_for_holder_down(model, state, holder_pid)
+      [] -> :ok
+    end
+  end
+
+  defp update_state_for_holder_down(model, state, holder_pid) do
+    holders = Map.get(state, :holders, %{})
+
+    case Map.pop(holders, holder_pid) do
+      {nil, _} ->
+        :ok
+
+      {{count, _watcher}, remaining_holders} ->
+        new_current = max(0, state.current - count)
+        new_state = %{state | current: new_current, holders: remaining_holders}
+        :ets.insert(@ets_table, {model, new_state})
+    end
   end
 
   defp effective_max(model, config) do

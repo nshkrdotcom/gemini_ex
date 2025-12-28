@@ -5,8 +5,8 @@ defmodule Gemini.Tools.AutomaticFunctionCallingTest do
 
   use ExUnit.Case, async: true
 
-  alias Gemini.Tools.AutomaticFunctionCalling, as: AFC
   alias Altar.ADM.FunctionCall
+  alias Gemini.Tools.AutomaticFunctionCalling, as: AFC
 
   describe "config/1" do
     test "creates default config" do

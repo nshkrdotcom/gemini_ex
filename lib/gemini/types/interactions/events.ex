@@ -332,8 +332,8 @@ defmodule Gemini.Types.Interactions.Events do
     ContentStop,
     ErrorEvent,
     InteractionEvent,
-    InteractionStatusUpdate,
-    InteractionSSEEvent
+    InteractionSSEEvent,
+    InteractionStatusUpdate
   }
 
   @spec from_api(map() | InteractionSSEEvent.t() | nil) :: InteractionSSEEvent.t() | nil

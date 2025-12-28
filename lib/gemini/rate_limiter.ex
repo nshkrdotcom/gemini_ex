@@ -85,7 +85,7 @@ defmodule Gemini.RateLimiter do
   - `[:gemini_ex, :rate_limit, :error]` - Rate limit error
   """
 
-  alias Gemini.RateLimiter.{Manager, Config, State, ConcurrencyGate}
+  alias Gemini.RateLimiter.{ConcurrencyGate, Config, Manager, State}
 
   @doc """
   Execute a request through the rate limiter.

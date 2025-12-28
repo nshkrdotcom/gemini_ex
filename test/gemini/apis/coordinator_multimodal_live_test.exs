@@ -47,10 +47,7 @@ defmodule Gemini.APIs.CoordinatorMultimodalLiveTest do
 
   describe "Live API - Anthropic-Style Format" do
     test "processes image with Anthropic-style format (Issue #11 fix)", context do
-      unless context[:has_api_key] do
-        IO.puts("\n⚠️  Skipping multimodal live test (GEMINI_API_KEY not set)")
-        :skip
-      else
+      if context[:has_api_key] do
         IO.puts("\n🖼️  Testing Anthropic-style multimodal format with live API")
 
         image_path = Path.join(@fixtures_dir, "test_image_1x1.png")
@@ -91,13 +88,14 @@ defmodule Gemini.APIs.CoordinatorMultimodalLiveTest do
           {:error, error} ->
             flunk("Request failed: #{inspect(error)}")
         end
+      else
+        IO.puts("\n⚠️  Skipping multimodal live test (GEMINI_API_KEY not set)")
+        :skip
       end
     end
 
     test "processes image without explicit MIME type (auto-detection)", context do
-      unless context[:has_api_key] do
-        :skip
-      else
+      if context[:has_api_key] do
         IO.puts("\n🔍 Testing auto MIME type detection with live API")
 
         image_path = Path.join(@fixtures_dir, "test_image_1x1.png")
@@ -130,15 +128,15 @@ defmodule Gemini.APIs.CoordinatorMultimodalLiveTest do
           {:error, error} ->
             flunk("Request failed: #{inspect(error)}")
         end
+      else
+        :skip
       end
     end
   end
 
   describe "Live API - Multiple Images" do
     test "processes two images in one request", context do
-      unless context[:has_api_key] do
-        :skip
-      else
+      if context[:has_api_key] do
         IO.puts("\n🖼️🖼️  Testing multiple images in one request")
 
         png_path = Path.join(@fixtures_dir, "test_image_1x1.png")
@@ -172,13 +170,13 @@ defmodule Gemini.APIs.CoordinatorMultimodalLiveTest do
           {:error, error} ->
             flunk("Request failed: #{inspect(error)}")
         end
+      else
+        :skip
       end
     end
 
     test "processes interleaved text and images", context do
-      unless context[:has_api_key] do
-        :skip
-      else
+      if context[:has_api_key] do
         IO.puts("\n📝🖼️📝🖼️  Testing interleaved text and images")
 
         png_path = Path.join(@fixtures_dir, "test_image_1x1.png")
@@ -211,15 +209,15 @@ defmodule Gemini.APIs.CoordinatorMultimodalLiveTest do
           {:error, error} ->
             flunk("Request failed: #{inspect(error)}")
         end
+      else
+        :skip
       end
     end
   end
 
   describe "Live API - Format Comparison" do
     test "all input formats produce equivalent API calls", context do
-      unless context[:has_api_key] do
-        :skip
-      else
+      if context[:has_api_key] do
         IO.puts("\n🔄 Testing that different input formats produce same results")
 
         image_path = Path.join(@fixtures_dir, "test_image_1x1.png")
@@ -286,6 +284,8 @@ defmodule Gemini.APIs.CoordinatorMultimodalLiveTest do
 
         # If we got here, all formats were accepted (even if images rejected)
         assert true
+      else
+        :skip
       end
     end
   end

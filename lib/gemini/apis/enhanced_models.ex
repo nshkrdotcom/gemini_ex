@@ -26,7 +26,7 @@ defmodule Gemini.APIs.Models do
   """
 
   alias Gemini.Client
-  alias Gemini.Types.Request.{ListModelsRequest, GetModelRequest}
+  alias Gemini.Types.Request.{GetModelRequest, ListModelsRequest}
   alias Gemini.Types.Response.{ListModelsResponse, Model}
   alias Gemini.{Error, Telemetry}
 
@@ -421,35 +421,31 @@ defmodule Gemini.APIs.Models do
 
   @spec parse_list_models_response(map()) :: {:ok, ListModelsResponse.t()} | {:error, Error.t()}
   defp parse_list_models_response(response) do
-    try do
-      models =
-        response
-        |> Map.get("models", [])
-        |> Enum.map(&parse_model_data/1)
+    models =
+      response
+      |> Map.get("models", [])
+      |> Enum.map(&parse_model_data/1)
 
-      list_response = %ListModelsResponse{
-        models: models,
-        next_page_token: Map.get(response, "nextPageToken")
-      }
+    list_response = %ListModelsResponse{
+      models: models,
+      next_page_token: Map.get(response, "nextPageToken")
+    }
 
-      {:ok, list_response}
-    rescue
-      error ->
-        Logger.error("Failed to parse models list response: #{inspect(error)}")
-        {:error, Error.invalid_response("Failed to parse models response: #{inspect(error)}")}
-    end
+    {:ok, list_response}
+  rescue
+    error ->
+      Logger.error("Failed to parse models list response: #{inspect(error)}")
+      {:error, Error.invalid_response("Failed to parse models response: #{inspect(error)}")}
   end
 
   @spec parse_model_response(map()) :: {:ok, Model.t()} | {:error, Error.t()}
   defp parse_model_response(response) do
-    try do
-      model = parse_model_data(response)
-      {:ok, model}
-    rescue
-      error ->
-        Logger.error("Failed to parse model response: #{inspect(error)}")
-        {:error, Error.invalid_response("Failed to parse model response: #{inspect(error)}")}
-    end
+    model = parse_model_data(response)
+    {:ok, model}
+  rescue
+    error ->
+      Logger.error("Failed to parse model response: #{inspect(error)}")
+      {:error, Error.invalid_response("Failed to parse model response: #{inspect(error)}")}
   end
 
   @spec parse_model_data(map()) :: Model.t()
@@ -483,40 +479,37 @@ defmodule Gemini.APIs.Models do
 
   @spec model_matches_filter?(Model.t(), keyword()) :: boolean()
   defp model_matches_filter?(model, filter_opts) do
-    Enum.all?(filter_opts, fn {key, value} ->
-      case key do
-        :min_input_tokens ->
-          model.input_token_limit >= value
-
-        :min_output_tokens ->
-          model.output_token_limit >= value
-
-        :supports_methods when is_list(value) ->
-          Enum.all?(value, &Model.supports_method?(model, &1))
-
-        :has_temperature ->
-          (value and not is_nil(model.temperature)) or not value
-
-        :has_top_k ->
-          (value and not is_nil(model.top_k)) or not value
-
-        :has_top_p ->
-          (value and not is_nil(model.top_p)) or not value
-
-        :production_ready ->
-          (value and Model.production_ready?(model)) or not value
-
-        :model_family ->
-          Model.model_family(model) == value
-
-        :latest_version ->
-          (value and Model.latest_version?(model)) or not value
-
-        _ ->
-          true
-      end
-    end)
+    Enum.all?(filter_opts, &filter_match?(model, &1))
   end
+
+  defp filter_match?(model, {:min_input_tokens, value}),
+    do: model.input_token_limit >= value
+
+  defp filter_match?(model, {:min_output_tokens, value}),
+    do: model.output_token_limit >= value
+
+  defp filter_match?(model, {:supports_methods, value}) when is_list(value),
+    do: Enum.all?(value, &Model.supports_method?(model, &1))
+
+  defp filter_match?(model, {:has_temperature, value}),
+    do: (value and not is_nil(model.temperature)) or not value
+
+  defp filter_match?(model, {:has_top_k, value}),
+    do: (value and not is_nil(model.top_k)) or not value
+
+  defp filter_match?(model, {:has_top_p, value}),
+    do: (value and not is_nil(model.top_p)) or not value
+
+  defp filter_match?(model, {:production_ready, value}),
+    do: (value and Model.production_ready?(model)) or not value
+
+  defp filter_match?(model, {:model_family, value}),
+    do: Model.model_family(model) == value
+
+  defp filter_match?(model, {:latest_version, value}),
+    do: (value and Model.latest_version?(model)) or not value
+
+  defp filter_match?(_model, _filter), do: true
 
   @spec count_by_version([Model.t()]) :: map()
   defp count_by_version(models) do

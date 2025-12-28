@@ -36,25 +36,23 @@ defmodule Gemini.SSE.Parser do
   """
   @spec parse_chunk(String.t(), t()) :: parse_result()
   def parse_chunk(chunk, %__MODULE__{buffer: buffer} = state) when is_binary(chunk) do
-    try do
-      # Combine existing buffer with new chunk
-      full_data = buffer <> chunk
+    # Combine existing buffer with new chunk
+    full_data = buffer <> chunk
 
-      # Extract complete events (separated by \n\n)
-      {events, remaining_buffer} = extract_events(full_data)
+    # Extract complete events (separated by \n\n)
+    {events, remaining_buffer} = extract_events(full_data)
 
-      # Parse each event
-      parsed_events =
-        events
-        |> Enum.map(&parse_event/1)
-        |> Enum.filter(&(&1 != nil))
+    # Parse each event
+    parsed_events =
+      events
+      |> Enum.map(&parse_event/1)
+      |> Enum.filter(&(&1 != nil))
 
-      new_state = %{state | buffer: remaining_buffer}
+    new_state = %{state | buffer: remaining_buffer}
 
-      {:ok, parsed_events, new_state}
-    rescue
-      error -> {:error, {:parse_error, error}}
-    end
+    {:ok, parsed_events, new_state}
+  rescue
+    error -> {:error, {:parse_error, error}}
   end
 
   @doc """
@@ -112,56 +110,7 @@ defmodule Gemini.SSE.Parser do
   defp parse_sse_lines(event_data) do
     event_data
     |> String.split("\n")
-    |> Enum.reduce(%{data_lines: []}, fn raw_line, acc ->
-      line = String.trim_trailing(raw_line, "\r")
-
-      cond do
-        line == "" ->
-          acc
-
-        String.starts_with?(line, ":") ->
-          # Comment line (SSE spec)
-          acc
-
-        true ->
-          case String.split(line, ":", parts: 2) do
-            [field, value] ->
-              value =
-                case value do
-                  " " <> rest -> rest
-                  other -> other
-                end
-
-              case field do
-                "data" ->
-                  Map.update!(acc, :data_lines, fn existing -> existing ++ [value] end)
-
-                "event" ->
-                  Map.put(acc, :event, value)
-
-                "id" ->
-                  Map.put(acc, :id, value)
-
-                "retry" ->
-                  case Integer.parse(value) do
-                    {ms, ""} -> Map.put(acc, :retry, ms)
-                    _ -> acc
-                  end
-
-                "" ->
-                  acc
-
-                other ->
-                  # Handle other SSE fields (keep existing behavior; assumes bounded field set).
-                  Map.put(acc, String.to_atom(other), value)
-              end
-
-            _ ->
-              # Ignore malformed lines
-              acc
-          end
-      end
-    end)
+    |> Enum.reduce(%{data_lines: []}, &parse_line/2)
   end
 
   @spec build_event(map()) :: map() | nil
@@ -227,20 +176,62 @@ defmodule Gemini.SSE.Parser do
   def extract_text(%{data: %{"candidates" => candidates}}) do
     candidates
     |> List.first()
-    |> case do
-      %{"content" => %{"parts" => parts}} ->
-        parts
-        |> Enum.find_value(fn part ->
-          case part do
-            %{"text" => text} -> text
-            _ -> nil
-          end
-        end)
-
-      _ ->
-        nil
-    end
+    |> extract_text_from_candidate()
   end
 
   def extract_text(_), do: nil
+
+  defp parse_line(raw_line, acc) do
+    line = String.trim_trailing(raw_line, "\r")
+
+    cond do
+      line == "" -> acc
+      String.starts_with?(line, ":") -> acc
+      true -> parse_field_line(line, acc)
+    end
+  end
+
+  defp parse_field_line(line, acc) do
+    case String.split(line, ":", parts: 2) do
+      [field, value] ->
+        handle_field(field, normalize_field_value(value), acc)
+
+      _ ->
+        # Ignore malformed lines
+        acc
+    end
+  end
+
+  defp normalize_field_value(" " <> rest), do: rest
+  defp normalize_field_value(value), do: value
+
+  defp handle_field("data", value, acc) do
+    Map.update!(acc, :data_lines, fn existing -> existing ++ [value] end)
+  end
+
+  defp handle_field("event", value, acc), do: Map.put(acc, :event, value)
+  defp handle_field("id", value, acc), do: Map.put(acc, :id, value)
+  defp handle_field("retry", value, acc), do: maybe_put_retry(acc, value)
+  defp handle_field("", _value, acc), do: acc
+
+  defp handle_field(other, value, acc) do
+    # Handle other SSE fields (keep existing behavior; assumes bounded field set).
+    Map.put(acc, String.to_atom(other), value)
+  end
+
+  defp maybe_put_retry(acc, value) do
+    case Integer.parse(value) do
+      {ms, ""} -> Map.put(acc, :retry, ms)
+      _ -> acc
+    end
+  end
+
+  defp extract_text_from_candidate(%{"content" => %{"parts" => parts}}) do
+    Enum.find_value(parts, &extract_text_from_part/1)
+  end
+
+  defp extract_text_from_candidate(_), do: nil
+
+  defp extract_text_from_part(%{"text" => text}), do: text
+  defp extract_text_from_part(_), do: nil
 end

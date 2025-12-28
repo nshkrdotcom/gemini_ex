@@ -38,6 +38,8 @@ defmodule Gemini.Types.Generation.Video do
 
   use TypedStruct
 
+  alias Gemini.Types.{Blob, Operation}
+
   @typedoc """
   Aspect ratio for generated videos.
 
@@ -74,6 +76,16 @@ defmodule Gemini.Types.Generation.Video do
   """
   @type reference_type :: String.t()
 
+  typedstruct module: VideoGenerationReferenceImage do
+    @derive Jason.Encoder
+    @moduledoc """
+    Reference image used to guide video generation.
+    """
+
+    field(:image, Blob.t() | map())
+    field(:reference_type, String.t(), default: "asset")
+  end
+
   typedstruct module: VideoGenerationConfig do
     @derive Jason.Encoder
     @moduledoc """
@@ -102,27 +114,17 @@ defmodule Gemini.Types.Generation.Video do
     field(:duration_seconds, pos_integer(), default: 8)
     field(:aspect_ratio, String.t(), default: "16:9")
     field(:fps, pos_integer(), default: 24)
-    field(:compression_format, Gemini.Types.Generation.Video.compression_format(), default: :h264)
+    field(:compression_format, :h264 | :h265, default: :h264)
     field(:safety_filter_level, atom(), default: :block_some)
     field(:negative_prompt, String.t())
     field(:seed, integer())
     field(:guidance_scale, float())
     field(:person_generation, atom(), default: :allow_none)
-    field(:image, Gemini.Types.Blob.t() | map())
-    field(:last_frame, Gemini.Types.Blob.t() | map())
-    field(:reference_images, [Gemini.Types.Generation.Video.VideoGenerationReferenceImage.t()])
-    field(:video, Gemini.Types.Blob.t() | map())
-    field(:resolution, Gemini.Types.Generation.Video.resolution())
-  end
-
-  typedstruct module: VideoGenerationReferenceImage do
-    @derive Jason.Encoder
-    @moduledoc """
-    Reference image used to guide video generation.
-    """
-
-    field(:image, Gemini.Types.Blob.t() | map())
-    field(:reference_type, Gemini.Types.Generation.Video.reference_type(), default: "asset")
+    field(:image, Blob.t() | map())
+    field(:last_frame, Blob.t() | map())
+    field(:reference_images, [VideoGenerationReferenceImage.t()])
+    field(:video, Blob.t() | map())
+    field(:resolution, String.t())
   end
 
   @type t :: VideoGenerationConfig.t()
@@ -167,7 +169,7 @@ defmodule Gemini.Types.Generation.Video do
     - `estimated_completion_time` - Estimated time until completion
     """
 
-    field(:operation, Gemini.Types.Operation.t())
+    field(:operation, Operation.t())
     field(:progress_percent, float())
     field(:estimated_completion_time, DateTime.t())
   end
@@ -231,10 +233,10 @@ defmodule Gemini.Types.Generation.Video do
   end
 
   @doc false
-  @spec image_to_api(Gemini.Types.Blob.t() | map() | nil) :: map() | nil
+  @spec image_to_api(Blob.t() | map() | nil) :: map() | nil
   def image_to_api(nil), do: nil
 
-  def image_to_api(%Gemini.Types.Blob{data: data, mime_type: mime_type}) do
+  def image_to_api(%Blob{data: data, mime_type: mime_type}) do
     %{"bytesBase64Encoded" => data, "mimeType" => mime_type}
   end
 
@@ -256,10 +258,10 @@ defmodule Gemini.Types.Generation.Video do
   def image_to_api(%{} = value), do: value
 
   @doc false
-  @spec video_to_api(Gemini.Types.Blob.t() | GeneratedVideo.t() | map() | nil) :: map() | nil
+  @spec video_to_api(Blob.t() | GeneratedVideo.t() | map() | nil) :: map() | nil
   def video_to_api(nil), do: nil
 
-  def video_to_api(%Gemini.Types.Blob{data: data, mime_type: mime_type}) do
+  def video_to_api(%Blob{data: data, mime_type: mime_type}) do
     %{"bytesBase64Encoded" => data, "mimeType" => mime_type}
   end
 
@@ -313,7 +315,7 @@ defmodule Gemini.Types.Generation.Video do
   @doc """
   Wraps an Operation with video-specific metadata.
   """
-  @spec wrap_operation(Gemini.Types.Operation.t()) :: VideoOperation.t()
+  @spec wrap_operation(Operation.t()) :: VideoOperation.t()
   def wrap_operation(operation) do
     progress = extract_progress(operation)
 
@@ -329,7 +331,7 @@ defmodule Gemini.Types.Generation.Video do
   """
   @spec complete?(VideoOperation.t()) :: boolean()
   def complete?(%VideoOperation{operation: operation}) do
-    Gemini.Types.Operation.complete?(operation)
+    Operation.complete?(operation)
   end
 
   @doc """
@@ -337,7 +339,7 @@ defmodule Gemini.Types.Generation.Video do
   """
   @spec succeeded?(VideoOperation.t()) :: boolean()
   def succeeded?(%VideoOperation{operation: operation}) do
-    Gemini.Types.Operation.succeeded?(operation)
+    Operation.succeeded?(operation)
   end
 
   @doc """
@@ -345,15 +347,15 @@ defmodule Gemini.Types.Generation.Video do
   """
   @spec failed?(VideoOperation.t()) :: boolean()
   def failed?(%VideoOperation{operation: operation}) do
-    Gemini.Types.Operation.failed?(operation)
+    Operation.failed?(operation)
   end
 
   @doc """
   Extracts generated videos from a completed operation.
   """
-  @spec extract_videos(Gemini.Types.Operation.t()) ::
+  @spec extract_videos(Operation.t()) ::
           {:ok, [GeneratedVideo.t()]} | {:error, term()}
-  def extract_videos(%Gemini.Types.Operation{done: true, response: response})
+  def extract_videos(%Operation{done: true, response: response})
       when is_map(response) do
     videos =
       (response["generatedVideos"] || response["predictions"] || [])
@@ -362,12 +364,12 @@ defmodule Gemini.Types.Generation.Video do
     {:ok, videos}
   end
 
-  def extract_videos(%Gemini.Types.Operation{done: true, error: error})
+  def extract_videos(%Operation{done: true, error: error})
       when not is_nil(error) do
     {:error, error}
   end
 
-  def extract_videos(%Gemini.Types.Operation{done: false}) do
+  def extract_videos(%Operation{done: false}) do
     {:error, "Operation not yet complete"}
   end
 

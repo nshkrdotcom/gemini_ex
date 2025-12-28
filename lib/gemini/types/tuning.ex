@@ -50,10 +50,12 @@ defmodule Gemini.Types.Tuning do
     """
     use TypedStruct
 
+    alias Gemini.Types.Tuning.HyperParameters
+
     typedstruct do
       field(:training_dataset_uri, String.t())
       field(:validation_dataset_uri, String.t())
-      field(:hyper_parameters, Gemini.Types.Tuning.HyperParameters.t())
+      field(:hyper_parameters, HyperParameters.t())
     end
 
     @doc """
@@ -66,8 +68,7 @@ defmodule Gemini.Types.Tuning do
       %__MODULE__{
         training_dataset_uri: spec["trainingDatasetUri"],
         validation_dataset_uri: spec["validationDatasetUri"],
-        hyper_parameters:
-          Gemini.Types.Tuning.HyperParameters.from_api_response(spec["hyperParameters"])
+        hyper_parameters: HyperParameters.from_api_response(spec["hyperParameters"])
       }
     end
   end
@@ -105,6 +106,8 @@ defmodule Gemini.Types.Tuning do
     """
     use TypedStruct
 
+    alias Gemini.Types.Tuning.{SupervisedTuningSpec, TuningJobError}
+
     typedstruct do
       field(:name, String.t())
       field(:tuned_model_display_name, String.t())
@@ -115,8 +118,8 @@ defmodule Gemini.Types.Tuning do
       field(:start_time, String.t())
       field(:end_time, String.t())
       field(:tuned_model, String.t())
-      field(:supervised_tuning_spec, Gemini.Types.Tuning.SupervisedTuningSpec.t())
-      field(:error, Gemini.Types.Tuning.TuningJobError.t())
+      field(:supervised_tuning_spec, SupervisedTuningSpec.t())
+      field(:error, TuningJobError.t())
     end
   end
 
@@ -144,8 +147,11 @@ defmodule Gemini.Types.Tuning do
     """
     use TypedStruct
 
+    alias Gemini.Types.Tuning
+    alias Gemini.Types.Tuning.TuningJob
+
     typedstruct do
-      field(:tuning_jobs, list(Gemini.Types.Tuning.TuningJob.t()), default: [])
+      field(:tuning_jobs, list(TuningJob.t()), default: [])
       field(:next_page_token, String.t())
     end
 
@@ -156,7 +162,7 @@ defmodule Gemini.Types.Tuning do
     def from_api_response(response) when is_map(response) do
       jobs =
         (response["tuningJobs"] || [])
-        |> Enum.map(&Gemini.Types.Tuning.from_api_response/1)
+        |> Enum.map(&Tuning.from_api_response/1)
 
       %__MODULE__{
         tuning_jobs: jobs,

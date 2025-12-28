@@ -15,8 +15,8 @@ defmodule Gemini.APIs.ImagesLiveTest do
   alias Gemini.APIs.Images
 
   alias Gemini.Types.Generation.Image.{
-    ImageGenerationConfig,
-    GeneratedImage
+    GeneratedImage,
+    ImageGenerationConfig
   }
 
   @moduletag :live_api

@@ -139,7 +139,7 @@ defmodule Gemini.Types.Response.GenerateContentResponse do
   defp parse_datetime(_), do: nil
 
   defp parse_candidates(list) when is_list(list) do
-    Enum.map(list, &Gemini.Types.Response.Candidate.from_api/1)
+    Enum.map(list, &Candidate.from_api/1)
   end
 
   @doc """
@@ -179,10 +179,12 @@ defmodule Gemini.Types.Response.Candidate do
 
   alias Gemini.Types.Content
 
+  alias Gemini.Types.Response, as: Response
+
   alias Gemini.Types.Response.{
-    SafetyRating,
     CitationMetadata,
-    GroundingAttribution
+    GroundingAttribution,
+    SafetyRating
   }
 
   @derive Jason.Encoder
@@ -210,21 +212,21 @@ defmodule Gemini.Types.Response.Candidate do
         data
         |> Map.get("content")
         |> Kernel.||(Map.get(data, :content))
-        |> Gemini.Types.Response.parse_content(),
+        |> Response.parse_content(),
       finish_reason: Map.get(data, "finishReason") || Map.get(data, :finish_reason),
       finish_message: Map.get(data, "finishMessage") || Map.get(data, :finish_message),
       safety_ratings:
         data
         |> Map.get("safetyRatings")
         |> Kernel.||(Map.get(data, :safety_ratings))
-        |> Gemini.Types.Response.parse_safety_ratings(),
+        |> Response.parse_safety_ratings(),
       citation_metadata: Map.get(data, "citationMetadata") || Map.get(data, :citation_metadata),
       token_count: Map.get(data, "tokenCount") || Map.get(data, :token_count),
       grounding_attributions:
         data
         |> Map.get("groundingAttributions")
         |> Kernel.||(Map.get(data, :grounding_attributions))
-        |> Gemini.Types.Response.parse_grounding_attributions(),
+        |> Response.parse_grounding_attributions(),
       index: Map.get(data, "index") || Map.get(data, :index),
       avg_logprobs: Map.get(data, "avgLogprobs") || Map.get(data, :avg_logprobs)
     }
@@ -238,6 +240,7 @@ defmodule Gemini.Types.Response.PromptFeedback do
 
   use TypedStruct
 
+  alias Gemini.Types.Response, as: Response
   alias Gemini.Types.Response.SafetyRating
 
   @derive Jason.Encoder
@@ -260,7 +263,7 @@ defmodule Gemini.Types.Response.PromptFeedback do
         data
         |> Map.get("safetyRatings")
         |> Kernel.||(Map.get(data, :safety_ratings))
-        |> Gemini.Types.Response.parse_safety_ratings(),
+        |> Response.parse_safety_ratings(),
       block_reason_message:
         Map.get(data, "blockReasonMessage") || Map.get(data, :block_reason_message)
     }
@@ -274,6 +277,7 @@ defmodule Gemini.Types.Response.UsageMetadata do
 
   use TypedStruct
 
+  alias Gemini.Types.Response, as: Response
   alias Gemini.Types.Response.{ModalityTokenCount, TrafficType}
 
   @derive Jason.Encoder
@@ -314,22 +318,22 @@ defmodule Gemini.Types.Response.UsageMetadata do
         data
         |> Map.get("promptTokensDetails")
         |> Kernel.||(Map.get(data, :prompt_tokens_details))
-        |> Gemini.Types.Response.parse_modality_token_counts(),
+        |> Response.parse_modality_token_counts(),
       cache_tokens_details:
         data
         |> Map.get("cacheTokensDetails")
         |> Kernel.||(Map.get(data, :cache_tokens_details))
-        |> Gemini.Types.Response.parse_modality_token_counts(),
+        |> Response.parse_modality_token_counts(),
       response_tokens_details:
         data
         |> Map.get("responseTokensDetails")
         |> Kernel.||(Map.get(data, :response_tokens_details))
-        |> Gemini.Types.Response.parse_modality_token_counts(),
+        |> Response.parse_modality_token_counts(),
       tool_use_prompt_tokens_details:
         data
         |> Map.get("toolUsePromptTokensDetails")
         |> Kernel.||(Map.get(data, :tool_use_prompt_tokens_details))
-        |> Gemini.Types.Response.parse_modality_token_counts(),
+        |> Response.parse_modality_token_counts(),
       traffic_type:
         data
         |> Map.get("trafficType")
@@ -413,6 +417,7 @@ defmodule Gemini.Types.Response.GroundingAttribution do
   use TypedStruct
 
   alias Gemini.Types.Content
+  alias Gemini.Types.Response, as: Response
   alias Gemini.Types.Response.GroundingAttributionSourceId
 
   @derive Jason.Encoder
@@ -436,7 +441,7 @@ defmodule Gemini.Types.Response.GroundingAttribution do
         data
         |> Map.get("content")
         |> Kernel.||(Map.get(data, :content))
-        |> Gemini.Types.Response.parse_content()
+        |> Response.parse_content()
     }
   end
 end

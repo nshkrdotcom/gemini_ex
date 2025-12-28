@@ -110,51 +110,11 @@ defmodule Gemini.Auth.MultiAuthCoordinator do
 
   def get_credentials(:vertex_ai, opts) do
     base_config = Config.get_auth_config(:vertex_ai)
+    credentials = build_vertex_credentials(base_config, opts)
 
-    # Build credentials from config and opts
-    credentials = %{}
-
-    # Project ID (required)
-    project_id = Keyword.get(opts, :project_id, base_config[:project_id])
-
-    credentials =
-      if project_id, do: Map.put(credentials, :project_id, project_id), else: credentials
-
-    # Location (required)
-    location = Keyword.get(opts, :location, base_config[:location] || "us-central1")
-    credentials = Map.put(credentials, :location, location)
-
-    quota_project_id = Keyword.get(opts, :quota_project_id, base_config[:quota_project_id])
-
-    credentials =
-      if is_binary(quota_project_id) and quota_project_id != "" do
-        Map.put(credentials, :quota_project_id, quota_project_id)
-      else
-        credentials
-      end
-
-    # Auth method - prioritize opts, then config
-    cond do
-      access_token = Keyword.get(opts, :access_token) ->
-        {:ok, Map.put(credentials, :access_token, access_token)}
-
-      service_account_key =
-          Keyword.get(opts, :service_account_key, base_config[:service_account_key]) ->
-        {:ok, Map.put(credentials, :service_account_key, service_account_key)}
-
-      service_account_data =
-          Keyword.get(opts, :service_account_data, base_config[:service_account_data]) ->
-        {:ok, Map.put(credentials, :service_account_data, service_account_data)}
-
-      base_config[:access_token] ->
-        {:ok, Map.put(credentials, :access_token, base_config[:access_token])}
-
-      true ->
-        case {credentials[:project_id], credentials[:location]} do
-          {nil, _} -> {:error, "Missing Vertex AI project_id"}
-          {_, nil} -> {:error, "Missing Vertex AI location"}
-          _ -> {:ok, credentials}
-        end
+    case add_vertex_auth_method(credentials, base_config, opts) do
+      {:ok, _} = ok -> ok
+      :no_auth -> validate_vertex_base_credentials(credentials)
     end
   end
 
@@ -254,4 +214,49 @@ defmodule Gemini.Auth.MultiAuthCoordinator do
   end
 
   # Private helper functions
+  defp build_vertex_credentials(base_config, opts) do
+    credentials = %{}
+
+    project_id = Keyword.get(opts, :project_id, base_config[:project_id])
+    credentials = maybe_put(credentials, :project_id, project_id)
+
+    location = Keyword.get(opts, :location, base_config[:location] || "us-central1")
+    credentials = Map.put(credentials, :location, location)
+
+    quota_project_id = Keyword.get(opts, :quota_project_id, base_config[:quota_project_id])
+    maybe_put(credentials, :quota_project_id, quota_project_id)
+  end
+
+  defp maybe_put(credentials, _key, nil), do: credentials
+  defp maybe_put(credentials, _key, ""), do: credentials
+  defp maybe_put(credentials, key, value), do: Map.put(credentials, key, value)
+
+  defp add_vertex_auth_method(credentials, base_config, opts) do
+    cond do
+      access_token = Keyword.get(opts, :access_token) ->
+        {:ok, Map.put(credentials, :access_token, access_token)}
+
+      service_account_key =
+          Keyword.get(opts, :service_account_key, base_config[:service_account_key]) ->
+        {:ok, Map.put(credentials, :service_account_key, service_account_key)}
+
+      service_account_data =
+          Keyword.get(opts, :service_account_data, base_config[:service_account_data]) ->
+        {:ok, Map.put(credentials, :service_account_data, service_account_data)}
+
+      base_config[:access_token] ->
+        {:ok, Map.put(credentials, :access_token, base_config[:access_token])}
+
+      true ->
+        :no_auth
+    end
+  end
+
+  defp validate_vertex_base_credentials(credentials) do
+    case {credentials[:project_id], credentials[:location]} do
+      {nil, _} -> {:error, "Missing Vertex AI project_id"}
+      {_, nil} -> {:error, "Missing Vertex AI location"}
+      _ -> {:ok, credentials}
+    end
+  end
 end

@@ -2,10 +2,10 @@ defmodule Gemini.APIs.FileSearchStoresTest do
   use ExUnit.Case, async: true
 
   alias Gemini.Types.{
-    FileSearchStore,
     CreateFileSearchStoreConfig,
-    ListFileSearchStoresResponse,
-    FileSearchDocument
+    FileSearchDocument,
+    FileSearchStore,
+    ListFileSearchStoresResponse
   }
 
   describe "FileSearchStore type parsing" do

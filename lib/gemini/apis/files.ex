@@ -127,9 +127,7 @@ defmodule Gemini.APIs.Files do
     file_path = to_string(file_path)
 
     # Validate file exists
-    unless @elixir_file.exists?(file_path) do
-      {:error, {:file_not_found, file_path}}
-    else
+    if @elixir_file.exists?(file_path) do
       # Get file info
       file_size = @elixir_file.stat!(file_path).size
       mime_type = Keyword.get(opts, :mime_type) || detect_mime_type(file_path)
@@ -156,6 +154,8 @@ defmodule Gemini.APIs.Files do
            {:ok, response} <- upload_file_data(upload_url, file_path, file_size, opts) do
         {:ok, File.from_api_response(response)}
       end
+    else
+      {:error, {:file_not_found, file_path}}
     end
   end
 
@@ -179,9 +179,7 @@ defmodule Gemini.APIs.Files do
   def upload_data(data, opts) when is_binary(data) do
     mime_type = Keyword.get(opts, :mime_type)
 
-    unless mime_type do
-      {:error, {:missing_required_option, :mime_type}}
-    else
+    if mime_type do
       file_size = byte_size(data)
       display_name = Keyword.get(opts, :display_name, "uploaded_file")
 
@@ -197,6 +195,8 @@ defmodule Gemini.APIs.Files do
            {:ok, response} <- upload_binary_data(upload_url, data, file_size, opts) do
         {:ok, File.from_api_response(response)}
       end
+    else
+      {:error, {:missing_required_option, :mime_type}}
     end
   end
 
@@ -439,31 +439,15 @@ defmodule Gemini.APIs.Files do
         {:error, reason}
 
       data when is_binary(data) ->
-        chunk_size = byte_size(data)
-        is_final = offset + chunk_size >= total_size
-        command = if is_final, do: "upload, finalize", else: "upload"
-
-        headers = [
-          {"X-Goog-Upload-Command", command},
-          {"X-Goog-Upload-Offset", to_string(offset)},
-          {"Content-Length", to_string(chunk_size)}
-        ]
-
-        case upload_chunk_with_retry(upload_url, data, headers, opts, @max_retries) do
-          {:ok, response} ->
-            new_offset = offset + chunk_size
-
-            if on_progress, do: on_progress.(new_offset, total_size)
-
-            if is_final do
-              {:ok, response}
-            else
-              upload_chunks(upload_url, file_handle, total_size, new_offset, on_progress, opts)
-            end
-
-          {:error, reason} ->
-            {:error, reason}
-        end
+        upload_chunk_data(
+          upload_url,
+          data,
+          file_handle,
+          total_size,
+          offset,
+          on_progress,
+          opts
+        )
     end
   end
 
@@ -580,36 +564,8 @@ defmodule Gemini.APIs.Files do
   defp do_wait_for_processing(name, opts, poll_interval, timeout, start_time, on_status) do
     case get(name, opts) do
       {:ok, file} ->
-        if on_status, do: on_status.(file)
-
-        case file.state do
-          :active ->
-            {:ok, file}
-
-          :failed ->
-            {:error, {:file_processing_failed, file.error}}
-
-          :processing ->
-            elapsed = System.monotonic_time(:millisecond) - start_time
-
-            if elapsed >= timeout do
-              {:error, :timeout}
-            else
-              Process.sleep(poll_interval)
-
-              do_wait_for_processing(
-                name,
-                opts,
-                poll_interval,
-                timeout,
-                start_time,
-                on_status
-              )
-            end
-
-          _ ->
-            {:error, {:unknown_state, file.state}}
-        end
+        maybe_report_status(on_status, file)
+        handle_file_state(file, name, opts, poll_interval, timeout, start_time, on_status)
 
       {:error, reason} ->
         {:error, reason}
@@ -626,49 +582,129 @@ defmodule Gemini.APIs.Files do
     end
   end
 
-  defp detect_mime_type(file_path) do
-    ext = Path.extname(file_path) |> String.downcase()
+  @mime_by_ext %{
+    ".aac" => "audio/aac",
+    ".aiff" => "audio/aiff",
+    ".avi" => "video/x-msvideo",
+    ".css" => "text/css",
+    ".csv" => "text/csv",
+    ".flac" => "audio/flac",
+    ".flv" => "video/x-flv",
+    ".gif" => "image/gif",
+    ".heic" => "image/heic",
+    ".heif" => "image/heif",
+    ".htm" => "text/html",
+    ".html" => "text/html",
+    ".jpeg" => "image/jpeg",
+    ".jpg" => "image/jpeg",
+    ".js" => "text/javascript",
+    ".json" => "application/json",
+    ".m4a" => "audio/mp4",
+    ".mkv" => "video/x-matroska",
+    ".md" => "text/markdown",
+    ".mov" => "video/quicktime",
+    ".mp3" => "audio/mpeg",
+    ".mp4" => "video/mp4",
+    ".mpeg" => "video/mpeg",
+    ".mpg" => "video/mpeg",
+    ".ogg" => "audio/ogg",
+    ".pdf" => "application/pdf",
+    ".png" => "image/png",
+    ".txt" => "text/plain",
+    ".wav" => "audio/wav",
+    ".webm" => "video/webm",
+    ".webp" => "image/webp",
+    ".wmv" => "video/x-ms-wmv",
+    ".xml" => "application/xml"
+  }
 
-    case ext do
-      # Images
-      ".png" -> "image/png"
-      ".jpg" -> "image/jpeg"
-      ".jpeg" -> "image/jpeg"
-      ".gif" -> "image/gif"
-      ".webp" -> "image/webp"
-      ".heic" -> "image/heic"
-      ".heif" -> "image/heif"
-      # Videos
-      ".mp4" -> "video/mp4"
-      ".mpeg" -> "video/mpeg"
-      ".mpg" -> "video/mpeg"
-      ".mov" -> "video/quicktime"
-      ".avi" -> "video/x-msvideo"
-      ".webm" -> "video/webm"
-      ".wmv" -> "video/x-ms-wmv"
-      ".flv" -> "video/x-flv"
-      ".mkv" -> "video/x-matroska"
-      # Audio
-      ".wav" -> "audio/wav"
-      ".mp3" -> "audio/mpeg"
-      ".aiff" -> "audio/aiff"
-      ".aac" -> "audio/aac"
-      ".ogg" -> "audio/ogg"
-      ".flac" -> "audio/flac"
-      ".m4a" -> "audio/mp4"
-      # Documents
-      ".pdf" -> "application/pdf"
-      ".txt" -> "text/plain"
-      ".html" -> "text/html"
-      ".htm" -> "text/html"
-      ".css" -> "text/css"
-      ".js" -> "text/javascript"
-      ".json" -> "application/json"
-      ".xml" -> "application/xml"
-      ".csv" -> "text/csv"
-      ".md" -> "text/markdown"
-      # Default
-      _ -> "application/octet-stream"
+  defp detect_mime_type(file_path) do
+    file_path
+    |> Path.extname()
+    |> String.downcase()
+    |> then(&Map.get(@mime_by_ext, &1, "application/octet-stream"))
+  end
+
+  defp upload_chunk_data(
+         upload_url,
+         data,
+         file_handle,
+         total_size,
+         offset,
+         on_progress,
+         opts
+       ) do
+    chunk_size = byte_size(data)
+    is_final = offset + chunk_size >= total_size
+    command = if is_final, do: "upload, finalize", else: "upload"
+
+    headers = [
+      {"X-Goog-Upload-Command", command},
+      {"X-Goog-Upload-Offset", to_string(offset)},
+      {"Content-Length", to_string(chunk_size)}
+    ]
+
+    with {:ok, response} <- upload_chunk_with_retry(upload_url, data, headers, opts, @max_retries) do
+      new_offset = offset + chunk_size
+      maybe_report_progress(on_progress, new_offset, total_size)
+
+      if is_final do
+        {:ok, response}
+      else
+        upload_chunks(upload_url, file_handle, total_size, new_offset, on_progress, opts)
+      end
     end
+  end
+
+  defp maybe_report_progress(nil, _offset, _total), do: :ok
+  defp maybe_report_progress(on_progress, offset, total), do: on_progress.(offset, total)
+
+  defp handle_file_state(%{state: :active} = file, _name, _opts, _poll, _timeout, _start, _cb),
+    do: {:ok, file}
+
+  defp handle_file_state(
+         %{state: :failed, error: error},
+         _name,
+         _opts,
+         _poll,
+         _timeout,
+         _start,
+         _cb
+       ),
+       do: {:error, {:file_processing_failed, error}}
+
+  defp handle_file_state(
+         %{state: :processing} = _file,
+         name,
+         opts,
+         poll_interval,
+         timeout,
+         start_time,
+         on_status
+       ) do
+    if processing_timed_out?(start_time, timeout) do
+      {:error, :timeout}
+    else
+      Process.sleep(poll_interval)
+
+      do_wait_for_processing(
+        name,
+        opts,
+        poll_interval,
+        timeout,
+        start_time,
+        on_status
+      )
+    end
+  end
+
+  defp handle_file_state(%{state: state}, _name, _opts, _poll, _timeout, _start, _cb),
+    do: {:error, {:unknown_state, state}}
+
+  defp maybe_report_status(nil, _file), do: :ok
+  defp maybe_report_status(callback, file), do: callback.(file)
+
+  defp processing_timed_out?(start_time, timeout) do
+    System.monotonic_time(:millisecond) - start_time >= timeout
   end
 end

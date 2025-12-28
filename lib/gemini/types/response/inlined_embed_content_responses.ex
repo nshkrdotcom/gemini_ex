@@ -19,7 +19,7 @@ defmodule Gemini.Types.Response.InlinedEmbedContentResponses do
       }
   """
 
-  alias Gemini.Types.Response.{InlinedEmbedContentResponse, EmbedContentResponse}
+  alias Gemini.Types.Response.{EmbedContentResponse, InlinedEmbedContentResponse}
 
   @enforce_keys [:inlined_responses]
   defstruct [:inlined_responses]
@@ -66,7 +66,7 @@ defmodule Gemini.Types.Response.InlinedEmbedContentResponses do
   @spec successful_responses(t()) :: [EmbedContentResponse.t()]
   def successful_responses(%__MODULE__{inlined_responses: responses}) do
     responses
-    |> Enum.filter(&InlinedEmbedContentResponse.is_success?/1)
+    |> Enum.filter(&InlinedEmbedContentResponse.success?/1)
     |> Enum.map(& &1.response)
   end
 
@@ -86,7 +86,7 @@ defmodule Gemini.Types.Response.InlinedEmbedContentResponses do
   def failed_responses(%__MODULE__{inlined_responses: responses}) do
     responses
     |> Enum.with_index()
-    |> Enum.filter(fn {response, _idx} -> InlinedEmbedContentResponse.is_error?(response) end)
+    |> Enum.filter(fn {response, _idx} -> InlinedEmbedContentResponse.error?(response) end)
     |> Enum.map(fn {response, idx} -> {idx, response.error} end)
   end
 end

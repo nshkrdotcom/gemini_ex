@@ -221,6 +221,8 @@ defmodule Gemini.Types.CreateFileSearchStoreConfig do
 
   use TypedStruct
 
+  alias Gemini.Types.FileSearchStore
+
   @derive Jason.Encoder
   typedstruct do
     @typedoc """
@@ -235,7 +237,7 @@ defmodule Gemini.Types.CreateFileSearchStoreConfig do
 
     field(:display_name, String.t())
     field(:description, String.t())
-    field(:vector_config, Gemini.Types.FileSearchStore.vector_config())
+    field(:vector_config, FileSearchStore.vector_config())
   end
 
   @doc """

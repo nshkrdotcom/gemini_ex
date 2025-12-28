@@ -30,13 +30,13 @@ defmodule Gemini.APIs.InteractionsLiveTest do
   @moduletag :live_api
   @moduletag timeout: 180_000
 
-  alias Gemini.Error
   alias Gemini.APIs.Interactions
-
+  alias Gemini.Error
+  alias Gemini.Test.AuthHelpers
   alias Gemini.Types.Interactions.Events.InteractionEvent
 
   setup do
-    case Gemini.Test.AuthHelpers.detect_auth() do
+    case AuthHelpers.detect_auth() do
       {:ok, auth, creds} ->
         {:ok, skip: false, auth: auth, creds: creds}
 
@@ -131,124 +131,132 @@ defmodule Gemini.APIs.InteractionsLiveTest do
 
   defp create_with_any_model(prompt, opts) do
     Enum.reduce_while(model_candidates(), {:error, :no_models}, fn model, _acc ->
-      case Interactions.create(prompt, Keyword.put(opts, :model, model)) do
-        {:ok, interaction} ->
-          {:halt, {:ok, interaction, model}}
-
-        {:error, %Error{} = error} = err ->
-          if unsupported_model_error?(error), do: {:cont, err}, else: {:halt, err}
-
-        other ->
-          {:halt, other}
-      end
+      prompt
+      |> Interactions.create(Keyword.put(opts, :model, model))
+      |> handle_create_result(model)
     end)
   end
+
+  defp handle_create_result({:ok, interaction}, model),
+    do: {:halt, {:ok, interaction, model}}
+
+  defp handle_create_result({:error, %Error{} = error} = err, _model) do
+    if unsupported_model_error?(error), do: {:cont, err}, else: {:halt, err}
+  end
+
+  defp handle_create_result(other, _model), do: {:halt, other}
 
   defp create_with_any_agent(prompt, opts) do
     Enum.reduce_while(agent_candidates(), {:error, :no_agents}, fn agent, _acc ->
-      case Interactions.create(prompt, Keyword.put(opts, :agent, agent)) do
-        {:ok, interaction} ->
-          {:halt, {:ok, interaction, agent}}
-
-        {:error, %Error{} = error} = err ->
-          if background_requires_agent_error?(error), do: {:cont, err}, else: {:halt, err}
-
-        other ->
-          {:halt, other}
-      end
+      prompt
+      |> Interactions.create(Keyword.put(opts, :agent, agent))
+      |> handle_agent_create_result(agent)
     end)
   end
+
+  defp handle_agent_create_result({:ok, interaction}, agent),
+    do: {:halt, {:ok, interaction, agent}}
+
+  defp handle_agent_create_result({:error, %Error{} = error} = err, _agent) do
+    if background_requires_agent_error?(error), do: {:cont, err}, else: {:halt, err}
+  end
+
+  defp handle_agent_create_result(other, _agent), do: {:halt, other}
 
   defp create_stream_with_any_model(prompt, opts) do
     Enum.reduce_while(model_candidates(), {:error, :no_models}, fn model, _acc ->
-      case Interactions.create(prompt, Keyword.put(opts, :model, model)) do
-        {:ok, stream} ->
-          events = Enum.take(stream, 10)
-
-          if Enum.any?(events, &match?(%InteractionEvent{event_type: "interaction.start"}, &1)) do
-            {:halt, {:ok, events, model}}
-          else
-            case events do
-              [{:error, %Error{} = error} | _] ->
-                if unsupported_model_error?(error),
-                  do: {:cont, {:error, error}},
-                  else: {:halt, {:error, error}}
-
-              _ ->
-                {:halt, {:error, {:unexpected_events, events}}}
-            end
-          end
-
-        {:error, %Error{} = error} = err ->
-          if unsupported_model_error?(error), do: {:cont, err}, else: {:halt, err}
-
-        other ->
-          {:halt, other}
-      end
+      prompt
+      |> Interactions.create(Keyword.put(opts, :model, model))
+      |> handle_stream_create_result(model)
     end)
   end
 
-  defp capture_interaction_id_and_event_id(stream, max_events) do
-    result =
-      Enum.reduce_while(stream, %{interaction_id: nil, last_event_id: nil, seen: 0}, fn event,
-                                                                                        acc ->
-        acc = %{acc | seen: acc.seen + 1}
+  defp handle_stream_create_result({:ok, stream}, model) do
+    stream
+    |> Enum.take(10)
+    |> evaluate_stream_events(model)
+  end
 
-        case event do
-          {:error, %Error{} = error} ->
-            {:halt, {:error, error}}
+  defp handle_stream_create_result({:error, %Error{} = error} = err, _model) do
+    if unsupported_model_error?(error), do: {:cont, err}, else: {:halt, err}
+  end
 
-          %InteractionEvent{event_type: "interaction.start", interaction: interaction} ->
-            acc =
-              if is_binary(interaction.id) and interaction.id != "" do
-                %{acc | interaction_id: interaction.id}
-              else
-                acc
-              end
+  defp handle_stream_create_result(other, _model), do: {:halt, other}
 
-            last_event_id = Map.get(event, :event_id)
-
-            acc =
-              if is_binary(last_event_id) and last_event_id != "",
-                do: %{acc | last_event_id: last_event_id},
-                else: acc
-
-            if acc.interaction_id && acc.last_event_id do
-              {:halt, {:ok, acc.interaction_id, acc.last_event_id}}
-            else
-              if acc.seen >= max_events,
-                do: {:halt, {:ok, acc.interaction_id, acc.last_event_id}},
-                else: {:cont, acc}
-            end
-
-          %{} ->
-            last_event_id = Map.get(event, :event_id)
-
-            acc =
-              if is_binary(last_event_id) and last_event_id != "",
-                do: %{acc | last_event_id: last_event_id},
-                else: acc
-
-            if acc.interaction_id && acc.last_event_id do
-              {:halt, {:ok, acc.interaction_id, acc.last_event_id}}
-            else
-              if acc.seen >= max_events,
-                do: {:halt, {:ok, acc.interaction_id, acc.last_event_id}},
-                else: {:cont, acc}
-            end
-        end
-      end)
-
-    case result do
-      {:ok, _interaction_id, _last_event_id} = ok ->
-        ok
-
-      {:error, %Error{}} = err ->
-        err
-
-      %{interaction_id: interaction_id, last_event_id: last_event_id} ->
-        {:ok, interaction_id, last_event_id}
+  defp evaluate_stream_events(events, model) do
+    if Enum.any?(events, &match?(%InteractionEvent{event_type: "interaction.start"}, &1)) do
+      {:halt, {:ok, events, model}}
+    else
+      handle_stream_without_start(events)
     end
+  end
+
+  defp handle_stream_without_start([{:error, %Error{} = error} | _]) do
+    if unsupported_model_error?(error),
+      do: {:cont, {:error, error}},
+      else: {:halt, {:error, error}}
+  end
+
+  defp handle_stream_without_start(events),
+    do: {:halt, {:error, {:unexpected_events, events}}}
+
+  defp capture_interaction_id_and_event_id(stream, max_events) do
+    initial = %{interaction_id: nil, last_event_id: nil, seen: 0}
+
+    stream
+    |> Enum.reduce_while(initial, fn event, acc ->
+      acc = %{acc | seen: acc.seen + 1}
+      capture_event_ids(event, acc, max_events)
+    end)
+    |> normalize_capture_result()
+  end
+
+  defp capture_event_ids({:error, %Error{} = error}, _acc, _max_events),
+    do: {:halt, {:error, error}}
+
+  defp capture_event_ids(
+         %InteractionEvent{event_type: "interaction.start", interaction: interaction} = event,
+         acc,
+         max_events
+       ) do
+    acc
+    |> maybe_set_interaction_id(interaction)
+    |> maybe_set_last_event_id(event)
+    |> finalize_capture(max_events)
+  end
+
+  defp capture_event_ids(%{} = event, acc, max_events) do
+    acc
+    |> maybe_set_last_event_id(event)
+    |> finalize_capture(max_events)
+  end
+
+  defp maybe_set_interaction_id(acc, %{id: id}) when is_binary(id) and id != "" do
+    %{acc | interaction_id: id}
+  end
+
+  defp maybe_set_interaction_id(acc, _interaction), do: acc
+
+  defp maybe_set_last_event_id(acc, event) do
+    case Map.get(event, :event_id) do
+      id when is_binary(id) and id != "" -> %{acc | last_event_id: id}
+      _ -> acc
+    end
+  end
+
+  defp finalize_capture(%{interaction_id: id, last_event_id: last, seen: seen} = acc, max_events) do
+    cond do
+      id && last -> {:halt, {:ok, id, last}}
+      seen >= max_events -> {:halt, {:ok, id, last}}
+      true -> {:cont, acc}
+    end
+  end
+
+  defp normalize_capture_result({:ok, _interaction_id, _last_event_id} = ok), do: ok
+  defp normalize_capture_result({:error, %Error{}} = err), do: err
+
+  defp normalize_capture_result(%{interaction_id: interaction_id, last_event_id: last_event_id}) do
+    {:ok, interaction_id, last_event_id}
   end
 
   defp auth_opts(%{auth: :gemini, creds: %{api_key: api_key}}) do

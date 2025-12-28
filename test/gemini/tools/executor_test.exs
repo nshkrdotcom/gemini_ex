@@ -5,8 +5,8 @@ defmodule Gemini.Tools.ExecutorTest do
 
   use ExUnit.Case, async: true
 
-  alias Gemini.Tools.Executor
   alias Altar.ADM.FunctionCall
+  alias Gemini.Tools.Executor
 
   describe "execute/2" do
     test "executes function from registry with args" do

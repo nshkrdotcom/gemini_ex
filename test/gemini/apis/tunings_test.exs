@@ -1,8 +1,8 @@
 defmodule Gemini.APIs.TuningsTest do
   use ExUnit.Case, async: true
 
-  alias Gemini.Types.Tuning.{TuningJob, CreateTuningJobConfig, ListTuningJobsResponse}
   alias Gemini.Types.Tuning
+  alias Gemini.Types.Tuning.{CreateTuningJobConfig, ListTuningJobsResponse, TuningJob}
 
   describe "TuningJob type parsing" do
     test "from_api_response/1 parses all fields correctly" do

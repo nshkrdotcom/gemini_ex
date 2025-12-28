@@ -5,8 +5,8 @@ defmodule Gemini.TuningsLiveTest do
   @moduletag timeout: 180_000
 
   alias Gemini.APIs.Tunings
-  alias Gemini.Types.Tuning.{TuningJob, CreateTuningJobConfig}
   alias Gemini.Test.AuthHelpers
+  alias Gemini.Types.Tuning.{CreateTuningJobConfig, TuningJob}
 
   setup_all do
     case AuthHelpers.detect_auth() do

@@ -77,29 +77,7 @@ defmodule Gemini.Types.ToolSerialization do
   # We need to recursively convert keys to camelCase strings while preserving values and nested structure.
   @spec serialize_schema(map()) :: map()
   defp serialize_schema(%{} = schema) do
-    schema
-    |> Enum.reduce(%{}, fn {key, value}, acc ->
-      cond do
-        key == :properties or key == "properties" ->
-          # Do not camelCase property names; they are user-defined parameter names.
-          serialized_properties =
-            Enum.reduce(value, %{}, fn {prop_key, prop_schema}, props_acc ->
-              prop_name =
-                case prop_key do
-                  k when is_atom(k) -> Atom.to_string(k)
-                  k when is_binary(k) -> k
-                end
-
-              Map.put(props_acc, prop_name, serialize_schema(prop_schema))
-            end)
-
-          Map.put(acc, "properties", serialized_properties)
-
-        true ->
-          camel_key = camelize_key(key)
-          Map.put(acc, camel_key, serialize_schema_value(value))
-      end
-    end)
+    Enum.reduce(schema, %{}, &serialize_schema_entry/2)
   end
 
   defp serialize_schema_value(%{} = value), do: serialize_schema(value)
@@ -108,6 +86,25 @@ defmodule Gemini.Types.ToolSerialization do
     do: Enum.map(list, &serialize_schema_value/1)
 
   defp serialize_schema_value(value), do: value
+
+  defp serialize_schema_entry({key, value}, acc) do
+    if key == :properties or key == "properties" do
+      Map.put(acc, "properties", serialize_properties(value))
+    else
+      Map.put(acc, camelize_key(key), serialize_schema_value(value))
+    end
+  end
+
+  defp serialize_properties(value) do
+    # Do not camelCase property names; they are user-defined parameter names.
+    Enum.reduce(value, %{}, fn {prop_key, prop_schema}, props_acc ->
+      prop_name = normalize_property_name(prop_key)
+      Map.put(props_acc, prop_name, serialize_schema(prop_schema))
+    end)
+  end
+
+  defp normalize_property_name(prop_key) when is_atom(prop_key), do: Atom.to_string(prop_key)
+  defp normalize_property_name(prop_key) when is_binary(prop_key), do: prop_key
 
   defp camelize_key(key) when is_atom(key) do
     key

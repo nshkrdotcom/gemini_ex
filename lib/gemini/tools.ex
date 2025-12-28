@@ -23,7 +23,7 @@ defmodule Gemini.Tools do
   """
 
   alias Altar.ADM.{FunctionCall, FunctionDeclaration, ToolResult}
-  alias Altar.LATER.{Registry, Executor}
+  alias Altar.LATER.{Executor, Registry}
 
   @registry_name Gemini.Tools.Registry
 

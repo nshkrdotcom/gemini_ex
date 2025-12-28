@@ -1,8 +1,8 @@
 defmodule Gemini.ToolsManualLoopTest do
   use ExUnit.Case, async: false
 
-  alias Gemini.{Chat, Tools}
   alias Altar.ADM
+  alias Gemini.{Chat, Tools}
 
   import Gemini.Test.ModelHelpers
 

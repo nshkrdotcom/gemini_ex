@@ -34,7 +34,7 @@ defmodule Gemini.Live.Message do
 
   use TypedStruct
 
-  alias Gemini.Types.{GenerationConfig, Content}
+  alias Gemini.Types.{Content, GenerationConfig}
 
   # Client-to-Server Messages
 
@@ -234,45 +234,42 @@ defmodule Gemini.Live.Message do
   """
   @spec from_api_map(map()) :: ServerMessage.t()
   def from_api_map(data) when is_map(data) do
-    message = %ServerMessage{}
-
-    message =
-      if Map.has_key?(data, "setupComplete") or Map.has_key?(data, :setupComplete) do
-        %{message | setup_complete: %SetupComplete{}}
-      else
-        message
-      end
-
-    message =
-      if Map.has_key?(data, "serverContent") or Map.has_key?(data, :serverContent) do
-        content = Map.get(data, "serverContent") || Map.get(data, :serverContent)
-        %{message | server_content: content}
-      else
-        message
-      end
-
-    message =
-      if Map.has_key?(data, "toolCall") or Map.has_key?(data, :toolCall) do
-        tool_call = Map.get(data, "toolCall") || Map.get(data, :toolCall)
-        %{message | tool_call: tool_call}
-      else
-        message
-      end
-
-    message =
-      if Map.has_key?(data, "toolCallCancellation") or Map.has_key?(data, :toolCallCancellation) do
-        cancellation =
-          Map.get(data, "toolCallCancellation") || Map.get(data, :toolCallCancellation)
-
-        %{message | tool_call_cancellation: cancellation}
-      else
-        message
-      end
-
-    message
+    %ServerMessage{}
+    |> maybe_put_setup_complete(data)
+    |> maybe_put_field(data, :server_content, "serverContent", :serverContent)
+    |> maybe_put_field(data, :tool_call, "toolCall", :toolCall)
+    |> maybe_put_field(
+      data,
+      :tool_call_cancellation,
+      "toolCallCancellation",
+      :toolCallCancellation
+    )
   end
 
   # Private helpers
+  defp maybe_put_setup_complete(message, data) do
+    if has_key?(data, "setupComplete", :setupComplete) do
+      %{message | setup_complete: %SetupComplete{}}
+    else
+      message
+    end
+  end
+
+  defp maybe_put_field(message, data, field, string_key, atom_key) do
+    if has_key?(data, string_key, atom_key) do
+      Map.put(message, field, get_key(data, string_key, atom_key))
+    else
+      message
+    end
+  end
+
+  defp has_key?(data, string_key, atom_key) do
+    Map.has_key?(data, string_key) or Map.has_key?(data, atom_key)
+  end
+
+  defp get_key(data, string_key, atom_key) do
+    Map.get(data, string_key) || Map.get(data, atom_key)
+  end
 
   defp setup_to_api(%LiveClientSetup{} = setup) do
     api = %{model: setup.model}

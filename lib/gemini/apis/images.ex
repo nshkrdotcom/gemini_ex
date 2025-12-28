@@ -60,11 +60,13 @@ defmodule Gemini.APIs.Images do
   alias Gemini.Config
   alias Gemini.Error
 
+  alias Gemini.Types.Generation.Image, as: Image
+
   alias Gemini.Types.Generation.Image.{
-    ImageGenerationConfig,
     EditImageConfig,
-    UpscaleImageConfig,
-    GeneratedImage
+    GeneratedImage,
+    ImageGenerationConfig,
+    UpscaleImageConfig
   }
 
   @type api_result(t) :: {:ok, t} | {:error, term()}
@@ -261,7 +263,7 @@ defmodule Gemini.APIs.Images do
   @spec build_generation_request(String.t(), ImageGenerationConfig.t()) ::
           {:ok, map()} | {:error, term()}
   defp build_generation_request(prompt, config) do
-    params = Gemini.Types.Generation.Image.build_generation_params(prompt, config)
+    params = Image.build_generation_params(prompt, config)
 
     request = %{
       "instances" => [%{"prompt" => prompt}],
@@ -275,7 +277,7 @@ defmodule Gemini.APIs.Images do
           {:ok, map()} | {:error, term()}
   defp build_edit_request(prompt, image_data, mask_data, config) do
     params =
-      Gemini.Types.Generation.Image.build_edit_params(prompt, image_data, mask_data, config)
+      Image.build_edit_params(prompt, image_data, mask_data, config)
 
     request = %{
       "instances" => [params],
@@ -288,7 +290,7 @@ defmodule Gemini.APIs.Images do
   @spec build_upscale_request(String.t(), UpscaleImageConfig.t()) ::
           {:ok, map()} | {:error, term()}
   defp build_upscale_request(image_data, config) do
-    params = Gemini.Types.Generation.Image.build_upscale_params(image_data, config)
+    params = Image.build_upscale_params(image_data, config)
 
     request = %{
       "instances" => [params],
@@ -310,12 +312,12 @@ defmodule Gemini.APIs.Images do
         # Handle both single image and multiple images in response
         cond do
           is_map(prediction) and Map.has_key?(prediction, "bytesBase64Encoded") ->
-            [Gemini.Types.Generation.Image.parse_generated_image(prediction)]
+            [Image.parse_generated_image(prediction)]
 
           is_map(prediction) and Map.has_key?(prediction, "generatedImages") ->
             Enum.map(
               prediction["generatedImages"],
-              &Gemini.Types.Generation.Image.parse_generated_image/1
+              &Image.parse_generated_image/1
             )
 
           true ->

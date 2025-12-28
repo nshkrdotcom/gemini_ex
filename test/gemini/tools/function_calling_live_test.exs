@@ -16,9 +16,9 @@ defmodule Gemini.Tools.FunctionCallingLiveTest do
   @moduletag :live_api
   @moduletag timeout: 180_000
 
+  alias Altar.ADM.{FunctionCall, FunctionDeclaration}
   alias Gemini.APIs.Coordinator
-  alias Gemini.Tools.{Executor, AutomaticFunctionCalling}
-  alias Altar.ADM.FunctionDeclaration
+  alias Gemini.Tools.{AutomaticFunctionCalling, Executor}
 
   # Simple calculator tool for testing
   defp calculator_tool do
@@ -342,7 +342,7 @@ defmodule Gemini.Tools.FunctionCallingLiveTest do
   describe "error handling" do
     test "executor handles unknown function gracefully" do
       {:ok, call} =
-        Altar.ADM.FunctionCall.new(
+        FunctionCall.new(
           call_id: "test_1",
           name: "nonexistent_function",
           args: %{}
@@ -356,7 +356,7 @@ defmodule Gemini.Tools.FunctionCallingLiveTest do
 
     test "executor handles function execution error" do
       {:ok, call} =
-        Altar.ADM.FunctionCall.new(
+        FunctionCall.new(
           call_id: "test_1",
           name: "bad_function",
           args: %{}
@@ -372,7 +372,7 @@ defmodule Gemini.Tools.FunctionCallingLiveTest do
 
     test "build_responses handles errors correctly" do
       {:ok, call} =
-        Altar.ADM.FunctionCall.new(
+        FunctionCall.new(
           call_id: "error_call",
           name: "failing_function",
           args: %{}

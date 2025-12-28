@@ -1,9 +1,9 @@
 defmodule Gemini.LiveSessionLiveTest do
   use ExUnit.Case
 
-  alias Gemini.Live.Session
-  alias Gemini.Live.Message.ServerMessage
   alias Gemini.Config
+  alias Gemini.Live.Message.ServerMessage
+  alias Gemini.Live.Session
 
   @moduletag :live_api
   @moduletag timeout: 60_000

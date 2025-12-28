@@ -36,6 +36,7 @@ defmodule Gemini.APIs.Tokens do
       {:ok, results} = Tokens.count_batch(inputs)
   """
 
+  alias Gemini.APIs.Models
   alias Gemini.Client
   alias Gemini.Config
   alias Gemini.Types.Content
@@ -236,12 +237,10 @@ defmodule Gemini.APIs.Tokens do
   @spec estimate(String.t() | [Content.t()] | map(), keyword()) ::
           {:ok, integer()} | {:error, Error.t()}
   def estimate(content, _opts \\ []) do
-    try do
-      estimated_tokens = estimate_tokens_heuristic(content)
-      {:ok, estimated_tokens}
-    rescue
-      error -> {:error, Error.validation_error("Failed to estimate tokens: #{inspect(error)}")}
-    end
+    estimated_tokens = estimate_tokens_heuristic(content)
+    {:ok, estimated_tokens}
+  rescue
+    error -> {:error, Error.validation_error("Failed to estimate tokens: #{inspect(error)}")}
   end
 
   @doc """
@@ -333,19 +332,16 @@ defmodule Gemini.APIs.Tokens do
 
   @spec parse_count_tokens_response(map()) :: {:ok, CountTokensResponse.t()} | {:error, Error.t()}
   defp parse_count_tokens_response(response) do
-    try do
-      count_response = %CountTokensResponse{
-        total_tokens: Map.get(response, "totalTokens", 0)
-      }
+    count_response = %CountTokensResponse{
+      total_tokens: Map.get(response, "totalTokens", 0)
+    }
 
-      {:ok, count_response}
-    rescue
-      error ->
-        Logger.error("Failed to parse count tokens response: #{inspect(error)}")
+    {:ok, count_response}
+  rescue
+    error ->
+      Logger.error("Failed to parse count tokens response: #{inspect(error)}")
 
-        {:error,
-         Error.invalid_response("Failed to parse count tokens response: #{inspect(error)}")}
-    end
+      {:error, Error.invalid_response("Failed to parse count tokens response: #{inspect(error)}")}
   end
 
   @spec classify_content_type(term()) :: atom()
@@ -457,7 +453,7 @@ defmodule Gemini.APIs.Tokens do
   defp get_model_info(model_name) do
     # This would typically call the Models API, but for now we'll use a simple cache
     # In a real implementation, this should cache model info to avoid repeated API calls
-    case Gemini.APIs.Models.get(model_name) do
+    case Models.get(model_name) do
       {:ok, model} -> {:ok, model}
       {:error, error} -> {:error, error}
     end

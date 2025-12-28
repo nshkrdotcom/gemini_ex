@@ -2,7 +2,7 @@ defmodule Gemini.RateLimiterTest do
   use ExUnit.Case, async: true
 
   alias Gemini.{Error, RateLimiter}
-  alias Gemini.RateLimiter.{Config, State, ConcurrencyGate, RetryManager, Manager}
+  alias Gemini.RateLimiter.{ConcurrencyGate, Config, Manager, RetryManager, State}
 
   import Gemini.Test.ModelHelpers
 

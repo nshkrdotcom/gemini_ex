@@ -1,11 +1,11 @@
 defmodule Gemini.APIs.GenerateParsingTest do
   use ExUnit.Case, async: true
 
+  alias Altar.ADM.{FunctionCall, ToolResult}
+  alias Gemini.Error
   alias Gemini.Generate
   alias Gemini.Types.{Content, Part}
-  alias Gemini.Types.Response.{GenerateContentResponse, Candidate}
-  alias Gemini.Error
-  alias Altar.ADM.{FunctionCall, ToolResult}
+  alias Gemini.Types.Response.{Candidate, GenerateContentResponse}
 
   describe "parse_generate_response/1 with function calls" do
     test "parses valid functionCall in response" do

@@ -13,7 +13,8 @@ defmodule Gemini.APIs.VideosLiveTest do
   use ExUnit.Case, async: false
 
   alias Gemini.APIs.Videos
-  alias Gemini.Types.Generation.Video.{VideoGenerationConfig, GeneratedVideo}
+  alias Gemini.Types.Generation.Video, as: Video
+  alias Gemini.Types.Generation.Video.{GeneratedVideo, VideoGenerationConfig}
   alias Gemini.Types.Operation
 
   @moduletag :live_api
@@ -130,7 +131,7 @@ defmodule Gemini.APIs.VideosLiveTest do
         }
       }
 
-      {:ok, videos} = Gemini.Types.Generation.Video.extract_videos(operation)
+      {:ok, videos} = Video.extract_videos(operation)
 
       assert length(videos) == 1
       assert %GeneratedVideo{} = hd(videos)
@@ -143,7 +144,7 @@ defmodule Gemini.APIs.VideosLiveTest do
         done: false
       }
 
-      {:error, error} = Gemini.Types.Generation.Video.extract_videos(operation)
+      {:error, error} = Video.extract_videos(operation)
 
       assert error == "Operation not yet complete"
     end

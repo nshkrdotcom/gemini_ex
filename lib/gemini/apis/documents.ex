@@ -225,25 +225,11 @@ defmodule Gemini.APIs.Documents do
         "ragStores/#{store_name}/documents"
       end
 
-    query_params = []
-
     query_params =
-      case Keyword.get(opts, :page_size) do
-        nil -> query_params
-        size -> [{"pageSize", size} | query_params]
-      end
-
-    query_params =
-      case Keyword.get(opts, :page_token) do
-        nil -> query_params
-        token -> [{"pageToken", token} | query_params]
-      end
-
-    query_params =
-      case Keyword.get(opts, :filter) do
-        nil -> query_params
-        filter -> [{"filter", filter} | query_params]
-      end
+      []
+      |> maybe_add_param("pageSize", Keyword.get(opts, :page_size))
+      |> maybe_add_param("pageToken", Keyword.get(opts, :page_token))
+      |> maybe_add_param("filter", Keyword.get(opts, :filter))
 
     case query_params do
       [] -> base
@@ -267,40 +253,72 @@ defmodule Gemini.APIs.Documents do
   defp do_wait_for_processing(name, opts, poll_interval, timeout, start_time, on_status) do
     case get(name, opts) do
       {:ok, doc} ->
-        if on_status, do: on_status.(doc)
-
-        case doc.state do
-          :active ->
-            {:ok, doc}
-
-          :failed ->
-            {:error, {:document_processing_failed, doc.error}}
-
-          :processing ->
-            elapsed = System.monotonic_time(:millisecond) - start_time
-
-            if elapsed >= timeout do
-              {:error, :timeout}
-            else
-              Process.sleep(poll_interval)
-
-              do_wait_for_processing(
-                name,
-                opts,
-                poll_interval,
-                timeout,
-                start_time,
-                on_status
-              )
-            end
-
-          _ ->
-            {:error, {:unknown_state, doc.state}}
-        end
+        maybe_report_status(on_status, doc)
+        handle_document_state(doc, name, opts, poll_interval, timeout, start_time, on_status)
 
       {:error, reason} ->
         {:error, reason}
     end
+  end
+
+  defp maybe_add_param(params, _key, nil), do: params
+  defp maybe_add_param(params, key, value), do: [{key, value} | params]
+
+  defp maybe_report_status(nil, _doc), do: :ok
+  defp maybe_report_status(callback, doc), do: callback.(doc)
+
+  defp handle_document_state(
+         %{state: :active} = doc,
+         _name,
+         _opts,
+         _poll,
+         _timeout,
+         _start,
+         _cb
+       ),
+       do: {:ok, doc}
+
+  defp handle_document_state(
+         %{state: :failed, error: error},
+         _name,
+         _opts,
+         _poll,
+         _timeout,
+         _start,
+         _cb
+       ),
+       do: {:error, {:document_processing_failed, error}}
+
+  defp handle_document_state(
+         %{state: :processing},
+         name,
+         opts,
+         poll_interval,
+         timeout,
+         start_time,
+         on_status
+       ) do
+    if timed_out?(start_time, timeout) do
+      {:error, :timeout}
+    else
+      Process.sleep(poll_interval)
+
+      do_wait_for_processing(
+        name,
+        opts,
+        poll_interval,
+        timeout,
+        start_time,
+        on_status
+      )
+    end
+  end
+
+  defp handle_document_state(%{state: state}, _name, _opts, _poll, _timeout, _start, _cb),
+    do: {:error, {:unknown_state, state}}
+
+  defp timed_out?(start_time, timeout) do
+    System.monotonic_time(:millisecond) - start_time >= timeout
   end
 end
 
@@ -335,7 +353,7 @@ defmodule Gemini.APIs.RagStores do
   """
 
   alias Gemini.Client.HTTP
-  alias Gemini.Types.{RagStore, ListRagStoresResponse}
+  alias Gemini.Types.{ListRagStoresResponse, RagStore}
 
   @type list_opts :: [
           {:page_size, pos_integer()}

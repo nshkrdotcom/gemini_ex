@@ -22,22 +22,30 @@ defmodule Gemini.Test.AuthHelpers do
         {:ok, :gemini, %{api_key: key}}
 
       %{type: :vertex_ai, credentials: creds} ->
-        project = Map.get(creds, :project_id)
-        location = Map.get(creds, :location)
-
-        token =
-          Map.get(creds, :access_token) ||
-            Map.get(creds, :service_account_key) ||
-            Map.get(creds, :service_account_data)
-
-        if project && location && token do
-          {:ok, :vertex_ai, creds}
-        else
-          :missing
-        end
+        vertex_auth_state(creds)
 
       _ ->
         :missing
     end
+  end
+
+  defp vertex_auth_state(creds) do
+    if valid_vertex_creds?(creds) do
+      {:ok, :vertex_ai, creds}
+    else
+      :missing
+    end
+  end
+
+  defp valid_vertex_creds?(creds) do
+    project = Map.get(creds, :project_id)
+    location = Map.get(creds, :location)
+
+    token =
+      Map.get(creds, :access_token) ||
+        Map.get(creds, :service_account_key) ||
+        Map.get(creds, :service_account_data)
+
+    project && location && token
   end
 end

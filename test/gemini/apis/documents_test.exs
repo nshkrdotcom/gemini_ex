@@ -1,7 +1,7 @@
 defmodule Gemini.APIs.DocumentsTest do
   use ExUnit.Case, async: true
 
-  alias Gemini.Types.{Document, ListDocumentsResponse, RagStore, ListRagStoresResponse}
+  alias Gemini.Types.{Document, ListDocumentsResponse, ListRagStoresResponse, RagStore}
 
   describe "Document type parsing" do
     test "from_api_response/1 parses all fields correctly" do

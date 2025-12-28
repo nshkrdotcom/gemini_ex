@@ -1,11 +1,11 @@
 defmodule Gemini.AutoToolsUnitTest do
   use ExUnit.Case, async: true
 
+  alias Altar.ADM
   alias Gemini
   alias Gemini.Chat
   alias Gemini.Types.Content
   alias Gemini.Types.Response.GenerateContentResponse
-  alias Altar.ADM
 
   import Gemini.Test.ModelHelpers
 

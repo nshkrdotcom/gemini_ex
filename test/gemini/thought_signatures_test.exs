@@ -1,8 +1,10 @@
 defmodule Gemini.ThoughtSignaturesTest do
   use ExUnit.Case, async: true
 
-  alias Gemini.Types.Part
+  alias Gemini.APIs.Coordinator
   alias Gemini.Chat
+  alias Gemini.Types.Part
+  alias Gemini.Types.Response.GenerateContentResponse
 
   describe "Part.with_thought_signature/2" do
     test "adds thought signature to a text part" do
@@ -28,7 +30,7 @@ defmodule Gemini.ThoughtSignaturesTest do
 
   describe "Gemini.extract_thought_signatures/1" do
     test "extracts thought signatures from response with signatures" do
-      response = %Gemini.Types.Response.GenerateContentResponse{
+      response = %GenerateContentResponse{
         candidates: [
           %{
             content: %{
@@ -47,7 +49,7 @@ defmodule Gemini.ThoughtSignaturesTest do
     end
 
     test "returns empty list when no signatures present" do
-      response = %Gemini.Types.Response.GenerateContentResponse{
+      response = %GenerateContentResponse{
         candidates: [
           %{
             content: %{
@@ -70,7 +72,7 @@ defmodule Gemini.ThoughtSignaturesTest do
     end
 
     test "handles empty candidates" do
-      response = %Gemini.Types.Response.GenerateContentResponse{candidates: []}
+      response = %GenerateContentResponse{candidates: []}
       assert Gemini.extract_thought_signatures(response) == []
     end
   end
@@ -86,7 +88,7 @@ defmodule Gemini.ThoughtSignaturesTest do
       chat = Chat.new()
 
       # Simulate a model response with signatures
-      response = %Gemini.Types.Response.GenerateContentResponse{
+      response = %GenerateContentResponse{
         candidates: [
           %{
             content: %{
@@ -107,7 +109,7 @@ defmodule Gemini.ThoughtSignaturesTest do
       chat = Chat.new()
 
       # Add a model response with signatures
-      model_response = %Gemini.Types.Response.GenerateContentResponse{
+      model_response = %GenerateContentResponse{
         candidates: [
           %{
             content: %{
@@ -150,7 +152,7 @@ defmodule Gemini.ThoughtSignaturesTest do
       part = %Part{text: "Hello", thought_signature: "sig_456"}
 
       # Use the coordinator's internal formatting function via a test helper
-      api_format = Gemini.APIs.Coordinator.__test_format_part__(part)
+      api_format = Coordinator.__test_format_part__(part)
 
       assert api_format[:thoughtSignature] == "sig_456"
       assert api_format[:text] == "Hello"
@@ -159,7 +161,7 @@ defmodule Gemini.ThoughtSignaturesTest do
     test "media_resolution is included in API format" do
       part = Part.inline_data_with_resolution("base64data", "image/jpeg", :high)
 
-      api_format = Gemini.APIs.Coordinator.__test_format_part__(part)
+      api_format = Coordinator.__test_format_part__(part)
 
       assert api_format[:mediaResolution] == "MEDIA_RESOLUTION_HIGH"
     end

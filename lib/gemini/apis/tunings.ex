@@ -33,10 +33,10 @@ defmodule Gemini.APIs.Tunings do
 
   """
 
-  alias Gemini.Types.Tuning
-  alias Gemini.Types.Tuning.{TuningJob, CreateTuningJobConfig, ListTuningJobsResponse}
   alias Gemini.Auth.MultiAuthCoordinator
   alias Gemini.Config
+  alias Gemini.Types.Tuning
+  alias Gemini.Types.Tuning.{CreateTuningJobConfig, ListTuningJobsResponse, TuningJob}
 
   @default_poll_interval 5_000
   @default_timeout 3_600_000
@@ -70,8 +70,8 @@ defmodule Gemini.APIs.Tunings do
 
   def tune(%CreateTuningJobConfig{} = config, opts) do
     with {:ok, {headers, base_url}} <- get_auth(opts),
-         {:ok, project_id} <- get_project_id(opts),
-         location = Keyword.get(opts, :location, "us-central1") do
+         {:ok, project_id} <- get_project_id(opts) do
+      location = Keyword.get(opts, :location, "us-central1")
       url = "#{base_url}/v1/projects/#{project_id}/locations/#{location}/tuningJobs"
       body = Tuning.to_api_map(config)
 
@@ -152,8 +152,8 @@ defmodule Gemini.APIs.Tunings do
   @spec list(keyword()) :: {:ok, ListTuningJobsResponse.t()} | {:error, term()}
   def list(opts \\ []) do
     with {:ok, {headers, base_url}} <- get_auth(opts),
-         {:ok, project_id} <- get_project_id(opts),
-         location = Keyword.get(opts, :location, "us-central1") do
+         {:ok, project_id} <- get_project_id(opts) do
+      location = Keyword.get(opts, :location, "us-central1")
       url = "#{base_url}/v1/projects/#{project_id}/locations/#{location}/tuningJobs"
 
       params =
@@ -277,26 +277,32 @@ defmodule Gemini.APIs.Tunings do
   end
 
   defp do_wait(name, opts, poll_interval, timeout, on_progress, start_time) do
-    elapsed = System.monotonic_time(:millisecond) - start_time
-
-    if elapsed >= timeout do
+    if timed_out?(start_time, timeout) do
       {:error, :timeout}
     else
       case get(name, opts) do
         {:ok, job} ->
           on_progress.(job)
 
-          if Tuning.job_complete?(job) do
-            {:ok, job}
-          else
-            Process.sleep(poll_interval)
-            do_wait(name, opts, poll_interval, timeout, on_progress, start_time)
-          end
+          handle_job_state(job, name, opts, poll_interval, timeout, on_progress, start_time)
 
         {:error, reason} ->
           {:error, reason}
       end
     end
+  end
+
+  defp handle_job_state(job, name, opts, poll_interval, timeout, on_progress, start_time) do
+    if Tuning.job_complete?(job) do
+      {:ok, job}
+    else
+      Process.sleep(poll_interval)
+      do_wait(name, opts, poll_interval, timeout, on_progress, start_time)
+    end
+  end
+
+  defp timed_out?(start_time, timeout) do
+    System.monotonic_time(:millisecond) - start_time >= timeout
   end
 
   # Private helpers

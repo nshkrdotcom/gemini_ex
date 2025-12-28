@@ -72,10 +72,10 @@ defmodule Gemini.Live.Session do
   use GenServer
   require Logger
 
-  alias Gemini.Live.Message
-  alias Gemini.Live.Message.{ClientMessage, LiveClientSetup, ClientContent, ToolResponse}
-  alias Gemini.Config
   alias Gemini.Auth.MultiAuthCoordinator
+  alias Gemini.Config
+  alias Gemini.Live.Message
+  alias Gemini.Live.Message.{ClientContent, ClientMessage, LiveClientSetup, ToolResponse}
 
   @type session :: pid() | atom()
   @type message :: String.t() | map()
@@ -696,18 +696,14 @@ defmodule Gemini.Live.Session do
   defp invoke_callback(nil, _arg), do: :ok
 
   defp invoke_callback(callback, _arg) when is_function(callback, 0) do
-    try do
-      callback.()
-    rescue
-      e -> Logger.error("Callback error: #{inspect(e)}")
-    end
+    callback.()
+  rescue
+    e -> Logger.error("Callback error: #{inspect(e)}")
   end
 
   defp invoke_callback(callback, arg) when is_function(callback, 1) do
-    try do
-      callback.(arg)
-    rescue
-      e -> Logger.error("Callback error: #{inspect(e)}")
-    end
+    callback.(arg)
+  rescue
+    e -> Logger.error("Callback error: #{inspect(e)}")
   end
 end

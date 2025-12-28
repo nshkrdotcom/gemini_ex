@@ -66,12 +66,13 @@ defmodule Gemini.APIs.Videos do
   See `Gemini.Types.Generation.Video` for all available configuration options.
   """
 
+  alias Gemini.APIs.Operations
   alias Gemini.Client.HTTP
   alias Gemini.Config
   alias Gemini.Error
-  alias Gemini.APIs.Operations
-  alias Gemini.Types.Operation
+  alias Gemini.Types.Generation.Video, as: Video
   alias Gemini.Types.Generation.Video.{VideoGenerationConfig, VideoOperation}
+  alias Gemini.Types.Operation
 
   @type api_result(t) :: {:ok, t} | {:error, term()}
   @type generation_opts :: [
@@ -182,7 +183,7 @@ defmodule Gemini.APIs.Videos do
 
       cond do
         current_op.done and is_nil(current_op.error) ->
-          {:ok, videos} = Gemini.Types.Generation.Video.extract_videos(current_op)
+          {:ok, videos} = Video.extract_videos(current_op)
           IO.puts("Video ready: \#{hd(videos).video_uri}")
 
         current_op.done ->
@@ -237,7 +238,7 @@ defmodule Gemini.APIs.Videos do
       )
 
       # Extract videos
-      {:ok, videos} = Gemini.Types.Generation.Video.extract_videos(completed)
+      {:ok, videos} = Video.extract_videos(completed)
   """
   @spec wait_for_completion(String.t(), wait_opts()) :: api_result(Operation.t())
   def wait_for_completion(operation_name, opts \\ []) do
@@ -320,7 +321,7 @@ defmodule Gemini.APIs.Videos do
   """
   @spec wrap_operation(Operation.t()) :: VideoOperation.t()
   def wrap_operation(operation) do
-    Gemini.Types.Generation.Video.wrap_operation(operation)
+    Video.wrap_operation(operation)
   end
 
   # ===========================================================================
@@ -349,17 +350,17 @@ defmodule Gemini.APIs.Videos do
   @spec build_generation_request(String.t(), VideoGenerationConfig.t()) ::
           {:ok, map()} | {:error, term()}
   defp build_generation_request(prompt, config) do
-    params = Gemini.Types.Generation.Video.build_generation_params(prompt, config)
+    params = Video.build_generation_params(prompt, config)
 
     instance =
       %{"prompt" => prompt}
-      |> maybe_put("image", Gemini.Types.Generation.Video.image_to_api(config.image))
-      |> maybe_put("video", Gemini.Types.Generation.Video.video_to_api(config.video))
-      |> maybe_put("lastFrame", Gemini.Types.Generation.Video.image_to_api(config.last_frame))
+      |> maybe_put("image", Video.image_to_api(config.image))
+      |> maybe_put("video", Video.video_to_api(config.video))
+      |> maybe_put("lastFrame", Video.image_to_api(config.last_frame))
       |> maybe_put_list(
         "referenceImages",
         config.reference_images,
-        &Gemini.Types.Generation.Video.reference_image_to_api/1
+        &Video.reference_image_to_api/1
       )
 
     request = %{

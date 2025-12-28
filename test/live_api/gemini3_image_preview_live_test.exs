@@ -18,13 +18,11 @@ defmodule Gemini.LiveAPI.Gemini3ImagePreviewLiveTest do
   setup do
     api_key = System.get_env("GEMINI_API_KEY")
 
-    cond do
-      is_nil(api_key) or api_key == "" ->
-        {:ok, skip: true}
-
-      true ->
-        File.mkdir_p!("generated")
-        {:ok, skip: false}
+    if is_nil(api_key) or api_key == "" do
+      {:ok, skip: true}
+    else
+      File.mkdir_p!("generated")
+      {:ok, skip: false}
     end
   end
 

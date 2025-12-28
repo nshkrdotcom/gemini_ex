@@ -5,22 +5,25 @@ defmodule Gemini.Generate do
   See `t:Gemini.options/0` in `Gemini` for the canonical list of options.
   """
 
+  alias Altar.ADM.FunctionCall
   alias Gemini.Client.HTTP
   alias Gemini.Config
-  alias Gemini.Types.{Content, Part}
-  alias Gemini.Types.Request.{GenerateContentRequest, CountTokensRequest}
+  alias Gemini.Error
   alias Gemini.Telemetry
+  alias Gemini.Types.{Content, Part}
+  alias Gemini.Types.Request.{CountTokensRequest, GenerateContentRequest}
 
   alias Gemini.Types.Response.{
-    GenerateContentResponse,
-    CountTokensResponse,
     Candidate,
+    CitationMetadata,
+    CitationSource,
+    CountTokensResponse,
+    GenerateContentResponse,
     PromptFeedback,
     UsageMetadata
   }
 
   # Note: SafetySetting and GenerationConfig aliases removed as they're not used directly
-  alias Gemini.Error
 
   @typedoc """
   Options for chat sessions.
@@ -322,58 +325,51 @@ defmodule Gemini.Generate do
 
   @doc false
   def parse_generate_response(response) do
-    try do
-      candidates =
-        response
-        |> Map.get("candidates", [])
-        |> Enum.map(&parse_candidate/1)
+    candidates =
+      response
+      |> Map.get("candidates", [])
+      |> Enum.map(&parse_candidate/1)
 
-      prompt_feedback = parse_prompt_feedback(Map.get(response, "promptFeedback"))
-      usage_metadata = parse_usage_metadata(Map.get(response, "usageMetadata"))
+    prompt_feedback = parse_prompt_feedback(Map.get(response, "promptFeedback"))
+    usage_metadata = parse_usage_metadata(Map.get(response, "usageMetadata"))
 
-      generate_response = %GenerateContentResponse{
-        candidates: candidates,
-        prompt_feedback: prompt_feedback,
-        usage_metadata: usage_metadata
-      }
+    generate_response = %GenerateContentResponse{
+      candidates: candidates,
+      prompt_feedback: prompt_feedback,
+      usage_metadata: usage_metadata
+    }
 
-      {:ok, generate_response}
-    rescue
-      e ->
-        case e do
-          %RuntimeError{message: "Model returned malformed FunctionCall: " <> reason} ->
-            {:error, Error.invalid_response("Model returned malformed FunctionCall: #{reason}")}
+    {:ok, generate_response}
+  rescue
+    e ->
+      case e do
+        %RuntimeError{message: "Model returned malformed FunctionCall: " <> reason} ->
+          {:error, Error.invalid_response("Model returned malformed FunctionCall: #{reason}")}
 
-          _ ->
-            {:error, Error.invalid_response("Failed to parse generate response: #{inspect(e)}")}
-        end
-    end
+        _ ->
+          {:error, Error.invalid_response("Failed to parse generate response: #{inspect(e)}")}
+      end
   end
 
   defp parse_stream_responses(events) do
-    try do
-      responses =
-        events
-        |> Enum.map(fn event -> parse_generate_response(event) end)
-        |> Enum.map(fn {:ok, response} -> response end)
+    responses =
+      events
+      |> Enum.map(&parse_generate_response/1)
+      |> Enum.map(fn {:ok, response} -> response end)
 
-      {:ok, responses}
-    rescue
-      e -> {:error, Error.invalid_response("Failed to parse stream responses: #{inspect(e)}")}
-    end
+    {:ok, responses}
+  rescue
+    e -> {:error, Error.invalid_response("Failed to parse stream responses: #{inspect(e)}")}
   end
 
   defp parse_count_tokens_response(response) do
-    try do
-      count_response = %CountTokensResponse{
-        total_tokens: Map.get(response, "totalTokens", 0)
-      }
+    count_response = %CountTokensResponse{
+      total_tokens: Map.get(response, "totalTokens", 0)
+    }
 
-      {:ok, count_response}
-    rescue
-      e ->
-        {:error, Error.invalid_response("Failed to parse count tokens response: #{inspect(e)}")}
-    end
+    {:ok, count_response}
+  rescue
+    e -> {:error, Error.invalid_response("Failed to parse count tokens response: #{inspect(e)}")}
   end
 
   defp parse_candidate(candidate_data) do
@@ -439,7 +435,7 @@ defmodule Gemini.Generate do
       Map.has_key?(part_data, "functionCall") ->
         function_call_data = Map.get(part_data, "functionCall")
 
-        case Altar.ADM.FunctionCall.new(function_call_data) do
+        case FunctionCall.new(function_call_data) do
           {:ok, function_call} ->
             {:ok, %Part{function_call: function_call}}
 
@@ -488,10 +484,24 @@ defmodule Gemini.Generate do
 
   defp parse_citation_metadata(nil), do: nil
 
-  defp parse_citation_metadata(_metadata) do
-    # TODO: Implement citation metadata parsing
-    nil
+  defp parse_citation_metadata(metadata) when is_map(metadata) do
+    sources =
+      (Map.get(metadata, "citationSources") ||
+         Map.get(metadata, :citation_sources) ||
+         [])
+      |> Enum.map(fn source ->
+        %CitationSource{
+          start_index: Map.get(source, "startIndex") || Map.get(source, :start_index),
+          end_index: Map.get(source, "endIndex") || Map.get(source, :end_index),
+          uri: Map.get(source, "uri") || Map.get(source, :uri),
+          license: Map.get(source, "license") || Map.get(source, :license)
+        }
+      end)
+
+    %CitationMetadata{citation_sources: sources}
   end
+
+  defp parse_citation_metadata(_metadata), do: nil
 
   defp extract_assistant_content(%GenerateContentResponse{
          candidates: [%Candidate{content: content} | _]

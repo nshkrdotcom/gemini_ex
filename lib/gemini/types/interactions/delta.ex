@@ -1,4 +1,5 @@
 defmodule Gemini.Types.Interactions.DeltaTextDelta do
+  @moduledoc "Text content delta for streaming responses."
   use TypedStruct
 
   alias Gemini.Types.Interactions.Annotation
@@ -39,6 +40,7 @@ defmodule Gemini.Types.Interactions.DeltaTextDelta do
 end
 
 defmodule Gemini.Types.Interactions.DeltaImageDelta do
+  @moduledoc "Image content delta for streaming responses."
   use TypedStruct
 
   @type resolution :: String.t()
@@ -82,6 +84,7 @@ defmodule Gemini.Types.Interactions.DeltaImageDelta do
 end
 
 defmodule Gemini.Types.Interactions.DeltaAudioDelta do
+  @moduledoc "Audio content delta for streaming responses."
   use TypedStruct
 
   @derive Jason.Encoder
@@ -120,6 +123,7 @@ defmodule Gemini.Types.Interactions.DeltaAudioDelta do
 end
 
 defmodule Gemini.Types.Interactions.DeltaDocumentDelta do
+  @moduledoc "Document content delta for streaming responses."
   use TypedStruct
 
   @derive Jason.Encoder
@@ -158,6 +162,7 @@ defmodule Gemini.Types.Interactions.DeltaDocumentDelta do
 end
 
 defmodule Gemini.Types.Interactions.DeltaVideoDelta do
+  @moduledoc "Video content delta for streaming responses."
   use TypedStruct
 
   @type resolution :: String.t()
@@ -201,11 +206,13 @@ defmodule Gemini.Types.Interactions.DeltaVideoDelta do
 end
 
 defmodule Gemini.Types.Interactions.DeltaThoughtSummaryDeltaContent do
+  @moduledoc "Content type for thought summary delta."
   @type t ::
           Gemini.Types.Interactions.TextContent.t() | Gemini.Types.Interactions.ImageContent.t()
 end
 
 defmodule Gemini.Types.Interactions.DeltaThoughtSummaryDelta do
+  @moduledoc "Thought summary delta for streaming responses."
   use TypedStruct
 
   alias Gemini.Types.Interactions.Content
@@ -241,6 +248,7 @@ defmodule Gemini.Types.Interactions.DeltaThoughtSummaryDelta do
 end
 
 defmodule Gemini.Types.Interactions.DeltaThoughtSignatureDelta do
+  @moduledoc "Thought signature delta for streaming responses."
   use TypedStruct
 
   @derive Jason.Encoder
@@ -273,6 +281,7 @@ defmodule Gemini.Types.Interactions.DeltaThoughtSignatureDelta do
 end
 
 defmodule Gemini.Types.Interactions.DeltaFunctionCallDelta do
+  @moduledoc "Function call delta for streaming responses."
   use TypedStruct
 
   @derive Jason.Encoder
@@ -311,17 +320,20 @@ defmodule Gemini.Types.Interactions.DeltaFunctionCallDelta do
 end
 
 defmodule Gemini.Types.Interactions.DeltaFunctionResultDeltaResultItemsItem do
+  @moduledoc "Item type for function result delta."
   @type t :: String.t() | Gemini.Types.Interactions.ImageContent.t()
 end
 
 defmodule Gemini.Types.Interactions.DeltaFunctionResultDeltaResultItems do
+  @moduledoc "Items container for function result delta."
   use TypedStruct
 
   alias Gemini.Types.Interactions.Content
+  alias Gemini.Types.Interactions.DeltaFunctionResultDeltaResultItemsItem
 
   @derive Jason.Encoder
   typedstruct do
-    field(:items, [Gemini.Types.Interactions.DeltaFunctionResultDeltaResultItemsItem.t()])
+    field(:items, [DeltaFunctionResultDeltaResultItemsItem.t()])
   end
 
   @spec from_api(map() | nil) :: t() | nil
@@ -361,6 +373,7 @@ defmodule Gemini.Types.Interactions.DeltaFunctionResultDeltaResultItems do
 end
 
 defmodule Gemini.Types.Interactions.DeltaFunctionResultDeltaResult do
+  @moduledoc "Result type for function result delta."
   alias Gemini.Types.Interactions.DeltaFunctionResultDeltaResultItems
 
   @type t :: DeltaFunctionResultDeltaResultItems.t() | String.t()
@@ -383,6 +396,7 @@ defmodule Gemini.Types.Interactions.DeltaFunctionResultDeltaResult do
 end
 
 defmodule Gemini.Types.Interactions.DeltaFunctionResultDelta do
+  @moduledoc "Function result delta for streaming responses."
   use TypedStruct
 
   alias Gemini.Types.Interactions.DeltaFunctionResultDeltaResult
@@ -426,6 +440,7 @@ defmodule Gemini.Types.Interactions.DeltaFunctionResultDelta do
 end
 
 defmodule Gemini.Types.Interactions.DeltaCodeExecutionCallDelta do
+  @moduledoc "Code execution call delta for streaming responses."
   use TypedStruct
 
   alias Gemini.Types.Interactions.CodeExecutionCallArguments
@@ -463,6 +478,7 @@ defmodule Gemini.Types.Interactions.DeltaCodeExecutionCallDelta do
 end
 
 defmodule Gemini.Types.Interactions.DeltaCodeExecutionResultDelta do
+  @moduledoc "Code execution result delta for streaming responses."
   use TypedStruct
 
   @derive Jason.Encoder
@@ -504,6 +520,7 @@ defmodule Gemini.Types.Interactions.DeltaCodeExecutionResultDelta do
 end
 
 defmodule Gemini.Types.Interactions.DeltaURLContextCallDelta do
+  @moduledoc "URL context call delta for streaming responses."
   use TypedStruct
 
   alias Gemini.Types.Interactions.URLContextCallArguments
@@ -541,6 +558,7 @@ defmodule Gemini.Types.Interactions.DeltaURLContextCallDelta do
 end
 
 defmodule Gemini.Types.Interactions.DeltaURLContextResultDelta do
+  @moduledoc "URL context result delta for streaming responses."
   use TypedStruct
 
   alias Gemini.Types.Interactions.URLContextResult
@@ -587,6 +605,7 @@ defmodule Gemini.Types.Interactions.DeltaURLContextResultDelta do
 end
 
 defmodule Gemini.Types.Interactions.DeltaGoogleSearchCallDelta do
+  @moduledoc "Google search call delta for streaming responses."
   use TypedStruct
 
   alias Gemini.Types.Interactions.GoogleSearchCallArguments
@@ -624,6 +643,7 @@ defmodule Gemini.Types.Interactions.DeltaGoogleSearchCallDelta do
 end
 
 defmodule Gemini.Types.Interactions.DeltaGoogleSearchResultDelta do
+  @moduledoc "Google search result delta for streaming responses."
   use TypedStruct
 
   alias Gemini.Types.Interactions.GoogleSearchResult
@@ -670,6 +690,7 @@ defmodule Gemini.Types.Interactions.DeltaGoogleSearchResultDelta do
 end
 
 defmodule Gemini.Types.Interactions.DeltaMCPServerToolCallDelta do
+  @moduledoc "MCP server tool call delta for streaming responses."
   use TypedStruct
 
   @derive Jason.Encoder
@@ -711,17 +732,20 @@ defmodule Gemini.Types.Interactions.DeltaMCPServerToolCallDelta do
 end
 
 defmodule Gemini.Types.Interactions.DeltaMCPServerToolResultDeltaResultItemsItem do
+  @moduledoc "Item type for MCP server tool result delta."
   @type t :: String.t() | Gemini.Types.Interactions.ImageContent.t()
 end
 
 defmodule Gemini.Types.Interactions.DeltaMCPServerToolResultDeltaResultItems do
+  @moduledoc "Items container for MCP server tool result delta."
   use TypedStruct
 
   alias Gemini.Types.Interactions.Content
+  alias Gemini.Types.Interactions.DeltaMCPServerToolResultDeltaResultItemsItem
 
   @derive Jason.Encoder
   typedstruct do
-    field(:items, [Gemini.Types.Interactions.DeltaMCPServerToolResultDeltaResultItemsItem.t()])
+    field(:items, [DeltaMCPServerToolResultDeltaResultItemsItem.t()])
   end
 
   @spec from_api(map() | nil) :: t() | nil
@@ -761,6 +785,7 @@ defmodule Gemini.Types.Interactions.DeltaMCPServerToolResultDeltaResultItems do
 end
 
 defmodule Gemini.Types.Interactions.DeltaMCPServerToolResultDeltaResult do
+  @moduledoc "Result type for MCP server tool result delta."
   alias Gemini.Types.Interactions.DeltaMCPServerToolResultDeltaResultItems
 
   @type t :: DeltaMCPServerToolResultDeltaResultItems.t() | String.t()
@@ -783,6 +808,7 @@ defmodule Gemini.Types.Interactions.DeltaMCPServerToolResultDeltaResult do
 end
 
 defmodule Gemini.Types.Interactions.DeltaMCPServerToolResultDelta do
+  @moduledoc "MCP server tool result delta for streaming responses."
   use TypedStruct
 
   alias Gemini.Types.Interactions.DeltaMCPServerToolResultDeltaResult
@@ -826,6 +852,7 @@ defmodule Gemini.Types.Interactions.DeltaMCPServerToolResultDelta do
 end
 
 defmodule Gemini.Types.Interactions.DeltaFileSearchResultDeltaResult do
+  @moduledoc "Result type for file search result delta."
   use TypedStruct
 
   @derive Jason.Encoder
@@ -862,6 +889,7 @@ defmodule Gemini.Types.Interactions.DeltaFileSearchResultDeltaResult do
 end
 
 defmodule Gemini.Types.Interactions.DeltaFileSearchResultDelta do
+  @moduledoc "File search result delta for streaming responses."
   use TypedStruct
 
   alias Gemini.Types.Interactions.DeltaFileSearchResultDeltaResult
@@ -945,31 +973,38 @@ defmodule Gemini.Types.Interactions.Delta do
           | DeltaFileSearchResultDelta.t()
           | map()
 
+  @type_to_module %{
+    "text" => DeltaTextDelta,
+    "image" => DeltaImageDelta,
+    "audio" => DeltaAudioDelta,
+    "document" => DeltaDocumentDelta,
+    "video" => DeltaVideoDelta,
+    "thought_summary" => DeltaThoughtSummaryDelta,
+    "thought_signature" => DeltaThoughtSignatureDelta,
+    "function_call" => DeltaFunctionCallDelta,
+    "function_result" => DeltaFunctionResultDelta,
+    "code_execution_call" => DeltaCodeExecutionCallDelta,
+    "code_execution_result" => DeltaCodeExecutionResultDelta,
+    "url_context_call" => DeltaURLContextCallDelta,
+    "url_context_result" => DeltaURLContextResultDelta,
+    "google_search_call" => DeltaGoogleSearchCallDelta,
+    "google_search_result" => DeltaGoogleSearchResultDelta,
+    "mcp_server_tool_call" => DeltaMCPServerToolCallDelta,
+    "mcp_server_tool_result" => DeltaMCPServerToolResultDelta,
+    "file_search_result" => DeltaFileSearchResultDelta
+  }
+
   @spec from_api(map() | t() | nil) :: t() | nil
   def from_api(nil), do: nil
   def from_api(%_{} = delta), do: delta
 
   def from_api(%{} = data) do
-    case Map.get(data, "type") do
-      "text" -> DeltaTextDelta.from_api(data)
-      "image" -> DeltaImageDelta.from_api(data)
-      "audio" -> DeltaAudioDelta.from_api(data)
-      "document" -> DeltaDocumentDelta.from_api(data)
-      "video" -> DeltaVideoDelta.from_api(data)
-      "thought_summary" -> DeltaThoughtSummaryDelta.from_api(data)
-      "thought_signature" -> DeltaThoughtSignatureDelta.from_api(data)
-      "function_call" -> DeltaFunctionCallDelta.from_api(data)
-      "function_result" -> DeltaFunctionResultDelta.from_api(data)
-      "code_execution_call" -> DeltaCodeExecutionCallDelta.from_api(data)
-      "code_execution_result" -> DeltaCodeExecutionResultDelta.from_api(data)
-      "url_context_call" -> DeltaURLContextCallDelta.from_api(data)
-      "url_context_result" -> DeltaURLContextResultDelta.from_api(data)
-      "google_search_call" -> DeltaGoogleSearchCallDelta.from_api(data)
-      "google_search_result" -> DeltaGoogleSearchResultDelta.from_api(data)
-      "mcp_server_tool_call" -> DeltaMCPServerToolCallDelta.from_api(data)
-      "mcp_server_tool_result" -> DeltaMCPServerToolResultDelta.from_api(data)
-      "file_search_result" -> DeltaFileSearchResultDelta.from_api(data)
-      _ -> data
+    data
+    |> Map.get("type")
+    |> then(&Map.get(@type_to_module, &1))
+    |> case do
+      nil -> data
+      module -> module.from_api(data)
     end
   end
 

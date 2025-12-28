@@ -1,9 +1,9 @@
 defmodule Gemini.AutoToolsTest do
   use ExUnit.Case, async: false
 
+  alias Altar.ADM
   alias Gemini
   alias Gemini.Tools
-  alias Altar.ADM
 
   import Gemini.Test.ModelHelpers
 

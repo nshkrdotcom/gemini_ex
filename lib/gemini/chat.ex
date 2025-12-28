@@ -22,8 +22,8 @@ defmodule Gemini.Chat do
       {:ok, response} = Gemini.generate_content(chat.history, chat.opts)
   """
 
-  alias Gemini.Types.Content
   alias Altar.ADM.{FunctionCall, ToolResult}
+  alias Gemini.Types.{Content, Part}
 
   @typedoc """
   A chat session containing conversation history and configuration options.
@@ -95,13 +95,10 @@ defmodule Gemini.Chat do
 
   # Extract text from a GenerateContentResponse
   defp extract_model_text(%{candidates: [%{content: %{parts: parts}} | _]}) when is_list(parts) do
-    parts
-    |> Enum.filter(&is_map/1)
-    |> Enum.map(fn
+    Enum.map_join(parts, "", fn
       %{text: text} -> text
       _ -> ""
     end)
-    |> Enum.join("")
   end
 
   defp extract_model_text(_), do: ""
@@ -135,13 +132,13 @@ defmodule Gemini.Chat do
   # Build Content struct based on role, message type, and signatures
   # User messages with signatures get them echoed
   defp build_content("user", message, signatures) when is_binary(message) do
-    part = Gemini.Types.Part.text(message)
+    part = Part.text(message)
 
     # Attach the first signature to the user's part (for echoing)
     part =
       case signatures do
         [sig | _] when is_binary(sig) ->
-          Gemini.Types.Part.with_thought_signature(part, sig)
+          Part.with_thought_signature(part, sig)
 
         _ ->
           part

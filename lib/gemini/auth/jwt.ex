@@ -84,18 +84,16 @@ defmodule Gemini.Auth.JWT do
   @spec sign_with_key(jwt_payload(), service_account_key()) ::
           {:ok, String.t()} | {:error, term()}
   def sign_with_key(payload, %{private_key: private_key}) do
-    try do
-      # Create RS256 signer from the private key
-      signer = Signer.create("RS256", %{"pem" => private_key})
+    # Create RS256 signer from the private key
+    signer = Signer.create("RS256", %{"pem" => private_key})
 
-      # Generate the token
-      case Joken.generate_and_sign(%{}, payload, signer) do
-        {:ok, token, _claims} -> {:ok, token}
-        {:error, reason} -> {:error, reason}
-      end
-    rescue
-      error -> {:error, error}
+    # Generate the token
+    case Joken.generate_and_sign(%{}, payload, signer) do
+      {:ok, token, _claims} -> {:ok, token}
+      {:error, reason} -> {:error, reason}
     end
+  rescue
+    error -> {:error, error}
   end
 
   @doc """
@@ -135,22 +133,8 @@ defmodule Gemini.Auth.JWT do
       })
 
     case Req.post(url, headers: headers, body: body) do
-      {:ok, %Req.Response{status: 200, body: response_body}} ->
-        case response_body do
-          %{"signedJwt" => signed_jwt} ->
-            {:ok, signed_jwt}
-
-          _ ->
-            case Jason.decode(response_body) do
-              {:ok, %{"signedJwt" => signed_jwt}} -> {:ok, signed_jwt}
-              {:ok, response} -> {:error, "Unexpected response format: #{inspect(response)}"}
-              {:error, reason} -> {:error, "Failed to parse response: #{reason}"}
-            end
-        end
-
-      {:ok, %Req.Response{status: status, body: body}} ->
-        error_body = if is_binary(body), do: body, else: inspect(body)
-        {:error, "HTTP #{status}: #{error_body}"}
+      {:ok, response} ->
+        handle_iam_response(response)
 
       {:error, reason} ->
         {:error, "Request failed: #{reason}"}
@@ -202,21 +186,11 @@ defmodule Gemini.Auth.JWT do
   def validate_payload(%{iss: iss, aud: aud, sub: sub, iat: iat, exp: exp})
       when is_binary(iss) and is_binary(aud) and is_binary(sub) and
              is_integer(iat) and is_integer(exp) do
-    cond do
-      aud != sub ->
-        {:error, "aud and sub claims must be identical for Vertex AI"}
+    now = System.system_time(:second)
 
-      exp <= iat ->
-        {:error, "exp must be greater than iat"}
-
-      iat > System.system_time(:second) + 60 ->
-        {:error, "iat cannot be in the future"}
-
-      exp < System.system_time(:second) ->
-        {:error, "Token has expired"}
-
-      true ->
-        :ok
+    case find_payload_error(%{aud: aud, sub: sub, iat: iat, exp: exp}, now) do
+      nil -> :ok
+      {:error, _} = error -> error
     end
   end
 
@@ -282,4 +256,50 @@ defmodule Gemini.Auth.JWT do
   """
   @spec get_service_account_email(service_account_key()) :: String.t()
   def get_service_account_email(%{client_email: email}), do: email
+
+  defp handle_iam_response(%Req.Response{status: 200, body: body}), do: parse_signed_jwt(body)
+
+  defp handle_iam_response(%Req.Response{status: status, body: body}) do
+    error_body = if is_binary(body), do: body, else: inspect(body)
+    {:error, "HTTP #{status}: #{error_body}"}
+  end
+
+  defp parse_signed_jwt(%{"signedJwt" => signed_jwt}), do: {:ok, signed_jwt}
+
+  defp parse_signed_jwt(body) when is_binary(body) do
+    case Jason.decode(body) do
+      {:ok, decoded} -> parse_signed_jwt(decoded)
+      {:error, reason} -> {:error, "Failed to parse response: #{reason}"}
+    end
+  end
+
+  defp parse_signed_jwt(response),
+    do: {:error, "Unexpected response format: #{inspect(response)}"}
+
+  defp find_payload_error(payload, now) do
+    validators = [
+      &validate_aud_sub/2,
+      &validate_exp_gt_iat/2,
+      &validate_iat_not_future/2,
+      &validate_exp_not_past/2
+    ]
+
+    Enum.find_value(validators, fn validator -> validator.(payload, now) end)
+  end
+
+  defp validate_aud_sub(%{aud: aud, sub: sub}, _now) do
+    if aud == sub, do: nil, else: {:error, "aud and sub claims must be identical for Vertex AI"}
+  end
+
+  defp validate_exp_gt_iat(%{exp: exp, iat: iat}, _now) do
+    if exp > iat, do: nil, else: {:error, "exp must be greater than iat"}
+  end
+
+  defp validate_iat_not_future(%{iat: iat}, now) do
+    if iat <= now + 60, do: nil, else: {:error, "iat cannot be in the future"}
+  end
+
+  defp validate_exp_not_past(%{exp: exp}, now) do
+    if exp >= now, do: nil, else: {:error, "Token has expired"}
+  end
 end

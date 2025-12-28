@@ -148,7 +148,7 @@ defmodule Gemini.Types.Request.GenerateContentRequest do
 
   use TypedStruct
 
-  alias Gemini.Types.{Content, SafetySetting, GenerationConfig}
+  alias Gemini.Types.{Content, GenerationConfig, SafetySetting}
 
   @derive Jason.Encoder
   typedstruct do
@@ -218,12 +218,10 @@ defmodule Gemini.Types.Request.GenerateContentRequest do
   end
 
   defp normalize_contents(contents) when is_list(contents) do
-    try do
-      normalized = Enum.map(contents, &normalize_content/1)
-      {:ok, normalized}
-    rescue
-      error -> {:error, "Invalid contents: #{inspect(error)}"}
-    end
+    normalized = Enum.map(contents, &normalize_content/1)
+    {:ok, normalized}
+  rescue
+    error -> {:error, "Invalid contents: #{inspect(error)}"}
   end
 
   defp normalize_contents(_) do
@@ -259,7 +257,7 @@ defmodule Gemini.Types.Request.CountTokensRequest do
 
   use TypedStruct
 
-  alias Gemini.Types.Content
+  alias Gemini.Types.{Content, Part}
   alias Gemini.Types.Request.GenerateContentRequest
 
   @derive Jason.Encoder
@@ -322,7 +320,7 @@ defmodule Gemini.Types.Request.CountTokensRequest do
   defp format_content(other), do: other
 
   # Format Part for API, only including non-nil fields
-  defp format_part(%Gemini.Types.Part{} = part) do
+  defp format_part(%Part{} = part) do
     base = %{}
 
     base = if part.text, do: Map.put(base, :text, part.text), else: base
@@ -357,12 +355,10 @@ defmodule Gemini.Types.Request.CountTokensRequest do
   end
 
   defp normalize_contents(contents) when is_list(contents) do
-    try do
-      normalized = Enum.map(contents, &normalize_content/1)
-      {:ok, normalized}
-    rescue
-      error -> {:error, "Invalid contents: #{inspect(error)}"}
-    end
+    normalized = Enum.map(contents, &normalize_content/1)
+    {:ok, normalized}
+  rescue
+    error -> {:error, "Invalid contents: #{inspect(error)}"}
   end
 
   defp normalize_contents(_) do

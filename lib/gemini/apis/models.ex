@@ -4,9 +4,9 @@ defmodule Gemini.Models do
   """
 
   alias Gemini.Client.HTTP
+  alias Gemini.Error
   alias Gemini.Types.Request.ListModelsRequest
   alias Gemini.Types.Response.{ListModelsResponse, Model}
-  alias Gemini.Error
 
   @doc """
   List available Gemini models.
@@ -154,30 +154,26 @@ defmodule Gemini.Models do
   end
 
   defp parse_list_models_response(response) do
-    try do
-      models =
-        response
-        |> Map.get("models", [])
-        |> Enum.map(&parse_model/1)
+    models =
+      response
+      |> Map.get("models", [])
+      |> Enum.map(&parse_model/1)
 
-      list_response = %ListModelsResponse{
-        models: models,
-        next_page_token: Map.get(response, "nextPageToken")
-      }
+    list_response = %ListModelsResponse{
+      models: models,
+      next_page_token: Map.get(response, "nextPageToken")
+    }
 
-      {:ok, list_response}
-    rescue
-      e -> {:error, Error.invalid_response("Failed to parse models response: #{inspect(e)}")}
-    end
+    {:ok, list_response}
+  rescue
+    e -> {:error, Error.invalid_response("Failed to parse models response: #{inspect(e)}")}
   end
 
   defp parse_model_response(response) do
-    try do
-      model = parse_model(response)
-      {:ok, model}
-    rescue
-      e -> {:error, Error.invalid_response("Failed to parse model response: #{inspect(e)}")}
-    end
+    model = parse_model(response)
+    {:ok, model}
+  rescue
+    e -> {:error, Error.invalid_response("Failed to parse model response: #{inspect(e)}")}
   end
 
   defp parse_model(model_data) do

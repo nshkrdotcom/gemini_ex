@@ -89,11 +89,9 @@ defmodule Gemini.Tools.Executor do
   end
 
   defp execute_function(fun) do
-    try do
-      {:ok, fun.()}
-    rescue
-      e -> {:error, {:execution_error, e}}
-    end
+    {:ok, fun.()}
+  rescue
+    e -> {:error, {:execution_error, e}}
   end
 
   @doc """

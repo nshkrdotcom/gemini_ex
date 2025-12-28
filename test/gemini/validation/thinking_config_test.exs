@@ -1,8 +1,8 @@
 defmodule Gemini.Validation.ThinkingConfigTest do
   use ExUnit.Case, async: true
 
-  alias Gemini.Validation.ThinkingConfig
   alias Gemini.Config
+  alias Gemini.Validation.ThinkingConfig
 
   # Get canonical model names from Config for primary tests
   @pro_2_5 Config.get_model(:pro_2_5)

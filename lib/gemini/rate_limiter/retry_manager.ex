@@ -261,12 +261,10 @@ defmodule Gemini.RateLimiter.RetryManager do
   defp extract_from_error_details(error) when is_map(error) do
     case error do
       %{"details" => [%{"@type" => type} = detail | _]} ->
-        cond do
-          type == "type.googleapis.com/google.rpc.RetryInfo" or type == "google.rpc.RetryInfo" ->
-            %{"retryDelay" => Map.get(detail, "retryDelay", "60s")}
-
-          true ->
-            %{}
+        if type == "type.googleapis.com/google.rpc.RetryInfo" or type == "google.rpc.RetryInfo" do
+          %{"retryDelay" => Map.get(detail, "retryDelay", "60s")}
+        else
+          %{}
         end
 
       %{"details" => details} when is_list(details) ->

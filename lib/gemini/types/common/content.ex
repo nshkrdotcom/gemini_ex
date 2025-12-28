@@ -5,17 +5,19 @@ defmodule Gemini.Types.Content do
 
   use TypedStruct
 
+  alias Gemini.Types.Part
+
   @derive Jason.Encoder
   typedstruct do
     field(:role, String.t(), default: "user")
-    field(:parts, [Gemini.Types.Part.t()], default: [])
+    field(:parts, [Part.t()], default: [])
   end
 
   @typedoc "The role of the content creator."
   @type role :: String.t()
 
   @typedoc "Ordered parts that constitute a single message."
-  @type parts :: [Gemini.Types.Part.t()]
+  @type parts :: [Part.t()]
 
   @doc """
   Create content with text.
@@ -24,7 +26,7 @@ defmodule Gemini.Types.Content do
   def text(text, role \\ "user") do
     %__MODULE__{
       role: role,
-      parts: [Gemini.Types.Part.text(text)]
+      parts: [Part.text(text)]
     }
   end
 
@@ -36,8 +38,8 @@ defmodule Gemini.Types.Content do
     %__MODULE__{
       role: role,
       parts: [
-        Gemini.Types.Part.text(text),
-        Gemini.Types.Part.inline_data(image_data, mime_type)
+        Part.text(text),
+        Part.inline_data(image_data, mime_type)
       ]
     }
   end
@@ -49,7 +51,7 @@ defmodule Gemini.Types.Content do
   def image(path, role \\ "user") do
     %__MODULE__{
       role: role,
-      parts: [Gemini.Types.Part.file(path)]
+      parts: [Part.file(path)]
     }
   end
 

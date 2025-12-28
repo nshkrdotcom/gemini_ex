@@ -8,9 +8,9 @@ defmodule Gemini.Supervisor do
 
   use Supervisor
 
-  alias Gemini.Streaming.UnifiedManager
-  alias Gemini.RateLimiter.Manager, as: RateLimitManager
   alias Altar.LATER.Registry
+  alias Gemini.RateLimiter.Manager, as: RateLimitManager
+  alias Gemini.Streaming.UnifiedManager
 
   @doc """
   Start the Gemini supervisor.

@@ -70,24 +70,24 @@ defmodule Gemini.Types.Response.InlinedEmbedContentResponse do
 
   ## Examples
 
-      InlinedEmbedContentResponse.is_success?(response)
+      InlinedEmbedContentResponse.success?(response)
       # => true
   """
-  @spec is_success?(t()) :: boolean()
-  def is_success?(%__MODULE__{response: %EmbedContentResponse{}, error: nil}), do: true
-  def is_success?(_), do: false
+  @spec success?(t()) :: boolean()
+  def success?(%__MODULE__{response: %EmbedContentResponse{}, error: nil}), do: true
+  def success?(_), do: false
 
   @doc """
   Checks if the inlined response is an error.
 
   ## Examples
 
-      InlinedEmbedContentResponse.is_error?(response)
+      InlinedEmbedContentResponse.error?(response)
       # => false
   """
-  @spec is_error?(t()) :: boolean()
-  def is_error?(%__MODULE__{response: nil, error: error}) when is_map(error), do: true
-  def is_error?(_), do: false
+  @spec error?(t()) :: boolean()
+  def error?(%__MODULE__{response: nil, error: error}) when is_map(error), do: true
+  def error?(_), do: false
 
   # Private helpers
 

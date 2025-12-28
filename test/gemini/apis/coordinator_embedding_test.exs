@@ -1,9 +1,10 @@
 defmodule Gemini.APIs.CoordinatorEmbeddingTest do
   use ExUnit.Case, async: true
 
-  alias Gemini.Types.Request.{EmbedContentRequest, BatchEmbedContentsRequest}
-  alias Gemini.Types.Response.{EmbedContentResponse, BatchEmbedContentsResponse, ContentEmbedding}
   alias Gemini.Config
+  alias Gemini.Types.Content
+  alias Gemini.Types.Request.{BatchEmbedContentsRequest, EmbedContentRequest}
+  alias Gemini.Types.Response.{BatchEmbedContentsResponse, ContentEmbedding, EmbedContentResponse}
 
   import Gemini.Test.ModelHelpers
 
@@ -30,7 +31,7 @@ defmodule Gemini.APIs.CoordinatorEmbeddingTest do
 
       assert %EmbedContentRequest{} = request
       assert request.model == "models/#{embedding_model()}"
-      assert %Gemini.Types.Content{} = request.content
+      assert %Content{} = request.content
     end
 
     test "supports custom model" do

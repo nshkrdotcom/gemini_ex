@@ -58,39 +58,12 @@ defmodule Gemini.Auth.TokenCache do
   """
   @spec init() :: :ok
   def init do
-    case :ets.whereis(@table_name) do
-      :undefined ->
-        # Serialize creation so concurrent callers don't crash with :already_exists
-        :global.trans({:gemini_token_cache_init, node()}, fn ->
-          case :ets.whereis(@table_name) do
-            :undefined ->
-              try do
-                :ets.new(@table_name, [
-                  :set,
-                  :public,
-                  :named_table,
-                  read_concurrency: true,
-                  write_concurrency: true
-                ])
-
-                Logger.debug("[TokenCache] Initialized token cache table")
-              rescue
-                ArgumentError ->
-                  # Another process created the table first
-                  :ok
-              end
-
-            _ref ->
-              :ok
-          end
-        end)
-
-        :ok
-
-      _ref ->
-        # Table already exists
-        :ok
+    if :ets.whereis(@table_name) == :undefined do
+      # Serialize creation so concurrent callers don't crash with :already_exists
+      :global.trans({:gemini_token_cache_init, node()}, fn -> ensure_table_created() end)
     end
+
+    :ok
   end
 
   @doc """
@@ -166,33 +139,11 @@ defmodule Gemini.Auth.TokenCache do
   """
   @spec get(cache_key()) :: {:ok, token()} | :error
   def get(key) do
-    case :ets.whereis(@table_name) do
-      :undefined ->
-        Logger.warning("[TokenCache] Token cache not initialized")
-        :error
-
-      _ref ->
-        case :ets.lookup(@table_name, key) do
-          [{^key, token, expiry_time}] ->
-            now = System.system_time(:second)
-
-            if now < expiry_time do
-              Logger.debug("[TokenCache] Cache hit for #{inspect(key)}")
-              {:ok, token}
-            else
-              Logger.debug(
-                "[TokenCache] Cache expired for #{inspect(key)} (expired #{now - expiry_time}s ago)"
-              )
-
-              # Clean up expired entry
-              :ets.delete(@table_name, key)
-              :error
-            end
-
-          [] ->
-            Logger.debug("[TokenCache] Cache miss for #{inspect(key)}")
-            :error
-        end
+    if :ets.whereis(@table_name) == :undefined do
+      Logger.warning("[TokenCache] Token cache not initialized")
+      :error
+    else
+      lookup_token(key)
     end
   end
 
@@ -273,6 +224,58 @@ defmodule Gemini.Auth.TokenCache do
     case :ets.whereis(@table_name) do
       :undefined -> init()
       _ref -> :ok
+    end
+  end
+
+  defp ensure_table_created do
+    if :ets.whereis(@table_name) == :undefined do
+      create_table()
+    end
+
+    :ok
+  end
+
+  defp create_table do
+    :ets.new(@table_name, [
+      :set,
+      :public,
+      :named_table,
+      read_concurrency: true,
+      write_concurrency: true
+    ])
+
+    Logger.debug("[TokenCache] Initialized token cache table")
+  rescue
+    ArgumentError ->
+      # Another process created the table first
+      :ok
+  end
+
+  defp lookup_token(key) do
+    case :ets.lookup(@table_name, key) do
+      [{^key, token, expiry_time}] ->
+        validate_token(key, token, expiry_time)
+
+      [] ->
+        Logger.debug("[TokenCache] Cache miss for #{inspect(key)}")
+        :error
+    end
+  end
+
+  defp validate_token(key, token, expiry_time) do
+    now = System.system_time(:second)
+
+    if now < expiry_time do
+      Logger.debug("[TokenCache] Cache hit for #{inspect(key)}")
+      {:ok, token}
+    else
+      Logger.debug(
+        "[TokenCache] Cache expired for #{inspect(key)} (expired #{now - expiry_time}s ago)"
+      )
+
+      # Clean up expired entry
+      :ets.delete(@table_name, key)
+      :error
     end
   end
 end

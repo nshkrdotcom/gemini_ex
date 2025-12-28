@@ -32,11 +32,11 @@ defmodule Gemini.APIs.ContextCache do
   """
 
   alias Gemini.Client.HTTP
+  alias Gemini.Types.CachedContentUsageMetadata
   alias Gemini.Types.Content
   alias Gemini.Types.MediaResolution
   alias Gemini.Types.Part
   alias Gemini.Types.ToolSerialization
-  alias Gemini.Types.CachedContentUsageMetadata
   alias Gemini.Utils.ResourceNames
 
   require Logger

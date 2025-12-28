@@ -46,20 +46,24 @@ defmodule Gemini.Types.Blob do
   end
 
   # Simple MIME type detection based on file extension
+  @mime_by_ext %{
+    ".avi" => "video/avi",
+    ".gif" => "image/gif",
+    ".jpeg" => "image/jpeg",
+    ".jpg" => "image/jpeg",
+    ".mov" => "video/mov",
+    ".mp3" => "audio/mp3",
+    ".mp4" => "video/mp4",
+    ".pdf" => "application/pdf",
+    ".png" => "image/png",
+    ".wav" => "audio/wav",
+    ".webp" => "image/webp"
+  }
+
   defp determine_mime_type(file_path) do
-    case Path.extname(file_path) |> String.downcase() do
-      ".jpg" -> "image/jpeg"
-      ".jpeg" -> "image/jpeg"
-      ".png" -> "image/png"
-      ".gif" -> "image/gif"
-      ".webp" -> "image/webp"
-      ".pdf" -> "application/pdf"
-      ".mp4" -> "video/mp4"
-      ".avi" -> "video/avi"
-      ".mov" -> "video/mov"
-      ".mp3" -> "audio/mp3"
-      ".wav" -> "audio/wav"
-      _ -> "application/octet-stream"
-    end
+    file_path
+    |> Path.extname()
+    |> String.downcase()
+    |> then(&Map.get(@mime_by_ext, &1, "application/octet-stream"))
   end
 end

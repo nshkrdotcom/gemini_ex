@@ -2,7 +2,7 @@ defmodule GeminiTest do
   use ExUnit.Case
   doctest Gemini
 
-  alias Gemini.Types.{Content, Part, GenerationConfig, SafetySetting}
+  alias Gemini.Types.{Blob, Content, GenerationConfig, Part, SafetySetting}
 
   describe "content creation" do
     test "creates text content" do
@@ -22,7 +22,7 @@ defmodule GeminiTest do
       content = Content.image(temp_path)
 
       assert %Content{
-               parts: [%Part{inline_data: %Gemini.Types.Blob{}}],
+               parts: [%Part{inline_data: %Blob{}}],
                role: "user"
              } = content
 

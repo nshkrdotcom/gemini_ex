@@ -631,10 +631,7 @@ defmodule Gemini.SSE.ParserTest do
       parser = Parser.new()
 
       # Create a large chunk with many events
-      large_chunk =
-        1..1000
-        |> Enum.map(fn i -> "data: {\"number\": #{i}}\n\n" end)
-        |> Enum.join("")
+      large_chunk = Enum.map_join(1..1000, "", fn i -> "data: {\"number\": #{i}}\n\n" end)
 
       start_time = System.monotonic_time(:millisecond)
       {:ok, events, _parser} = Parser.parse_chunk(large_chunk, parser)

@@ -10,6 +10,7 @@ defmodule Gemini.APIs.FilesLiveTest do
   use ExUnit.Case, async: false
 
   alias Gemini.APIs.Files
+  alias Gemini.Test.AuthHelpers
 
   # Use Elixir.File for standard library file operations
   @elixir_file Elixir.File
@@ -20,7 +21,7 @@ defmodule Gemini.APIs.FilesLiveTest do
   @test_document_path "test/fixtures/test_document.txt"
 
   setup do
-    case Gemini.Test.AuthHelpers.detect_auth() do
+    case AuthHelpers.detect_auth() do
       {:ok, :gemini, _} ->
         {:ok, skip: false, uploaded_files: []}
 
@@ -382,6 +383,14 @@ defmodule Gemini.APIs.FilesLiveTest do
           {:error, %Gemini.Error{http_status: 400}} ->
             # Test image is too small/simple for Gemini to process - that's OK
             # The important thing is the upload and wait_for_processing worked
+            :ok
+
+          {:error, %Gemini.Error{http_status: 500}} ->
+            # Transient API error - acceptable for live tests
+            :ok
+
+          {:error, {:transient_failure, _attempts, _inner_error}} ->
+            # Retry logic exhausted due to transient API errors - acceptable
             :ok
         end
 

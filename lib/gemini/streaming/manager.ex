@@ -215,13 +215,7 @@ defmodule Gemini.Streaming.Manager do
 
         # Find and remove the monitor for this subscriber
         {monitor_to_remove, new_monitors} =
-          Enum.reduce(state.monitors, {nil, %{}}, fn {ref, {sid, pid}}, {remove_ref, acc} ->
-            if sid == stream_id and pid == subscriber_pid do
-              {ref, acc}
-            else
-              {remove_ref, Map.put(acc, ref, {sid, pid})}
-            end
-          end)
+          remove_monitor(state.monitors, stream_id, subscriber_pid)
 
         # Demonitor if we found a monitor
         if monitor_to_remove do
@@ -364,58 +358,11 @@ defmodule Gemini.Streaming.Manager do
         {:noreply, state}
 
       {stream_id, dead_pid} ->
-        # Check if this was a recently added subscriber (within last 50ms)
-        current_time = System.monotonic_time(:millisecond)
-
-        recently_added =
-          case Map.get(state.recent_subscribers, dead_pid) do
-            nil -> false
-            add_time -> current_time - add_time < 50
-          end
-
-        if recently_added do
+        if recently_added?(state, dead_pid) do
           # Don't remove recently added subscribers immediately to prevent race conditions
           {:noreply, state}
         else
-          # Remove the monitor and recent subscriber tracking
-          new_monitors = Map.delete(state.monitors, monitor_ref)
-          new_recent_subscribers = Map.delete(state.recent_subscribers, dead_pid)
-
-          case Map.get(state.streams, stream_id) do
-            nil ->
-              # Stream doesn't exist anymore, just remove the monitor
-              {:noreply,
-               %{state | monitors: new_monitors, recent_subscribers: new_recent_subscribers}}
-
-            stream_state ->
-              # Remove the dead process from subscribers
-              updated_subscribers = List.delete(stream_state.subscribers, dead_pid)
-
-              if Enum.empty?(updated_subscribers) do
-                # No more subscribers, remove the stream entirely
-                new_streams = Map.delete(state.streams, stream_id)
-
-                {:noreply,
-                 %{
-                   state
-                   | streams: new_streams,
-                     monitors: new_monitors,
-                     recent_subscribers: new_recent_subscribers
-                 }}
-              else
-                # Update stream with remaining subscribers
-                updated_stream = %{stream_state | subscribers: updated_subscribers}
-                new_streams = Map.put(state.streams, stream_id, updated_stream)
-
-                {:noreply,
-                 %{
-                   state
-                   | streams: new_streams,
-                     monitors: new_monitors,
-                     recent_subscribers: new_recent_subscribers
-                 }}
-              end
-          end
+          {:noreply, remove_dead_subscriber(state, monitor_ref, stream_id, dead_pid)}
         end
     end
   end
@@ -442,25 +389,7 @@ defmodule Gemini.Streaming.Manager do
     case Gemini.Auth.build_headers(stream_state.auth_type, stream_state.credentials) do
       {:ok, headers} ->
         full_url = "#{base_url}/#{path}?alt=sse"
-
-        # Start the HTTP stream in a separate process
-        manager_pid = self()
-        stream_id = stream_state.stream_id
-
-        spawn_link(fn ->
-          case HTTP.stream_post_raw(full_url, stream_state.request_body, headers) do
-            {:ok, events} ->
-              Enum.each(events, fn event ->
-                send(manager_pid, {:stream_event, stream_id, event})
-              end)
-
-              send(manager_pid, {:stream_complete, stream_id})
-
-            {:error, error} ->
-              send(manager_pid, {:stream_error, stream_id, error})
-          end
-        end)
-
+        spawn_stream_process(stream_state, full_url, headers)
         {:ok, :started}
 
       {:error, reason} ->
@@ -472,5 +401,99 @@ defmodule Gemini.Streaming.Manager do
     Enum.each(stream_state.subscribers, fn pid ->
       send(pid, message)
     end)
+  end
+
+  defp remove_monitor(monitors, stream_id, subscriber_pid) do
+    Enum.reduce(monitors, {nil, %{}}, fn {ref, {sid, pid}}, {remove_ref, acc} ->
+      if sid == stream_id and pid == subscriber_pid do
+        {ref, acc}
+      else
+        {remove_ref, Map.put(acc, ref, {sid, pid})}
+      end
+    end)
+  end
+
+  defp recently_added?(state, pid) do
+    current_time = System.monotonic_time(:millisecond)
+
+    case Map.get(state.recent_subscribers, pid) do
+      nil -> false
+      add_time -> current_time - add_time < 50
+    end
+  end
+
+  defp remove_dead_subscriber(state, monitor_ref, stream_id, dead_pid) do
+    new_monitors = Map.delete(state.monitors, monitor_ref)
+    new_recent_subscribers = Map.delete(state.recent_subscribers, dead_pid)
+
+    case Map.get(state.streams, stream_id) do
+      nil ->
+        %{state | monitors: new_monitors, recent_subscribers: new_recent_subscribers}
+
+      stream_state ->
+        update_stream_subscribers(
+          state,
+          stream_id,
+          stream_state,
+          dead_pid,
+          new_monitors,
+          new_recent_subscribers
+        )
+    end
+  end
+
+  defp update_stream_subscribers(
+         state,
+         stream_id,
+         stream_state,
+         dead_pid,
+         new_monitors,
+         new_recent_subscribers
+       ) do
+    updated_subscribers = List.delete(stream_state.subscribers, dead_pid)
+
+    if Enum.empty?(updated_subscribers) do
+      new_streams = Map.delete(state.streams, stream_id)
+
+      %{
+        state
+        | streams: new_streams,
+          monitors: new_monitors,
+          recent_subscribers: new_recent_subscribers
+      }
+    else
+      updated_stream = %{stream_state | subscribers: updated_subscribers}
+      new_streams = Map.put(state.streams, stream_id, updated_stream)
+
+      %{
+        state
+        | streams: new_streams,
+          monitors: new_monitors,
+          recent_subscribers: new_recent_subscribers
+      }
+    end
+  end
+
+  defp spawn_stream_process(stream_state, full_url, headers) do
+    manager_pid = self()
+    stream_id = stream_state.stream_id
+
+    spawn_link(fn ->
+      send_stream_events(manager_pid, stream_id, full_url, stream_state.request_body, headers)
+    end)
+  end
+
+  defp send_stream_events(manager_pid, stream_id, full_url, request_body, headers) do
+    case HTTP.stream_post_raw(full_url, request_body, headers) do
+      {:ok, events} ->
+        Enum.each(events, fn event ->
+          send(manager_pid, {:stream_event, stream_id, event})
+        end)
+
+        send(manager_pid, {:stream_complete, stream_id})
+
+      {:error, error} ->
+        send(manager_pid, {:stream_error, stream_id, error})
+    end
   end
 end
