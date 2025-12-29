@@ -159,16 +159,16 @@ defmodule UnifiedArchitectureDemo do
   end
 
   defp demo_backward_compatibility do
-    IO.puts("\n🔄 Backward Compatibility Demo")
+    IO.puts("\n🔄 API Compatibility Demo")
     IO.puts("-" |> String.duplicate(30))
 
     # Show that existing APIs still work
-    IO.puts("Testing existing API functions...")
+    IO.puts("Testing API functions...")
 
     # These would normally make real API calls, but we'll show they compile and run
     try do
       # This will fail with auth errors, but shows the API is compatible
-      case Gemini.Generate.content("Hello, world!") do
+      case Gemini.APIs.Coordinator.generate_content("Hello, world!") do
         {:ok, _response} ->
           IO.puts("✅ generate_content API compatible")
 
@@ -178,15 +178,6 @@ defmodule UnifiedArchitectureDemo do
     rescue
       _ ->
         IO.puts("✅ generate_content API compatible (compilation successful)")
-    end
-
-    # Show that build_generate_request is now public
-    try do
-      request = Gemini.Generate.build_generate_request("Test", [])
-      IO.puts("✅ build_generate_request is public: #{map_size(request)} fields")
-    rescue
-      error ->
-        IO.puts("❌ build_generate_request error: #{inspect(error)}")
     end
 
     # Test configuration functions

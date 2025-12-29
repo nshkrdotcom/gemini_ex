@@ -3,7 +3,7 @@
 # Tool Calling Demo
 # This example demonstrates the deserialization and serialization of tool calling data
 
-alias Gemini.Generate
+alias Gemini.APIs.Coordinator
 alias Gemini.Types.Content
 alias Altar.ADM.ToolResult
 
@@ -33,7 +33,7 @@ mock_api_response = %{
   ]
 }
 
-case Generate.parse_generate_response(mock_api_response) do
+case Coordinator.__test_parse_generate_response__(mock_api_response) do
   {:ok, response} ->
     IO.puts("✅ Successfully parsed response!")
 
@@ -107,7 +107,7 @@ malformed_response = %{
   ]
 }
 
-case Generate.parse_generate_response(malformed_response) do
+case Coordinator.__test_parse_generate_response__(malformed_response) do
   {:ok, _response} ->
     IO.puts("❌ Should have failed!")
 
