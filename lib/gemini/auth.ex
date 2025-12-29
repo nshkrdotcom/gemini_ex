@@ -44,20 +44,6 @@ defmodule Gemini.Auth do
   end
 
   @doc """
-  Get the appropriate authentication strategy based on configuration.
-  (Alias for get_strategy/1 for backward compatibility)
-  """
-  @spec strategy(auth_type()) :: module()
-  def strategy(auth_type) do
-    case auth_type do
-      :gemini -> Gemini.Auth.GeminiStrategy
-      :vertex -> Gemini.Auth.VertexStrategy
-      :vertex_ai -> Gemini.Auth.VertexStrategy
-      _ -> raise ArgumentError, "Unsupported auth type: #{inspect(auth_type)}"
-    end
-  end
-
-  @doc """
   Authenticate using the given strategy and configuration.
   """
   @spec authenticate(module(), map()) :: {:ok, map()} | {:error, term()}

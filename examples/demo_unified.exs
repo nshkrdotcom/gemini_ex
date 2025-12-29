@@ -65,7 +65,7 @@ defmodule UnifiedArchitectureDemo do
     # Gemini strategy
     demo_key = "demo-key"
     gemini_config = %{api_key: demo_key}
-    strategy = Gemini.Auth.strategy(:gemini)
+    strategy = Gemini.Auth.get_strategy(:gemini)
     IO.puts("Gemini strategy: #{inspect(strategy)}")
 
     case Gemini.Auth.authenticate(strategy, gemini_config) do
@@ -78,7 +78,7 @@ defmodule UnifiedArchitectureDemo do
 
     # Vertex strategy
     vertex_config = %{project_id: "demo-project", location: "us-central1"}
-    strategy = Gemini.Auth.strategy(:vertex)
+    strategy = Gemini.Auth.get_strategy(:vertex)
     IO.puts("Vertex strategy: #{inspect(strategy)}")
 
     case Gemini.Auth.authenticate(strategy, vertex_config) do
@@ -90,10 +90,10 @@ defmodule UnifiedArchitectureDemo do
     end
 
     # Base URLs
-    gemini_url = Gemini.Auth.base_url(Gemini.Auth.strategy(:gemini), gemini_config)
+    gemini_url = Gemini.Auth.base_url(Gemini.Auth.get_strategy(:gemini), gemini_config)
     IO.puts("Gemini base URL: #{gemini_url}")
 
-    case Gemini.Auth.base_url(Gemini.Auth.strategy(:vertex), vertex_config) do
+    case Gemini.Auth.base_url(Gemini.Auth.get_strategy(:vertex), vertex_config) do
       url when is_binary(url) ->
         IO.puts("Vertex base URL: #{url}")
 

@@ -4,18 +4,18 @@ defmodule Gemini.AuthTest do
   alias Gemini.Auth
   alias Gemini.Auth.{GeminiStrategy, VertexStrategy}
 
-  describe "strategy/1" do
+  describe "get_strategy/1" do
     test "returns GeminiStrategy for :gemini auth type" do
-      assert Auth.strategy(:gemini) == GeminiStrategy
+      assert Auth.get_strategy(:gemini) == GeminiStrategy
     end
 
     test "returns VertexStrategy for :vertex auth type" do
-      assert Auth.strategy(:vertex) == VertexStrategy
+      assert Auth.get_strategy(:vertex) == VertexStrategy
     end
 
-    test "raises error for unsupported auth type" do
-      assert_raise ArgumentError, "Unsupported auth type: :invalid", fn ->
-        Auth.strategy(:invalid)
+    test "raises error for unknown auth type" do
+      assert_raise ArgumentError, "Unknown authentication type: :invalid", fn ->
+        Auth.get_strategy(:invalid)
       end
     end
   end

@@ -2,15 +2,16 @@ defmodule Gemini.Streaming.UnifiedManager do
   @moduledoc """
   Unified streaming manager that supports multiple authentication strategies.
 
-  This manager extends the excellent ManagerV2 functionality with multi-auth support,
-  allowing concurrent usage of both Gemini API and Vertex AI authentication strategies
-  within the same application.
+  This is the canonical streaming manager for the Gemini client, supporting concurrent
+  usage of both Gemini API and Vertex AI authentication strategies within the same
+  application.
 
   Features:
-  - All capabilities from ManagerV2 (HTTP streaming, resource management, etc.)
+  - HTTP streaming with real-time event delivery
   - Multi-authentication strategy support via MultiAuthCoordinator
   - Per-stream authentication strategy selection
   - Concurrent usage of multiple auth strategies
+  - Resource management and cleanup
   """
 
   use GenServer
@@ -73,7 +74,7 @@ defmodule Gemini.Streaming.UnifiedManager do
   - `request_body`: The request body for content generation
   - `opts`: Options including auth strategy and other config
 
-  ### Legacy API: start_stream(contents, opts, subscriber_pid) - ManagerV2 compatibility
+  ### Legacy API: start_stream(contents, opts, subscriber_pid)
   - `contents`: Content to stream (string or list of Content structs)
   - `opts`: Generation options (model, generation_config, etc.)
   - `subscriber_pid`: Process to receive stream events
@@ -92,7 +93,7 @@ defmodule Gemini.Streaming.UnifiedManager do
         auth: :gemini
       )
 
-      # Legacy API for ManagerV2 compatibility
+      # Legacy API
       {:ok, stream_id} = UnifiedManager.start_stream("Hello", [model: Gemini.Config.get_model(:flash_lite_latest)], self())
   """
   def start_stream(model, request_body, opts \\ [])
@@ -176,10 +177,8 @@ defmodule Gemini.Streaming.UnifiedManager do
     GenServer.call(__MODULE__, :list_streams)
   end
 
-  # Compatibility functions for ManagerV2 API
-
   @doc """
-  Subscribe to stream events (ManagerV2 compatibility).
+  Subscribe to stream events.
   """
   @spec subscribe_stream(stream_id(), pid()) :: :ok | {:error, term()}
   def subscribe_stream(stream_id, subscriber_pid \\ self()) do
@@ -187,7 +186,7 @@ defmodule Gemini.Streaming.UnifiedManager do
   end
 
   @doc """
-  Get stream information (ManagerV2 compatibility).
+  Get stream information.
   """
   @spec get_stream_info(stream_id()) :: {:ok, map()} | {:error, term()}
   def get_stream_info(stream_id) do
@@ -195,7 +194,7 @@ defmodule Gemini.Streaming.UnifiedManager do
   end
 
   @doc """
-  Get manager statistics (ManagerV2 compatibility).
+  Get manager statistics.
   """
   @spec get_stats() :: map()
   def get_stats do
