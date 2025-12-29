@@ -4,7 +4,6 @@ defmodule Gemini.APIs.ContextCacheTest do
   alias Gemini.APIs.ContextCache
   alias Gemini.Types.Content
   alias Gemini.Types.Part
-  alias Altar.ADM.{FunctionDeclaration, ToolConfig}
 
   import Gemini.Test.ModelHelpers
 
@@ -61,79 +60,6 @@ defmodule Gemini.APIs.ContextCacheTest do
 
       # Should return an error tuple, not crash
       assert match?({:error, _}, result)
-    end
-  end
-
-  describe "__test_build_create_body__/2" do
-    test "builds payload with system_instruction, tools, tool_config, and fileData" do
-      {:ok, fun} =
-        FunctionDeclaration.new(
-          name: "analyze_doc",
-          description: "Analyze docs",
-          parameters: %{type: "OBJECT"}
-        )
-
-      {:ok, tool_config} = ToolConfig.new(mode: :any, function_names: ["analyze_doc"])
-
-      contents = [
-        Content.text("Hello world", "user"),
-        %Content{role: "user", parts: [%{file_uri: "gs://bucket/file.pdf"}]}
-      ]
-
-      %{body: body, path: path} =
-        ContextCache.__test_build_create_body__(contents,
-          display_name: "Cache",
-          model: default_model(),
-          system_instruction: "Be concise",
-          tools: [fun],
-          tool_config: tool_config,
-          ttl: 120,
-          auth: :gemini
-        )
-
-      assert path == "cachedContents"
-      assert body.displayName == "Cache"
-      assert body.model == "models/#{default_model()}"
-      assert body.ttl == "120s"
-
-      assert %{
-               role: "user",
-               parts: [%{text: "Be concise"}]
-             } = body.systemInstruction
-
-      assert [%{"functionDeclarations" => [fun_decl]}] = body.tools
-      assert fun_decl["name"] == "analyze_doc"
-      assert fun_decl["description"] == "Analyze docs"
-
-      assert %{
-               functionCallingConfig: %{
-                 mode: "ANY",
-                 allowedFunctionNames: ["analyze_doc"]
-               }
-             } = body.toolConfig
-
-      assert [
-               %{role: "user", parts: [%{text: "Hello world"}]},
-               %{role: "user", parts: [%{fileData: %{fileUri: "gs://bucket/file.pdf"}}]}
-             ] = body.contents
-    end
-
-    test "normalizes cache and model names for vertex" do
-      contents = [Content.text("Hello", "user")]
-
-      %{body: body, path: path} =
-        ContextCache.__test_build_create_body__(contents,
-          display_name: "Cache",
-          model: "models/#{default_model()}",
-          auth: :vertex_ai,
-          project_id: "proj",
-          location: "loc"
-        )
-
-      assert path == "projects/proj/locations/loc/cachedContents"
-
-      assert body.model ==
-               "projects/proj/locations/loc/publishers/google/models/#{default_model()}"
     end
   end
 

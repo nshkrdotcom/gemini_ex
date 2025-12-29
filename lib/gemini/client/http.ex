@@ -157,35 +157,6 @@ defmodule Gemini.Client.HTTP do
     end
   end
 
-  @doc """
-  Raw streaming POST with full URL (used by streaming manager).
-  """
-  def stream_post_raw(url, body, headers, opts \\ []) do
-    timeout = Keyword.get(opts, :timeout, Config.timeout())
-
-    req_opts = [
-      url: url,
-      headers: headers,
-      receive_timeout: timeout,
-      json: body,
-      into: :self
-    ]
-
-    case Req.post(req_opts) do
-      {:ok, %Req.Response{status: status, body: body}} when status in 200..299 ->
-        case parse_sse_stream(body) do
-          {:ok, events} -> {:ok, events}
-          {:error, parse_error} -> {:error, parse_error}
-        end
-
-      {:ok, %Req.Response{status: status}} ->
-        {:error, Error.http_error(status, "Stream request failed")}
-
-      {:error, reason} ->
-        {:error, Error.network_error(reason)}
-    end
-  end
-
   # Private functions
 
   defp execute_authenticated_request(method, path, body, auth_type, credentials, opts) do

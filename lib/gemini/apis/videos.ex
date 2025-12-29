@@ -473,19 +473,4 @@ defmodule Gemini.APIs.Videos do
   defp maybe_put_list(map, key, list, fun) when is_list(list) do
     Map.put(map, key, Enum.map(list, fun))
   end
-
-  @doc false
-  def __test_build_generation_request__(prompt, config),
-    do: build_generation_request(prompt, config)
-
-  @doc false
-  def __test_build_predict_path__(auth_type, credentials, model)
-      when is_map(credentials) and is_binary(model) do
-    build_predict_path(
-      auth_type,
-      Map.get(credentials, :project_id),
-      Map.get(credentials, :location),
-      model
-    )
-  end
 end

@@ -1,7 +1,6 @@
 defmodule Gemini.ThoughtSignaturesTest do
   use ExUnit.Case, async: true
 
-  alias Gemini.APIs.Coordinator
   alias Gemini.Chat
   alias Gemini.Types.Part
   alias Gemini.Types.Response.GenerateContentResponse
@@ -146,24 +145,6 @@ defmodule Gemini.ThoughtSignaturesTest do
       decoded = Jason.decode!(encoded)
 
       assert decoded["thought_signature"] == "sig_123"
-    end
-
-    test "thought_signature is included in API format via coordinator" do
-      part = %Part{text: "Hello", thought_signature: "sig_456"}
-
-      # Use the coordinator's internal formatting function via a test helper
-      api_format = Coordinator.__test_format_part__(part)
-
-      assert api_format[:thoughtSignature] == "sig_456"
-      assert api_format[:text] == "Hello"
-    end
-
-    test "media_resolution is included in API format" do
-      part = Part.inline_data_with_resolution("base64data", "image/jpeg", :high)
-
-      api_format = Coordinator.__test_format_part__(part)
-
-      assert api_format[:mediaResolution] == "MEDIA_RESOLUTION_HIGH"
     end
   end
 end

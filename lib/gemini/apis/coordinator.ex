@@ -1020,31 +1020,6 @@ defmodule Gemini.APIs.Coordinator do
     Enum.map(contents, &normalize_single_content/1)
   end
 
-  # Test helper - expose normalization for testing
-  @doc false
-  def __test_normalize_content__(input), do: normalize_single_content(input)
-
-  @doc false
-  def __test_detect_mime__(data), do: detect_mime_type(data)
-
-  @doc false
-  def __test_format_part__(part), do: format_part(part)
-
-  @doc false
-  def __test_build_generation_config__(opts), do: build_generation_config(opts)
-
-  @doc false
-  def __test_struct_to_api_map__(config), do: struct_to_api_map(config)
-
-  @doc false
-  def __test_parse_generate_response__(response), do: parse_generate_response(response)
-
-  @doc false
-  def __test_build_request__(input, opts), do: build_generate_request(input, opts)
-
-  @doc false
-  def __test_format_system_instruction__(instruction), do: format_system_instruction(instruction)
-
   # Already a Content struct - pass through
   defp normalize_single_content(%Content{} = content), do: content
 

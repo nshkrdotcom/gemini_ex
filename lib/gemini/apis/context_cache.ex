@@ -128,25 +128,6 @@ defmodule Gemini.APIs.ContextCache do
     end
   end
 
-  @doc false
-  def __test_build_create_body__(contents, opts) do
-    display_name =
-      Keyword.get(opts, :display_name) ||
-        raise ArgumentError, "display_name is required for cached content"
-
-    model = Keyword.get(opts, :model, Gemini.Config.default_model())
-    full_model_name = ResourceNames.normalize_cache_model_name(model, opts)
-    ttl_spec = build_ttl_spec(opts)
-    formatted_contents = format_contents(contents)
-
-    request_body =
-      base_create_body(full_model_name, display_name, formatted_contents, ttl_spec, opts)
-
-    path = ResourceNames.cached_contents_path(opts)
-
-    %{body: request_body, path: path}
-  end
-
   @doc """
   List all cached contents.
 

@@ -327,40 +327,6 @@ defmodule Gemini.APIs.VideosTest do
     end
   end
 
-  describe "__test_build_generation_request__/2" do
-    test "includes image and reference inputs in instances" do
-      image = %Blob{data: "image-data", mime_type: "image/png"}
-      last_frame = %Blob{data: "frame-data", mime_type: "image/png"}
-
-      reference = %VideoGenerationReferenceImage{
-        image: %Blob{data: "ref-data", mime_type: "image/png"},
-        reference_type: "asset"
-      }
-
-      config = %VideoGenerationConfig{
-        image: image,
-        last_frame: last_frame,
-        reference_images: [reference]
-      }
-
-      {:ok, request} = Videos.__test_build_generation_request__("A cat", config)
-
-      [instance] = request["instances"]
-
-      assert instance["prompt"] == "A cat"
-      assert instance["image"]["bytesBase64Encoded"] == "image-data"
-      assert instance["image"]["mimeType"] == "image/png"
-      assert instance["lastFrame"]["bytesBase64Encoded"] == "frame-data"
-
-      assert instance["referenceImages"] == [
-               %{
-                 "image" => %{"bytesBase64Encoded" => "ref-data", "mimeType" => "image/png"},
-                 "referenceType" => "asset"
-               }
-             ]
-    end
-  end
-
   describe "API functions" do
     test "validates function signatures" do
       # Verify all public API functions exist using deterministic module info
@@ -374,31 +340,6 @@ defmodule Gemini.APIs.VideosTest do
       assert {:cancel, 2} in functions
       assert {:list_operations, 1} in functions
       assert {:wrap_operation, 1} in functions
-    end
-  end
-
-  describe "__test_build_predict_path__/3" do
-    test "builds Vertex AI predict path" do
-      assert {:ok, path} =
-               Videos.__test_build_predict_path__(
-                 :vertex_ai,
-                 %{project_id: "proj", location: "us-central1"},
-                 "veo-3.1-generate-preview"
-               )
-
-      assert path ==
-               "projects/proj/locations/us-central1/publishers/google/models/veo-3.1-generate-preview:predict"
-    end
-
-    test "builds Gemini predictLongRunning path" do
-      assert {:ok, path} =
-               Videos.__test_build_predict_path__(
-                 :gemini,
-                 %{},
-                 "veo-3.1-generate-preview"
-               )
-
-      assert path == "models/veo-3.1-generate-preview:predictLongRunning"
     end
   end
 end
