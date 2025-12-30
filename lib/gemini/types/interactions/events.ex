@@ -5,6 +5,8 @@ defmodule Gemini.Types.Interactions.Events.Error do
 
   use TypedStruct
 
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
+
   @derive Jason.Encoder
   typedstruct do
     field(:code, String.t())
@@ -31,9 +33,6 @@ defmodule Gemini.Types.Interactions.Events.Error do
     |> maybe_put("code", err.code)
     |> maybe_put("message", err.message)
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.Events.ErrorEvent do
@@ -42,6 +41,8 @@ defmodule Gemini.Types.Interactions.Events.ErrorEvent do
   """
 
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   alias Gemini.Types.Interactions.Events.Error
 
@@ -73,9 +74,6 @@ defmodule Gemini.Types.Interactions.Events.ErrorEvent do
     |> maybe_put("event_id", event.event_id)
     |> maybe_put("error", Error.to_api(event.error))
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.Events.InteractionEvent do
@@ -84,6 +82,8 @@ defmodule Gemini.Types.Interactions.Events.InteractionEvent do
   """
 
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   alias Gemini.Types.Interactions.Interaction
 
@@ -118,9 +118,6 @@ defmodule Gemini.Types.Interactions.Events.InteractionEvent do
     |> maybe_put("event_type", event.event_type)
     |> maybe_put("interaction", Interaction.to_api(event.interaction))
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.Events.InteractionStatusUpdate do
@@ -129,6 +126,8 @@ defmodule Gemini.Types.Interactions.Events.InteractionStatusUpdate do
   """
 
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   alias Gemini.Types.Interactions.Interaction
 
@@ -163,9 +162,6 @@ defmodule Gemini.Types.Interactions.Events.InteractionStatusUpdate do
     |> maybe_put("interaction_id", event.interaction_id)
     |> maybe_put("status", event.status)
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.Events.ContentStart do
@@ -174,6 +170,8 @@ defmodule Gemini.Types.Interactions.Events.ContentStart do
   """
 
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   alias Gemini.Types.Interactions.Content
 
@@ -208,9 +206,6 @@ defmodule Gemini.Types.Interactions.Events.ContentStart do
     |> maybe_put("index", event.index)
     |> maybe_put("content", Content.to_api(event.content))
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.Events.ContentDelta do
@@ -219,6 +214,8 @@ defmodule Gemini.Types.Interactions.Events.ContentDelta do
   """
 
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   alias Gemini.Types.Interactions.Delta
 
@@ -253,9 +250,6 @@ defmodule Gemini.Types.Interactions.Events.ContentDelta do
     |> maybe_put("index", event.index)
     |> maybe_put("delta", Delta.to_api(event.delta))
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.Events.ContentStop do
@@ -264,6 +258,8 @@ defmodule Gemini.Types.Interactions.Events.ContentStop do
   """
 
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   @derive Jason.Encoder
   typedstruct do
@@ -293,9 +289,6 @@ defmodule Gemini.Types.Interactions.Events.ContentStop do
     |> maybe_put("event_id", event.event_id)
     |> maybe_put("index", event.index)
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.Events.InteractionSSEEvent do

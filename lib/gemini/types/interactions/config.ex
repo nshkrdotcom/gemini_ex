@@ -51,6 +51,8 @@ defmodule Gemini.Types.Interactions.ToolChoiceConfig do
 
   use TypedStruct
 
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
+
   alias Gemini.Types.Interactions.AllowedTools
 
   @derive Jason.Encoder
@@ -76,9 +78,6 @@ defmodule Gemini.Types.Interactions.ToolChoiceConfig do
     %{}
     |> maybe_put("allowed_tools", AllowedTools.to_api(config.allowed_tools))
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.ToolChoice do
@@ -112,6 +111,8 @@ defmodule Gemini.Types.Interactions.SpeechConfig do
 
   use TypedStruct
 
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
+
   @derive Jason.Encoder
   typedstruct do
     field(:language, String.t())
@@ -141,9 +142,6 @@ defmodule Gemini.Types.Interactions.SpeechConfig do
     |> maybe_put("speaker", config.speaker)
     |> maybe_put("voice", config.voice)
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.GenerationConfig do
@@ -152,6 +150,8 @@ defmodule Gemini.Types.Interactions.GenerationConfig do
   """
 
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   alias Gemini.Types.Interactions.{SpeechConfig, ThinkingLevel, ToolChoice}
 
@@ -207,7 +207,4 @@ defmodule Gemini.Types.Interactions.GenerationConfig do
 
   defp map_list(nil, _fun), do: nil
   defp map_list(list, fun) when is_list(list), do: Enum.map(list, fun)
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end

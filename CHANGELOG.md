@@ -5,6 +5,72 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.8] - 2025-12-29
+
+### Added
+- **Paid Tier 3 Rate Limit Profile**: New `:paid_tier_3` profile for maximum throughput workloads
+  - Qualification: >$1,000 total spend + 30 days since payment
+  - Settings: 30 max concurrency, 4M token budget, 100ms backoff, 50 adaptive ceiling
+  - Added corresponding test coverage in `rate_limiter_test.exs`
+
+- **Use-Case Model Aliases**: Implemented `Gemini.Config.model_for_use_case/2` and related functions
+  - `model_for_use_case/2`: Resolve use-case atoms to model strings with optional API validation
+  - `use_case_token_budget/1`: Get recommended token budget for a use-case
+  - `resolved_use_case_models/0`: Get all use-case to model mappings
+  - `available_use_cases/0`: List available use-case aliases
+  - Use cases: `:cache_context` (gemini-2.5-flash), `:report_section` (gemini-2.5-pro), `:fast_path` (gemini-2.5-flash-lite)
+
+- **Shared Utility Modules**: Consolidated duplicated helpers into dedicated modules
+  - `Gemini.Utils.MapHelpers`: `maybe_put/3`, `maybe_put_non_empty/3`, `maybe_put_non_zero/3`, `build_paginated_path/2`, `add_query_param/3`
+  - `Gemini.Utils.PollingHelpers`: `timed_out?/2`, `maybe_add/3`
+
+### Changed
+- **Rate Limit Documentation**: Updated to reflect current Google API tier structure
+  - Added tier qualifications table (Free, Tier 1-3 with spending thresholds)
+  - Documented that rate limits are per-project (not per-API key)
+  - Added note that RPD quotas reset at midnight Pacific time
+  - Added links to AI Studio for viewing actual model-specific limits
+  - Removed hardcoded RPM/TPM values (vary by model)
+
+- **Unified Streaming Architecture**: Removed redundant streaming managers
+  - `UnifiedManager` is now the canonical implementation
+  - Deleted legacy `Manager` and `ManagerV2` modules
+  - Updated examples and tests to use unified architecture
+
+- **Authentication Interface**: Renamed `strategy/1` to `Gemini.Auth.get_strategy/1`
+
+### Removed
+- **Dead Code Cleanup**: Removed unused functions and modules discovered during codebase audit
+  - `Gemini.Auth`: `authenticate/2`, `base_url/2` delegators
+  - `Gemini.Auth.GeminiStrategy`: `authenticate/1` (headers/1 is the actual interface)
+  - `Gemini.Auth.MultiAuthCoordinator`: Unused struct definition
+  - `Gemini.Client`: `stream_post/2`, `stream_post_with_auth/4` (moved to HTTPStreaming)
+  - `Gemini.Client.HTTP`: All SSE streaming functions (module now focused on regular HTTP)
+  - `Gemini.Config`: `models/0`, `use_case_models/0`, `use_case_token_minima/0`
+  - `Gemini.RateLimiter.ConcurrencyGate`: `reset/1`
+  - `Gemini.RateLimiter.Config`: `adaptive_enabled?/1`, `profile_config/1`
+  - `Gemini.RateLimiter.State`: `would_exceed_budget?/3`
+  - `Gemini.Streaming.ToolOrchestrator`: `subscribe/2`, `stop/1`, `cleanup_streams/1`
+
+- **Deleted Files**:
+  - `lib/gemini/types/interactions/params.ex` (unused parameter structs)
+  - `lib/gemini/types/live.ex` (unused Live API types)
+  - `lib/gemini/apis/generate.ex` (migrated to Coordinator)
+  - `lib/gemini/live/session.ex` and `lib/gemini/live/message.ex` (experimental modules)
+  - `test/gemini/auth/vertex_strategy_test_old.exs` (stale test file)
+  - `oldDocs/` directory (obsolete design specifications)
+
+### Technical
+- 13 modules updated to use shared `MapHelpers` and `PollingHelpers` utilities
+- Removed all `__test_` prefixed helper functions from ContextCache, Coordinator, and Videos modules
+- Tests now focus on public module interfaces instead of internal helpers
+- Function extraction and modularization across API modules
+
+### Notes
+- All changes maintain backward compatibility for public API
+- Zero compilation warnings maintained
+- Documentation generates without warnings
+
 ## [0.8.7] - 2025-12-27
 
 ### Changed

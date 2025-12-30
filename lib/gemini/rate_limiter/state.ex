@@ -234,32 +234,6 @@ defmodule Gemini.RateLimiter.State do
   end
 
   @doc """
-  Estimate if a request would exceed budget based on current window usage.
-
-  ## Parameters
-
-  - `key` - State key tuple
-  - `estimated_input_tokens` - Estimated input tokens for the request
-  - `token_budget_per_window` - Maximum tokens allowed per window (nil = no limit)
-  """
-  @spec would_exceed_budget?(state_key(), non_neg_integer(), non_neg_integer() | nil) :: boolean()
-  def would_exceed_budget?(_key, _estimated_tokens, nil), do: false
-
-  def would_exceed_budget?(key, estimated_input_tokens, token_budget_per_window) do
-    case get_current_usage(key) do
-      nil ->
-        estimated_input_tokens > token_budget_per_window
-
-      window ->
-        total =
-          window.input_tokens + window.output_tokens + window.reserved_tokens +
-            estimated_input_tokens
-
-        total > token_budget_per_window
-    end
-  end
-
-  @doc """
   Atomically reserve tokens in the current window.
 
   Returns `{:ok, reservation_ctx}` when the reservation fits, or

@@ -212,15 +212,6 @@ defmodule Gemini.RateLimiter.ConcurrencyGate do
   end
 
   @doc """
-  Reset state for a model (useful for testing).
-  """
-  @spec reset(model_key()) :: :ok
-  def reset(model) do
-    :ets.delete(@ets_table, model)
-    :ok
-  end
-
-  @doc """
   Reset all state (useful for testing).
   """
   @spec reset_all() :: :ok

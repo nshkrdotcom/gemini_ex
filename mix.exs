@@ -1,7 +1,7 @@
 defmodule Gemini.MixProject do
   use Mix.Project
 
-  @version "0.8.7"
+  @version "0.8.8"
   @source_url "https://github.com/nshkrdotcom/gemini_ex"
 
   def project do

@@ -7,6 +7,8 @@ defmodule Gemini.Types.Interactions.Interaction do
 
   use TypedStruct
 
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
+
   alias Gemini.Types.Interactions.{Content, Usage}
 
   @type status :: String.t()
@@ -82,9 +84,6 @@ defmodule Gemini.Types.Interactions.Interaction do
   defp map_list(list, fun) when is_list(list) do
     Enum.map(list, fun)
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.Turn do
@@ -93,6 +92,8 @@ defmodule Gemini.Types.Interactions.Turn do
   """
 
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   alias Gemini.Types.Interactions.Content
 
@@ -140,9 +141,6 @@ defmodule Gemini.Types.Interactions.Turn do
   defp serialize_content(value) when is_list(value) do
     Enum.map(value, &Content.to_api/1)
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.Input do

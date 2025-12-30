@@ -74,6 +74,8 @@ defmodule Gemini.APIs.Videos do
   alias Gemini.Types.Generation.Video.{VideoGenerationConfig, VideoOperation}
   alias Gemini.Types.Operation
 
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
+
   @type api_result(t) :: {:ok, t} | {:error, term()}
   @type generation_opts :: [
           model: String.t(),
@@ -463,9 +465,6 @@ defmodule Gemini.APIs.Videos do
 
   defp auth_type_from_config(%{type: type}), do: type
   defp auth_type_from_config(_), do: nil
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 
   defp maybe_put_list(map, _key, nil, _fun), do: map
   defp maybe_put_list(map, _key, [], _fun), do: map

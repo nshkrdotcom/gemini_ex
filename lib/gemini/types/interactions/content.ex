@@ -5,6 +5,8 @@ defmodule Gemini.Types.Interactions.Annotation do
 
   use TypedStruct
 
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
+
   @derive Jason.Encoder
   typedstruct do
     field(:start_index, non_neg_integer())
@@ -34,9 +36,6 @@ defmodule Gemini.Types.Interactions.Annotation do
     |> maybe_put("end_index", annotation.end_index)
     |> maybe_put("source", annotation.source)
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.TextContent do
@@ -45,6 +44,8 @@ defmodule Gemini.Types.Interactions.TextContent do
   """
 
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   alias Gemini.Types.Interactions.Annotation
 
@@ -79,9 +80,6 @@ defmodule Gemini.Types.Interactions.TextContent do
 
   defp map_list(nil, _fun), do: nil
   defp map_list(list, fun) when is_list(list), do: Enum.map(list, fun)
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.ImageContent do
@@ -90,6 +88,8 @@ defmodule Gemini.Types.Interactions.ImageContent do
   """
 
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   @type resolution :: :low | :medium | :high | :ultra_high | String.t()
 
@@ -127,9 +127,6 @@ defmodule Gemini.Types.Interactions.ImageContent do
     |> maybe_put("mime_type", content.mime_type)
     |> maybe_put("resolution", content.resolution)
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.AudioContent do
@@ -138,6 +135,8 @@ defmodule Gemini.Types.Interactions.AudioContent do
   """
 
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   @derive Jason.Encoder
   typedstruct enforce: true do
@@ -170,9 +169,6 @@ defmodule Gemini.Types.Interactions.AudioContent do
     |> maybe_put("uri", content.uri)
     |> maybe_put("mime_type", content.mime_type)
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.DocumentContent do
@@ -185,6 +181,8 @@ defmodule Gemini.Types.Interactions.DocumentContent do
   """
 
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   @derive Jason.Encoder
   typedstruct enforce: true do
@@ -217,9 +215,6 @@ defmodule Gemini.Types.Interactions.DocumentContent do
     |> maybe_put("uri", content.uri)
     |> maybe_put("mime_type", content.mime_type)
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.VideoContent do
@@ -228,6 +223,8 @@ defmodule Gemini.Types.Interactions.VideoContent do
   """
 
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   @type resolution :: :low | :medium | :high | :ultra_high | String.t()
 
@@ -265,9 +262,6 @@ defmodule Gemini.Types.Interactions.VideoContent do
     |> maybe_put("mime_type", content.mime_type)
     |> maybe_put("resolution", content.resolution)
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.ThoughtContent do
@@ -276,6 +270,8 @@ defmodule Gemini.Types.Interactions.ThoughtContent do
   """
 
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   alias Gemini.Types.Interactions.Content
 
@@ -320,9 +316,6 @@ defmodule Gemini.Types.Interactions.ThoughtContent do
 
   defp map_list(nil, _fun), do: nil
   defp map_list(list, fun) when is_list(list), do: Enum.map(list, fun)
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.FunctionCallContent do
@@ -376,6 +369,8 @@ defmodule Gemini.Types.Interactions.FunctionResultContent do
   """
 
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   alias Gemini.Types.Interactions.Content
 
@@ -433,9 +428,6 @@ defmodule Gemini.Types.Interactions.FunctionResultContent do
 
   defp serialize_result_item(%{} = map) when is_struct(map), do: Content.to_api(map)
   defp serialize_result_item(value), do: value
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.CodeExecutionCallArguments do
@@ -444,6 +436,8 @@ defmodule Gemini.Types.Interactions.CodeExecutionCallArguments do
   """
 
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   @type language :: String.t()
 
@@ -473,9 +467,6 @@ defmodule Gemini.Types.Interactions.CodeExecutionCallArguments do
     |> maybe_put("code", args.code)
     |> maybe_put("language", args.language)
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.CodeExecutionCallContent do
@@ -484,6 +475,8 @@ defmodule Gemini.Types.Interactions.CodeExecutionCallContent do
   """
 
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   alias Gemini.Types.Interactions.CodeExecutionCallArguments
 
@@ -515,9 +508,6 @@ defmodule Gemini.Types.Interactions.CodeExecutionCallContent do
     |> maybe_put("id", content.id)
     |> maybe_put("arguments", CodeExecutionCallArguments.to_api(content.arguments))
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.CodeExecutionResultContent do
@@ -526,6 +516,8 @@ defmodule Gemini.Types.Interactions.CodeExecutionResultContent do
   """
 
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   @derive Jason.Encoder
   typedstruct enforce: true do
@@ -561,9 +553,6 @@ defmodule Gemini.Types.Interactions.CodeExecutionResultContent do
     |> maybe_put("result", content.result)
     |> maybe_put("signature", content.signature)
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.URLContextCallArguments do
@@ -572,6 +561,8 @@ defmodule Gemini.Types.Interactions.URLContextCallArguments do
   """
 
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   @derive Jason.Encoder
   typedstruct do
@@ -596,9 +587,6 @@ defmodule Gemini.Types.Interactions.URLContextCallArguments do
     %{}
     |> maybe_put("urls", args.urls)
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.URLContextCallContent do
@@ -607,6 +595,8 @@ defmodule Gemini.Types.Interactions.URLContextCallContent do
   """
 
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   alias Gemini.Types.Interactions.URLContextCallArguments
 
@@ -638,9 +628,6 @@ defmodule Gemini.Types.Interactions.URLContextCallContent do
     |> maybe_put("id", content.id)
     |> maybe_put("arguments", URLContextCallArguments.to_api(content.arguments))
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.URLContextResult do
@@ -649,6 +636,8 @@ defmodule Gemini.Types.Interactions.URLContextResult do
   """
 
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   @type status :: String.t()
 
@@ -678,9 +667,6 @@ defmodule Gemini.Types.Interactions.URLContextResult do
     |> maybe_put("status", result.status)
     |> maybe_put("url", result.url)
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.URLContextResultContent do
@@ -689,6 +675,8 @@ defmodule Gemini.Types.Interactions.URLContextResultContent do
   """
 
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   alias Gemini.Types.Interactions.URLContextResult
 
@@ -729,9 +717,6 @@ defmodule Gemini.Types.Interactions.URLContextResultContent do
 
   defp map_list(nil, _fun), do: nil
   defp map_list(list, fun) when is_list(list), do: Enum.map(list, fun)
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.GoogleSearchCallArguments do
@@ -740,6 +725,8 @@ defmodule Gemini.Types.Interactions.GoogleSearchCallArguments do
   """
 
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   @derive Jason.Encoder
   typedstruct do
@@ -764,9 +751,6 @@ defmodule Gemini.Types.Interactions.GoogleSearchCallArguments do
     %{}
     |> maybe_put("queries", args.queries)
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.GoogleSearchCallContent do
@@ -775,6 +759,8 @@ defmodule Gemini.Types.Interactions.GoogleSearchCallContent do
   """
 
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   alias Gemini.Types.Interactions.GoogleSearchCallArguments
 
@@ -806,9 +792,6 @@ defmodule Gemini.Types.Interactions.GoogleSearchCallContent do
     |> maybe_put("id", content.id)
     |> maybe_put("arguments", GoogleSearchCallArguments.to_api(content.arguments))
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.GoogleSearchResult do
@@ -817,6 +800,8 @@ defmodule Gemini.Types.Interactions.GoogleSearchResult do
   """
 
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   @derive Jason.Encoder
   typedstruct do
@@ -847,9 +832,6 @@ defmodule Gemini.Types.Interactions.GoogleSearchResult do
     |> maybe_put("title", result.title)
     |> maybe_put("url", result.url)
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.GoogleSearchResultContent do
@@ -858,6 +840,8 @@ defmodule Gemini.Types.Interactions.GoogleSearchResultContent do
   """
 
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   alias Gemini.Types.Interactions.GoogleSearchResult
 
@@ -898,9 +882,6 @@ defmodule Gemini.Types.Interactions.GoogleSearchResultContent do
 
   defp map_list(nil, _fun), do: nil
   defp map_list(list, fun) when is_list(list), do: Enum.map(list, fun)
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.MCPServerToolCallContent do
@@ -958,6 +939,8 @@ defmodule Gemini.Types.Interactions.MCPServerToolResultContent do
 
   use TypedStruct
 
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
+
   alias Gemini.Types.Interactions.Content
 
   @derive Jason.Encoder
@@ -1014,9 +997,6 @@ defmodule Gemini.Types.Interactions.MCPServerToolResultContent do
 
   defp serialize_result_item(%{} = map) when is_struct(map), do: Content.to_api(map)
   defp serialize_result_item(value), do: value
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.FileSearchResult do
@@ -1025,6 +1005,8 @@ defmodule Gemini.Types.Interactions.FileSearchResult do
   """
 
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   @derive Jason.Encoder
   typedstruct do
@@ -1055,9 +1037,6 @@ defmodule Gemini.Types.Interactions.FileSearchResult do
     |> maybe_put("text", result.text)
     |> maybe_put("title", result.title)
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.FileSearchResultContent do
@@ -1066,6 +1045,8 @@ defmodule Gemini.Types.Interactions.FileSearchResultContent do
   """
 
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   alias Gemini.Types.Interactions.FileSearchResult
 
@@ -1097,9 +1078,6 @@ defmodule Gemini.Types.Interactions.FileSearchResultContent do
 
   defp map_list(nil, _fun), do: nil
   defp map_list(list, fun) when is_list(list), do: Enum.map(list, fun)
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.Content do

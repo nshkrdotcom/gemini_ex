@@ -24,16 +24,30 @@ defmodule Gemini.RateLimiter.Config do
 
   ## Profiles
 
-  Choose a profile matching your Google Cloud tier:
+  Choose a profile matching your Google Cloud tier. Rate limits are **per-project**
+  (not per-API key) and vary by model. View your actual limits in
+  [AI Studio](https://aistudio.google.com/usage?timeRange=last-28-days&tab=rate-limit).
 
-  | Profile | Best For | RPM | TPM | Token Budget |
-  |---------|----------|-----|-----|--------------|
-  | `:free_tier` | Development, testing | 15 | 1M | 32,000 |
-  | `:paid_tier_1` | Standard production | 500 | 4M | 1,000,000 |
-  | `:paid_tier_2` | High throughput | 1000 | 8M | 2,000,000 |
-  | `:dev` | Local development | - | - | 16,000 |
-  | `:prod` | Production (default) | - | - | 500,000 |
-  | `:custom` | Explicit settings (inherits base defaults) | - | - | - |
+  ### Tier Qualifications
+
+  | Tier | Qualification |
+  |------|---------------|
+  | Free | Users in eligible countries |
+  | Tier 1 | Billing account linked to project |
+  | Tier 2 | >$250 total spend + 30 days since payment |
+  | Tier 3 | >$1,000 total spend + 30 days since payment |
+
+  ### Profile Settings
+
+  | Profile | Best For | Token Budget |
+  |---------|----------|--------------|
+  | `:free_tier` | Development, testing | 32,000 |
+  | `:paid_tier_1` | Standard production | 1,000,000 |
+  | `:paid_tier_2` | High throughput | 2,000,000 |
+  | `:paid_tier_3` | Maximum throughput | 4,000,000 |
+  | `:dev` | Local development | 16,000 |
+  | `:prod` | Production (default) | 500,000 |
+  | `:custom` | Explicit settings | - |
 
   **Defaults & precedence**
 
@@ -58,7 +72,8 @@ defmodule Gemini.RateLimiter.Config do
         token_budget_per_window: nil
   """
 
-  @type profile :: :dev | :prod | :custom | :free_tier | :paid_tier_1 | :paid_tier_2
+  @type profile ::
+          :dev | :prod | :custom | :free_tier | :paid_tier_1 | :paid_tier_2 | :paid_tier_3
   @type t :: %__MODULE__{
           max_concurrency_per_model: non_neg_integer() | nil,
           max_attempts: pos_integer(),
@@ -133,7 +148,7 @@ defmodule Gemini.RateLimiter.Config do
       adaptive_concurrency: true,
       adaptive_ceiling: 15
     },
-    # Paid Tier 2 - 1000 RPM / 8M TPM
+    # Paid Tier 2 - High throughput (>$250 spend qualification)
     paid_tier_2: %{
       max_concurrency_per_model: 20,
       max_attempts: 2,
@@ -141,6 +156,15 @@ defmodule Gemini.RateLimiter.Config do
       token_budget_per_window: 2_000_000,
       adaptive_concurrency: true,
       adaptive_ceiling: 30
+    },
+    # Paid Tier 3 - Maximum throughput (>$1,000 spend qualification)
+    paid_tier_3: %{
+      max_concurrency_per_model: 30,
+      max_attempts: 2,
+      base_backoff_ms: 100,
+      token_budget_per_window: 4_000_000,
+      adaptive_concurrency: true,
+      adaptive_ceiling: 50
     },
     # Custom - uses only explicit settings, no profile defaults
     custom: %{}
@@ -189,18 +213,6 @@ defmodule Gemini.RateLimiter.Config do
   def concurrency_enabled?(%__MODULE__{max_concurrency_per_model: max}) do
     is_integer(max) and max > 0
   end
-
-  @doc """
-  Check if adaptive concurrency is enabled.
-  """
-  @spec adaptive_enabled?(t()) :: boolean()
-  def adaptive_enabled?(%__MODULE__{adaptive_concurrency: adaptive}), do: adaptive
-
-  @doc """
-  Get profile-specific configuration.
-  """
-  @spec profile_config(profile()) :: map()
-  def profile_config(profile), do: Map.get(@profiles, profile, %{})
 
   # Private helpers
 

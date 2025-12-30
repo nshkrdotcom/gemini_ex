@@ -101,6 +101,9 @@ defmodule Gemini.APIs.FileSearchStores do
     ListFileSearchStoresResponse
   }
 
+  import Gemini.Utils.PollingHelpers, only: [timed_out?: 2]
+  import Gemini.Utils.MapHelpers, only: [build_paginated_path: 2]
+
   @type create_opts :: [
           {:auth, :gemini | :vertex_ai}
         ]
@@ -521,35 +524,7 @@ defmodule Gemini.APIs.FileSearchStores do
     end
   end
 
-  defp build_list_path(opts) do
-    base = "fileSearchStores"
-    query_params = []
-
-    query_params =
-      case Keyword.get(opts, :page_size) do
-        nil -> query_params
-        size -> [{"pageSize", size} | query_params]
-      end
-
-    query_params =
-      case Keyword.get(opts, :page_token) do
-        nil -> query_params
-        token -> [{"pageToken", token} | query_params]
-      end
-
-    case query_params do
-      [] ->
-        base
-
-      params ->
-        query_string =
-          Enum.map_join(params, "&", fn {k, v} ->
-            "#{k}=#{URI.encode_www_form(to_string(v))}"
-          end)
-
-        "#{base}?#{query_string}"
-    end
-  end
+  defp build_list_path(opts), do: build_paginated_path("fileSearchStores", opts)
 
   defp collect_all_stores(opts, acc) do
     case list(opts) do
@@ -647,8 +622,4 @@ defmodule Gemini.APIs.FileSearchStores do
 
   defp maybe_report_status(nil, _resource), do: :ok
   defp maybe_report_status(callback, resource), do: callback.(resource)
-
-  defp timed_out?(start_time, timeout) do
-    System.monotonic_time(:millisecond) - start_time >= timeout
-  end
 end

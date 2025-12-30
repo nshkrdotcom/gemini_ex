@@ -6,6 +6,8 @@ defmodule Gemini.Types.Tuning do
   and response parsing for Google's model tuning API.
   """
 
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
+
   # Sub-types defined as nested modules for cleaner organization
 
   defmodule HyperParameters do
@@ -257,9 +259,6 @@ defmodule Gemini.Types.Tuning do
 
     Map.put(base, "supervisedTuningSpec", spec)
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 
   @doc """
   Parses job state string to atom.

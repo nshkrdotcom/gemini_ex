@@ -1,9 +1,9 @@
 defmodule Gemini.Client.HTTP do
   @moduledoc """
-  Unified HTTP client for both Gemini and Vertex AI APIs using Req.
+  HTTP client for both Gemini and Vertex AI APIs using Req.
 
-  Supports multiple authentication strategies and provides both
-  regular and streaming request capabilities.
+  Supports multiple authentication strategies for regular (non-streaming) HTTP requests.
+  For streaming requests, see `Gemini.Client.HTTPStreaming`.
 
   ## Rate Limiting
 
@@ -132,31 +132,6 @@ defmodule Gemini.Client.HTTP do
     end
   end
 
-  @doc """
-  Stream a POST request for Server-Sent Events using configured authentication.
-  """
-  def stream_post(path, body, opts \\ []) do
-    auth_config = Config.auth_config()
-    stream_post_with_auth(path, body, auth_config, opts)
-  end
-
-  @doc """
-  Stream a POST request with specific authentication configuration.
-  """
-  def stream_post_with_auth(path, body, auth_config, opts \\ []) do
-    Config.validate!()
-
-    start_time = System.monotonic_time()
-
-    case auth_config do
-      nil ->
-        {:error, Error.config_error("No authentication configured")}
-
-      %{type: auth_type, credentials: credentials} ->
-        stream_with_auth(path, body, auth_type, credentials, opts, start_time)
-    end
-  end
-
   # Private functions
 
   defp execute_authenticated_request(method, path, body, auth_type, credentials, opts) do
@@ -183,112 +158,6 @@ defmodule Gemini.Client.HTTP do
     else
       RateLimiter.execute_with_usage_tracking(request_fn, model, opts)
     end
-  end
-
-  defp stream_with_auth(path, body, auth_type, credentials, opts, start_time) do
-    url = build_authenticated_url(auth_type, path, credentials)
-
-    case Auth.build_headers(auth_type, credentials) do
-      {:ok, headers} ->
-        sse_url = build_sse_url(url, opts)
-
-        stream_id = Telemetry.generate_stream_id()
-        metadata = Telemetry.build_stream_metadata(sse_url, :post, stream_id, opts)
-        measurements = %{system_time: System.system_time()}
-
-        Telemetry.execute([:gemini, :stream, :start], measurements, metadata)
-
-        req_opts = stream_request_opts(sse_url, headers, body, opts)
-
-        try do
-          Req.post(req_opts)
-          |> handle_stream_response(start_time, metadata, measurements)
-        rescue
-          exception ->
-            emit_stream_exception(metadata, measurements, exception)
-            reraise exception, __STACKTRACE__
-        end
-
-      {:error, reason} ->
-        {:error, Error.auth_error(reason)}
-    end
-  end
-
-  defp stream_request_opts(url, headers, body, opts) do
-    timeout = Keyword.get(opts, :timeout, Config.timeout())
-
-    [
-      url: url,
-      headers: headers,
-      receive_timeout: timeout,
-      json: body,
-      into: :self
-    ]
-  end
-
-  defp build_sse_url(url, opts) do
-    if Keyword.get(opts, :add_sse_params, true) do
-      cond do
-        String.contains?(url, "alt=sse") -> url
-        String.contains?(url, "?") -> "#{url}&alt=sse"
-        true -> "#{url}?alt=sse"
-      end
-    else
-      url
-    end
-  end
-
-  defp handle_stream_response(
-         {:ok, %Req.Response{status: status, body: body}},
-         start_time,
-         metadata,
-         measurements
-       )
-       when status in 200..299 do
-    handle_stream_body(body, start_time, metadata, measurements)
-  end
-
-  defp handle_stream_response(
-         {:ok, %Req.Response{status: status}},
-         _start_time,
-         metadata,
-         measurements
-       ) do
-    error = {:http_error, status, "Stream request failed"}
-    emit_stream_exception(metadata, measurements, error)
-    {:error, Error.http_error(status, "Stream request failed")}
-  end
-
-  defp handle_stream_response({:error, reason}, _start_time, metadata, measurements) do
-    emit_stream_exception(metadata, measurements, reason)
-    {:error, Error.network_error(reason)}
-  end
-
-  defp handle_stream_body(body, start_time, metadata, measurements) do
-    case parse_sse_stream(body) do
-      {:ok, events} ->
-        duration = Telemetry.calculate_duration(start_time)
-
-        stop_measurements = %{
-          total_duration: duration,
-          total_chunks: length(events)
-        }
-
-        Telemetry.execute([:gemini, :stream, :stop], stop_measurements, metadata)
-        {:ok, events}
-
-      {:error, parse_error} ->
-        emit_stream_exception(metadata, measurements, parse_error)
-        {:error, parse_error}
-    end
-  end
-
-  defp emit_stream_exception(metadata, measurements, reason) do
-    Telemetry.execute(
-      [:gemini, :stream, :exception],
-      measurements,
-      Map.put(metadata, :reason, reason)
-    )
   end
 
   defp build_authenticated_url(auth_type, path, credentials) do
@@ -377,53 +246,4 @@ defmodule Gemini.Client.HTTP do
   end
 
   defp parse_error_body(_body, status), do: build_default_error(status)
-
-  # Parse Server-Sent Events format
-  defp parse_sse_stream(data) when is_binary(data) do
-    events =
-      data
-      |> String.split("\n\n")
-      |> Enum.filter(&(String.trim(&1) != ""))
-      |> Enum.map(&parse_sse_event/1)
-      |> Enum.filter(&(&1 != nil))
-
-    {:ok, events}
-  rescue
-    exception ->
-      {:error,
-       Error.invalid_response("Failed to parse SSE stream: #{Exception.message(exception)}")}
-  end
-
-  defp parse_sse_stream(_),
-    do: {:error, Error.invalid_response("Invalid SSE stream payload")}
-
-  defp parse_sse_event(event_data) do
-    event_data
-    |> String.split("\n")
-    |> Enum.reduce(%{}, &parse_sse_line/2)
-    |> extract_sse_data()
-  end
-
-  defp parse_sse_line(line, acc) do
-    case String.split(line, ": ", parts: 2) do
-      ["data", json_data] ->
-        maybe_put_sse_data(acc, json_data)
-
-      [field, value] ->
-        Map.put(acc, String.to_atom(field), value)
-
-      _ ->
-        acc
-    end
-  end
-
-  defp maybe_put_sse_data(acc, json_data) do
-    case Jason.decode(json_data) do
-      {:ok, decoded} -> Map.put(acc, :data, decoded)
-      _ -> acc
-    end
-  end
-
-  defp extract_sse_data(%{data: data}), do: data
-  defp extract_sse_data(_), do: nil
 end

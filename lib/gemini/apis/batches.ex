@@ -62,6 +62,9 @@ defmodule Gemini.APIs.Batches do
   alias Gemini.Config
   alias Gemini.Types.{BatchJob, ListBatchJobsResponse}
 
+  import Gemini.Utils.PollingHelpers, only: [timed_out?: 2]
+  import Gemini.Utils.MapHelpers, only: [build_paginated_path: 2]
+
   @type create_opts :: [
           {:display_name, String.t()}
           | {:file_name, String.t()}
@@ -461,32 +464,7 @@ defmodule Gemini.APIs.Batches do
   defp normalize_batch_path("batchPredictionJobs/" <> _ = name), do: name
   defp normalize_batch_path(name), do: "batches/#{name}"
 
-  defp build_list_path(opts) do
-    query_params = []
-
-    query_params =
-      case Keyword.get(opts, :page_size) do
-        nil -> query_params
-        size -> [{"pageSize", size} | query_params]
-      end
-
-    query_params =
-      case Keyword.get(opts, :page_token) do
-        nil -> query_params
-        token -> [{"pageToken", token} | query_params]
-      end
-
-    query_params =
-      case Keyword.get(opts, :filter) do
-        nil -> query_params
-        filter -> [{"filter", filter} | query_params]
-      end
-
-    case query_params do
-      [] -> "batches"
-      params -> "batches?" <> URI.encode_query(params)
-    end
-  end
+  defp build_list_path(opts), do: build_paginated_path("batches", opts)
 
   defp collect_all_batches(opts, acc) do
     case list(opts) do
@@ -527,8 +505,4 @@ defmodule Gemini.APIs.Batches do
 
   defp maybe_report_progress(nil, _batch), do: :ok
   defp maybe_report_progress(callback, batch), do: callback.(batch)
-
-  defp timed_out?(start_time, timeout) do
-    System.monotonic_time(:millisecond) - start_time >= timeout
-  end
 end

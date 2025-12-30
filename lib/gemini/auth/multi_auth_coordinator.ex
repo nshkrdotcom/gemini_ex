@@ -12,16 +12,12 @@ defmodule Gemini.Auth.MultiAuthCoordinator do
 
   alias Gemini.Auth
   alias Gemini.Config
+  import Gemini.Utils.MapHelpers, only: [maybe_put_non_empty: 3]
 
   @type auth_strategy :: :gemini | :vertex_ai
   @type credentials :: map()
   @type auth_result :: {:ok, auth_strategy(), headers :: list()} | {:error, term()}
   @type request_opts :: keyword()
-
-  @enforce_keys []
-  defstruct []
-
-  @type t :: %__MODULE__{}
 
   @doc """
   Coordinates authentication for the specified strategy.
@@ -218,18 +214,14 @@ defmodule Gemini.Auth.MultiAuthCoordinator do
     credentials = %{}
 
     project_id = Keyword.get(opts, :project_id, base_config[:project_id])
-    credentials = maybe_put(credentials, :project_id, project_id)
+    credentials = maybe_put_non_empty(credentials, :project_id, project_id)
 
     location = Keyword.get(opts, :location, base_config[:location] || "us-central1")
     credentials = Map.put(credentials, :location, location)
 
     quota_project_id = Keyword.get(opts, :quota_project_id, base_config[:quota_project_id])
-    maybe_put(credentials, :quota_project_id, quota_project_id)
+    maybe_put_non_empty(credentials, :quota_project_id, quota_project_id)
   end
-
-  defp maybe_put(credentials, _key, nil), do: credentials
-  defp maybe_put(credentials, _key, ""), do: credentials
-  defp maybe_put(credentials, key, value), do: Map.put(credentials, key, value)
 
   defp add_vertex_auth_method(credentials, base_config, opts) do
     cond do

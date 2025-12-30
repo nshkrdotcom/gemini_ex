@@ -50,33 +50,4 @@ defmodule Gemini.Client do
   - `{:error, Error.t()}` - Error details
   """
   defdelegate request(method, path, body, auth_config, opts \\ []), to: HTTP
-
-  @doc """
-  Stream a POST request for Server-Sent Events using configured authentication.
-
-  ## Parameters
-  - `path` - The API path to request
-  - `body` - The request body (will be JSON encoded)
-  - `opts` - Optional keyword list of request options
-
-  ## Returns
-  - `{:ok, events}` - Successful stream response with parsed events
-  - `{:error, Error.t()}` - Error details
-  """
-  defdelegate stream_post(path, body, opts \\ []), to: HTTP
-
-  @doc """
-  Stream a POST request with specific authentication configuration.
-
-  ## Parameters
-  - `path` - The API path to request
-  - `body` - The request body (will be JSON encoded)
-  - `auth_config` - Authentication configuration
-  - `opts` - Optional keyword list of request options
-
-  ## Returns
-  - `{:ok, events}` - Successful stream response with parsed events
-  - `{:error, Error.t()}` - Error details
-  """
-  defdelegate stream_post_with_auth(path, body, auth_config, opts \\ []), to: HTTP
 end

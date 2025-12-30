@@ -44,22 +44,6 @@ defmodule Gemini.Auth do
   end
 
   @doc """
-  Authenticate using the given strategy and configuration.
-  """
-  @spec authenticate(module(), map()) :: {:ok, map()} | {:error, term()}
-  def authenticate(strategy_module, config) do
-    strategy_module.authenticate(config)
-  end
-
-  @doc """
-  Get base URL using the given strategy and configuration.
-  """
-  @spec base_url(module(), map()) :: String.t() | {:error, term()}
-  def base_url(strategy_module, config) do
-    strategy_module.base_url(config)
-  end
-
-  @doc """
   Build authenticated headers for the given strategy and credentials.
 
   Returns `{:ok, headers}` on success, or `{:error, reason}` if authentication fails

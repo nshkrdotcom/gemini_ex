@@ -44,6 +44,8 @@ defmodule Gemini.Types.Interactions.DeepResearchAgentConfig do
 
   use TypedStruct
 
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
+
   @type thinking_summaries :: String.t()
 
   @derive Jason.Encoder
@@ -71,9 +73,6 @@ defmodule Gemini.Types.Interactions.DeepResearchAgentConfig do
     %{"type" => "deep-research"}
     |> maybe_put("thinking_summaries", config.thinking_summaries)
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.AgentConfig do

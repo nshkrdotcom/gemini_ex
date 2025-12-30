@@ -42,6 +42,8 @@ defmodule Gemini.Types.Request.EmbedContentRequest do
   alias Gemini.Config
   alias Gemini.Types.Content
 
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
+
   @enforce_keys [:model, :content]
   defstruct [:model, :content, :task_type, :title, :output_dimensionality]
 
@@ -224,7 +226,4 @@ defmodule Gemini.Types.Request.EmbedContentRequest do
   defp task_type_to_string(:question_answering), do: "QUESTION_ANSWERING"
   defp task_type_to_string(:fact_verification), do: "FACT_VERIFICATION"
   defp task_type_to_string(:code_retrieval_query), do: "CODE_RETRIEVAL_QUERY"
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end

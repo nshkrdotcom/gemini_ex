@@ -29,6 +29,8 @@ defmodule Gemini.Types.Request.InlinedEmbedContentRequest do
 
   alias Gemini.Types.Request.EmbedContentRequest
 
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
+
   @enforce_keys [:request]
   defstruct [:request, :metadata]
 
@@ -72,9 +74,4 @@ defmodule Gemini.Types.Request.InlinedEmbedContentRequest do
     }
     |> maybe_put("metadata", inlined_request.metadata)
   end
-
-  # Private helpers
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end

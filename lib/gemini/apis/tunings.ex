@@ -38,6 +38,8 @@ defmodule Gemini.APIs.Tunings do
   alias Gemini.Types.Tuning
   alias Gemini.Types.Tuning.{CreateTuningJobConfig, ListTuningJobsResponse, TuningJob}
 
+  import Gemini.Utils.PollingHelpers, only: [timed_out?: 2, maybe_add: 3]
+
   @default_poll_interval 5_000
   @default_timeout 3_600_000
 
@@ -301,10 +303,6 @@ defmodule Gemini.APIs.Tunings do
     end
   end
 
-  defp timed_out?(start_time, timeout) do
-    System.monotonic_time(:millisecond) - start_time >= timeout
-  end
-
   # Private helpers
 
   defp get_auth(opts) do
@@ -338,7 +336,4 @@ defmodule Gemini.APIs.Tunings do
       id -> {:ok, id}
     end
   end
-
-  defp maybe_add(params, _key, nil), do: params
-  defp maybe_add(params, key, value), do: [{key, value} | params]
 end

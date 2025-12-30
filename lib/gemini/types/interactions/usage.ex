@@ -5,6 +5,8 @@ defmodule Gemini.Types.Interactions.CachedTokensByModality do
 
   use TypedStruct
 
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
+
   @type modality :: String.t()
 
   @derive Jason.Encoder
@@ -33,9 +35,6 @@ defmodule Gemini.Types.Interactions.CachedTokensByModality do
     |> maybe_put("modality", value.modality)
     |> maybe_put("tokens", value.tokens)
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.InputTokensByModality do
@@ -45,6 +44,8 @@ defmodule Gemini.Types.Interactions.InputTokensByModality do
 
   use TypedStruct
 
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
+
   @type modality :: String.t()
 
   @derive Jason.Encoder
@@ -73,9 +74,6 @@ defmodule Gemini.Types.Interactions.InputTokensByModality do
     |> maybe_put("modality", value.modality)
     |> maybe_put("tokens", value.tokens)
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.OutputTokensByModality do
@@ -85,6 +83,8 @@ defmodule Gemini.Types.Interactions.OutputTokensByModality do
 
   use TypedStruct
 
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
+
   @type modality :: String.t()
 
   @derive Jason.Encoder
@@ -113,9 +113,6 @@ defmodule Gemini.Types.Interactions.OutputTokensByModality do
     |> maybe_put("modality", value.modality)
     |> maybe_put("tokens", value.tokens)
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.ToolUseTokensByModality do
@@ -125,6 +122,8 @@ defmodule Gemini.Types.Interactions.ToolUseTokensByModality do
 
   use TypedStruct
 
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
+
   @type modality :: String.t()
 
   @derive Jason.Encoder
@@ -153,9 +152,6 @@ defmodule Gemini.Types.Interactions.ToolUseTokensByModality do
     |> maybe_put("modality", value.modality)
     |> maybe_put("tokens", value.tokens)
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.Usage do
@@ -164,6 +160,8 @@ defmodule Gemini.Types.Interactions.Usage do
   """
 
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   alias Gemini.Types.Interactions.{
     CachedTokensByModality,
@@ -244,7 +242,4 @@ defmodule Gemini.Types.Interactions.Usage do
 
   defp map_list(nil, _fun), do: nil
   defp map_list(list, fun) when is_list(list), do: Enum.map(list, fun)
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end

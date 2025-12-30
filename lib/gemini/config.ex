@@ -42,6 +42,7 @@ defmodule Gemini.Config do
   """
 
   require Logger
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   @type auth_config :: %{
           type: :gemini | :vertex_ai,
@@ -125,22 +126,18 @@ defmodule Gemini.Config do
     default: "gemini-2.5-flash-lite"
   }
 
-  @use_case_models %{
-    cache_context: :flash_2_5,
-    report_section: :pro_2_5,
-    fast_path: :flash_2_5_lite
-  }
-
-  @use_case_token_minima %{
-    cache_context: 32_000,
-    report_section: 16_000,
-    fast_path: 8_000
-  }
-
   # Default models per API type
   @default_generation_models %{
     gemini: "gemini-flash-lite-latest",
     vertex_ai: "gemini-2.5-flash-lite"
+  }
+
+  # Use-case aliases with recommended token budgets
+  # These provide consistent model selection across the codebase
+  @use_case_models %{
+    cache_context: %{model_key: :flash_2_5, recommended_tokens: 32_000},
+    report_section: %{model_key: :pro_2_5, recommended_tokens: 16_000},
+    fast_path: %{model_key: :flash_2_5_lite, recommended_tokens: 8_000}
   }
 
   @default_embedding_models %{
@@ -194,9 +191,6 @@ defmodule Gemini.Config do
     semantic_similarity: "task: sentence similarity | query: ",
     code_retrieval_query: "task: code retrieval | query: "
   }
-
-  # Combined models map for backward compatibility (prioritizes universal)
-  @models Map.merge(@universal_models, @gemini_api_models)
 
   @doc """
   Get configuration based on environment variables and application config.
@@ -596,59 +590,6 @@ defmodule Gemini.Config do
   end
 
   @doc """
-  Get all available model definitions (combined for backward compatibility).
-
-  For API-specific models, use `models_for/1` instead.
-
-  ## Returns
-
-  A map of model keys to model names (universal + Gemini API models).
-  """
-  @spec models() :: map()
-  def models do
-    @models
-  end
-
-  @doc """
-  Built-in use-case aliases mapped to model keys.
-  """
-  @spec use_case_models() :: map()
-  def use_case_models, do: @use_case_models
-
-  @doc """
-  Resolve a use-case alias (e.g., `:cache_context`) to a model string.
-
-  ## Options
-  - `:api` - Validate that the resolved model is compatible with `:gemini` or `:vertex_ai`
-  - `:strict` - Raise on incompatible models instead of logging a warning
-  """
-  @spec model_for_use_case(atom(), keyword()) :: String.t()
-  def model_for_use_case(use_case, opts \\ []) do
-    model_key =
-      Map.get(@use_case_models, use_case) ||
-        raise ArgumentError,
-              "Unknown use case #{inspect(use_case)}. Available: #{inspect(Map.keys(@use_case_models))}"
-
-    get_model(model_key, opts)
-  end
-
-  @doc """
-  Return resolved model strings for all use-case aliases.
-  """
-  @spec resolved_use_case_models(keyword()) :: map()
-  def resolved_use_case_models(opts \\ []) do
-    Enum.into(@use_case_models, %{}, fn {use_case, model_key} ->
-      {use_case, get_model(model_key, opts)}
-    end)
-  end
-
-  @doc """
-  Recommended minimum token budgets per use case alias.
-  """
-  @spec use_case_token_minima() :: map()
-  def use_case_token_minima, do: @use_case_token_minima
-
-  @doc """
   Check if a model key exists in the combined model registry.
 
   ## Examples
@@ -693,6 +634,118 @@ defmodule Gemini.Config do
       Map.has_key?(@vertex_ai_models, model_key) -> :vertex_ai
       true -> nil
     end
+  end
+
+  # ===========================================================================
+  # Use-Case Model Aliases
+  # ===========================================================================
+
+  @doc """
+  Get the model string for a use-case alias.
+
+  Use-case aliases provide consistent model selection with recommended token budgets.
+  This avoids scattering raw model strings throughout the codebase.
+
+  ## Parameters
+  - `use_case`: Use-case atom (`:cache_context`, `:report_section`, `:fast_path`)
+  - `api_type`: Optional API type for validation (`:gemini` or `:vertex_ai`)
+
+  ## Available Use Cases
+
+  | Use Case | Model | Recommended Token Budget |
+  |----------|-------|--------------------------|
+  | `:cache_context` | gemini-2.5-flash | 32,000 |
+  | `:report_section` | gemini-2.5-pro | 16,000 |
+  | `:fast_path` | gemini-2.5-flash-lite | 8,000 |
+
+  ## Examples
+
+      iex> Gemini.Config.model_for_use_case(:cache_context)
+      "gemini-2.5-flash"
+
+      iex> Gemini.Config.model_for_use_case(:fast_path)
+      "gemini-2.5-flash-lite"
+
+      iex> Gemini.Config.model_for_use_case(:cache_context, :vertex_ai)
+      "gemini-2.5-flash"
+  """
+  @spec model_for_use_case(atom(), api_type() | nil) :: String.t()
+  def model_for_use_case(use_case, api_type \\ nil)
+
+  def model_for_use_case(use_case, api_type) when is_atom(use_case) do
+    case Map.get(@use_case_models, use_case) do
+      %{model_key: model_key} ->
+        opts = if api_type, do: [api: api_type], else: []
+        get_model(model_key, opts)
+
+      nil ->
+        available = Map.keys(@use_case_models)
+
+        raise ArgumentError,
+              "Unknown use case: #{use_case}. Available use cases: #{inspect(available)}"
+    end
+  end
+
+  @doc """
+  Get the recommended token budget for a use-case alias.
+
+  ## Parameters
+  - `use_case`: Use-case atom
+
+  ## Examples
+
+      iex> Gemini.Config.use_case_token_budget(:cache_context)
+      32000
+
+      iex> Gemini.Config.use_case_token_budget(:fast_path)
+      8000
+  """
+  @spec use_case_token_budget(atom()) :: pos_integer()
+  def use_case_token_budget(use_case) when is_atom(use_case) do
+    case Map.get(@use_case_models, use_case) do
+      %{recommended_tokens: tokens} ->
+        tokens
+
+      nil ->
+        available = Map.keys(@use_case_models)
+
+        raise ArgumentError,
+              "Unknown use case: #{use_case}. Available use cases: #{inspect(available)}"
+    end
+  end
+
+  @doc """
+  Get all resolved use-case model mappings.
+
+  Returns a map of use-case atoms to their resolved model strings.
+
+  ## Examples
+
+      iex> Gemini.Config.resolved_use_case_models()
+      %{
+        cache_context: "gemini-2.5-flash",
+        report_section: "gemini-2.5-pro",
+        fast_path: "gemini-2.5-flash-lite"
+      }
+  """
+  @spec resolved_use_case_models() :: %{atom() => String.t()}
+  def resolved_use_case_models do
+    Map.new(@use_case_models, fn {use_case, %{model_key: model_key}} ->
+      {use_case, get_model(model_key)}
+    end)
+  end
+
+  @doc """
+  List available use-case aliases.
+
+  ## Examples
+
+      iex> Gemini.Config.available_use_cases()
+      [:cache_context, :fast_path, :report_section]
+  """
+  @spec available_use_cases() :: [atom()]
+  def available_use_cases do
+    @use_case_models |> Map.keys() |> Enum.sort()
   end
 
   # ===========================================================================
@@ -1095,9 +1148,6 @@ defmodule Gemini.Config do
       value -> value
     end
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 
   defp validate_vertex_config!(%{access_token: token, project_id: project, location: location})
        when is_binary(token) and is_binary(project) and is_binary(location) do

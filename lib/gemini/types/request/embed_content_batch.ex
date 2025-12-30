@@ -33,6 +33,8 @@ defmodule Gemini.Types.Request.EmbedContentBatch do
 
   alias Gemini.Types.Request.InputEmbedContentConfig
 
+  import Gemini.Utils.MapHelpers, only: [maybe_put_non_zero: 3]
+
   @enforce_keys [:model, :display_name, :input_config]
   defstruct [:model, :name, :display_name, :input_config, :priority]
 
@@ -100,15 +102,9 @@ defmodule Gemini.Types.Request.EmbedContentBatch do
         "displayName" => batch.display_name,
         "inputConfig" => InputEmbedContentConfig.to_api_map(batch.input_config)
       }
-      |> maybe_put("priority", batch.priority)
+      |> maybe_put_non_zero("priority", batch.priority)
 
     # Wrap in batch object as required by API
     %{"batch" => batch_content}
   end
-
-  # Private helpers
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, _key, 0), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end

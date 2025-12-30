@@ -2,6 +2,8 @@ defmodule Gemini.Types.Interactions.DeltaTextDelta do
   @moduledoc "Text content delta for streaming responses."
   use TypedStruct
 
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
+
   alias Gemini.Types.Interactions.Annotation
 
   @derive Jason.Encoder
@@ -34,14 +36,13 @@ defmodule Gemini.Types.Interactions.DeltaTextDelta do
 
   defp map_list(nil, _fun), do: nil
   defp map_list(list, fun) when is_list(list), do: Enum.map(list, fun)
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.DeltaImageDelta do
   @moduledoc "Image content delta for streaming responses."
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   @type resolution :: String.t()
 
@@ -78,14 +79,13 @@ defmodule Gemini.Types.Interactions.DeltaImageDelta do
     |> maybe_put("mime_type", delta.mime_type)
     |> maybe_put("resolution", delta.resolution)
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.DeltaAudioDelta do
   @moduledoc "Audio content delta for streaming responses."
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   @derive Jason.Encoder
   typedstruct enforce: true do
@@ -117,14 +117,13 @@ defmodule Gemini.Types.Interactions.DeltaAudioDelta do
     |> maybe_put("uri", delta.uri)
     |> maybe_put("mime_type", delta.mime_type)
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.DeltaDocumentDelta do
   @moduledoc "Document content delta for streaming responses."
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   @derive Jason.Encoder
   typedstruct enforce: true do
@@ -156,14 +155,13 @@ defmodule Gemini.Types.Interactions.DeltaDocumentDelta do
     |> maybe_put("uri", delta.uri)
     |> maybe_put("mime_type", delta.mime_type)
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.DeltaVideoDelta do
   @moduledoc "Video content delta for streaming responses."
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   @type resolution :: String.t()
 
@@ -200,9 +198,6 @@ defmodule Gemini.Types.Interactions.DeltaVideoDelta do
     |> maybe_put("mime_type", delta.mime_type)
     |> maybe_put("resolution", delta.resolution)
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.DeltaThoughtSummaryDeltaContent do
@@ -214,6 +209,8 @@ end
 defmodule Gemini.Types.Interactions.DeltaThoughtSummaryDelta do
   @moduledoc "Thought summary delta for streaming responses."
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   alias Gemini.Types.Interactions.Content
   alias Gemini.Types.Interactions.DeltaThoughtSummaryDeltaContent
@@ -242,14 +239,13 @@ defmodule Gemini.Types.Interactions.DeltaThoughtSummaryDelta do
     %{"type" => "thought_summary"}
     |> maybe_put("content", Content.to_api(delta.content))
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.DeltaThoughtSignatureDelta do
   @moduledoc "Thought signature delta for streaming responses."
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   @derive Jason.Encoder
   typedstruct enforce: true do
@@ -275,14 +271,13 @@ defmodule Gemini.Types.Interactions.DeltaThoughtSignatureDelta do
     %{"type" => "thought_signature"}
     |> maybe_put("signature", delta.signature)
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.DeltaFunctionCallDelta do
   @moduledoc "Function call delta for streaming responses."
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   @derive Jason.Encoder
   typedstruct enforce: true do
@@ -314,9 +309,6 @@ defmodule Gemini.Types.Interactions.DeltaFunctionCallDelta do
     |> maybe_put("name", delta.name)
     |> maybe_put("arguments", delta.arguments)
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.DeltaFunctionResultDeltaResultItemsItem do
@@ -327,6 +319,8 @@ end
 defmodule Gemini.Types.Interactions.DeltaFunctionResultDeltaResultItems do
   @moduledoc "Items container for function result delta."
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   alias Gemini.Types.Interactions.Content
   alias Gemini.Types.Interactions.DeltaFunctionResultDeltaResultItemsItem
@@ -367,9 +361,6 @@ defmodule Gemini.Types.Interactions.DeltaFunctionResultDeltaResultItems do
 
   defp map_list(nil, _fun), do: nil
   defp map_list(list, fun) when is_list(list), do: Enum.map(list, fun)
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.DeltaFunctionResultDeltaResult do
@@ -398,6 +389,8 @@ end
 defmodule Gemini.Types.Interactions.DeltaFunctionResultDelta do
   @moduledoc "Function result delta for streaming responses."
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   alias Gemini.Types.Interactions.DeltaFunctionResultDeltaResult
 
@@ -434,14 +427,13 @@ defmodule Gemini.Types.Interactions.DeltaFunctionResultDelta do
     |> maybe_put("name", delta.name)
     |> maybe_put("result", DeltaFunctionResultDeltaResult.to_api(delta.result))
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.DeltaCodeExecutionCallDelta do
   @moduledoc "Code execution call delta for streaming responses."
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   alias Gemini.Types.Interactions.CodeExecutionCallArguments
 
@@ -472,14 +464,13 @@ defmodule Gemini.Types.Interactions.DeltaCodeExecutionCallDelta do
     |> maybe_put("id", delta.id)
     |> maybe_put("arguments", CodeExecutionCallArguments.to_api(delta.arguments))
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.DeltaCodeExecutionResultDelta do
   @moduledoc "Code execution result delta for streaming responses."
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   @derive Jason.Encoder
   typedstruct enforce: true do
@@ -514,14 +505,13 @@ defmodule Gemini.Types.Interactions.DeltaCodeExecutionResultDelta do
     |> maybe_put("result", delta.result)
     |> maybe_put("signature", delta.signature)
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.DeltaURLContextCallDelta do
   @moduledoc "URL context call delta for streaming responses."
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   alias Gemini.Types.Interactions.URLContextCallArguments
 
@@ -552,14 +542,13 @@ defmodule Gemini.Types.Interactions.DeltaURLContextCallDelta do
     |> maybe_put("id", delta.id)
     |> maybe_put("arguments", URLContextCallArguments.to_api(delta.arguments))
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.DeltaURLContextResultDelta do
   @moduledoc "URL context result delta for streaming responses."
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   alias Gemini.Types.Interactions.URLContextResult
 
@@ -599,14 +588,13 @@ defmodule Gemini.Types.Interactions.DeltaURLContextResultDelta do
 
   defp map_list(nil, _fun), do: nil
   defp map_list(list, fun) when is_list(list), do: Enum.map(list, fun)
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.DeltaGoogleSearchCallDelta do
   @moduledoc "Google search call delta for streaming responses."
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   alias Gemini.Types.Interactions.GoogleSearchCallArguments
 
@@ -637,14 +625,13 @@ defmodule Gemini.Types.Interactions.DeltaGoogleSearchCallDelta do
     |> maybe_put("id", delta.id)
     |> maybe_put("arguments", GoogleSearchCallArguments.to_api(delta.arguments))
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.DeltaGoogleSearchResultDelta do
   @moduledoc "Google search result delta for streaming responses."
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   alias Gemini.Types.Interactions.GoogleSearchResult
 
@@ -684,14 +671,13 @@ defmodule Gemini.Types.Interactions.DeltaGoogleSearchResultDelta do
 
   defp map_list(nil, _fun), do: nil
   defp map_list(list, fun) when is_list(list), do: Enum.map(list, fun)
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.DeltaMCPServerToolCallDelta do
   @moduledoc "MCP server tool call delta for streaming responses."
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   @derive Jason.Encoder
   typedstruct enforce: true do
@@ -726,9 +712,6 @@ defmodule Gemini.Types.Interactions.DeltaMCPServerToolCallDelta do
     |> maybe_put("server_name", delta.server_name)
     |> maybe_put("arguments", delta.arguments)
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.DeltaMCPServerToolResultDeltaResultItemsItem do
@@ -739,6 +722,8 @@ end
 defmodule Gemini.Types.Interactions.DeltaMCPServerToolResultDeltaResultItems do
   @moduledoc "Items container for MCP server tool result delta."
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   alias Gemini.Types.Interactions.Content
   alias Gemini.Types.Interactions.DeltaMCPServerToolResultDeltaResultItemsItem
@@ -779,9 +764,6 @@ defmodule Gemini.Types.Interactions.DeltaMCPServerToolResultDeltaResultItems do
 
   defp map_list(nil, _fun), do: nil
   defp map_list(list, fun) when is_list(list), do: Enum.map(list, fun)
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.DeltaMCPServerToolResultDeltaResult do
@@ -810,6 +792,8 @@ end
 defmodule Gemini.Types.Interactions.DeltaMCPServerToolResultDelta do
   @moduledoc "MCP server tool result delta for streaming responses."
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   alias Gemini.Types.Interactions.DeltaMCPServerToolResultDeltaResult
 
@@ -846,14 +830,13 @@ defmodule Gemini.Types.Interactions.DeltaMCPServerToolResultDelta do
     |> maybe_put("server_name", delta.server_name)
     |> maybe_put("result", DeltaMCPServerToolResultDeltaResult.to_api(delta.result))
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.DeltaFileSearchResultDeltaResult do
   @moduledoc "Result type for file search result delta."
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   @derive Jason.Encoder
   typedstruct do
@@ -883,14 +866,13 @@ defmodule Gemini.Types.Interactions.DeltaFileSearchResultDeltaResult do
     |> maybe_put("text", result.text)
     |> maybe_put("title", result.title)
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.DeltaFileSearchResultDelta do
   @moduledoc "File search result delta for streaming responses."
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   alias Gemini.Types.Interactions.DeltaFileSearchResultDeltaResult
 
@@ -921,9 +903,6 @@ defmodule Gemini.Types.Interactions.DeltaFileSearchResultDelta do
 
   defp map_list(nil, _fun), do: nil
   defp map_list(list, fun) when is_list(list), do: Enum.map(list, fun)
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.Delta do

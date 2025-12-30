@@ -5,6 +5,8 @@ defmodule Gemini.Types.Interactions.AllowedTools do
 
   use TypedStruct
 
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
+
   alias Gemini.Types.Interactions.ToolChoiceType
 
   @derive Jason.Encoder
@@ -33,9 +35,6 @@ defmodule Gemini.Types.Interactions.AllowedTools do
     |> maybe_put("mode", allowed.mode)
     |> maybe_put("tools", allowed.tools)
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.Function do
@@ -44,6 +43,8 @@ defmodule Gemini.Types.Interactions.Function do
   """
 
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   @derive Jason.Encoder
   typedstruct enforce: true do
@@ -76,9 +77,6 @@ defmodule Gemini.Types.Interactions.Function do
     |> maybe_put("description", tool.description)
     |> maybe_put("parameters", tool.parameters)
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.GoogleSearch do
@@ -159,6 +157,8 @@ defmodule Gemini.Types.Interactions.ComputerUse do
 
   use TypedStruct
 
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
+
   @type environment :: String.t()
 
   @derive Jason.Encoder
@@ -191,9 +191,6 @@ defmodule Gemini.Types.Interactions.ComputerUse do
     |> maybe_put("environment", tool.environment)
     |> maybe_put("excludedPredefinedFunctions", tool.excluded_predefined_functions)
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.MCPServer do
@@ -202,6 +199,8 @@ defmodule Gemini.Types.Interactions.MCPServer do
   """
 
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   alias Gemini.Types.Interactions.AllowedTools
 
@@ -242,9 +241,6 @@ defmodule Gemini.Types.Interactions.MCPServer do
 
   defp map_list(nil, _fun), do: nil
   defp map_list(list, fun) when is_list(list), do: Enum.map(list, fun)
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.FileSearch do
@@ -253,6 +249,8 @@ defmodule Gemini.Types.Interactions.FileSearch do
   """
 
   use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   @derive Jason.Encoder
   typedstruct enforce: true do
@@ -285,9 +283,6 @@ defmodule Gemini.Types.Interactions.FileSearch do
     |> maybe_put("metadata_filter", tool.metadata_filter)
     |> maybe_put("top_k", tool.top_k)
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end
 
 defmodule Gemini.Types.Interactions.Tool do

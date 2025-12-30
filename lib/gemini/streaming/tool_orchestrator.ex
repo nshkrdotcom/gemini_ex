@@ -59,22 +59,6 @@ defmodule Gemini.Streaming.ToolOrchestrator do
     GenServer.start_link(__MODULE__, {stream_id, subscriber_pid, chat, auth_strategy, config})
   end
 
-  @doc """
-  Subscribe an additional process to receive stream events.
-  """
-  @spec subscribe(pid(), pid()) :: :ok
-  def subscribe(orchestrator_pid, subscriber_pid) do
-    GenServer.cast(orchestrator_pid, {:subscribe, subscriber_pid})
-  end
-
-  @doc """
-  Stop the orchestrator and all associated streams.
-  """
-  @spec stop(pid()) :: :ok
-  def stop(orchestrator_pid) do
-    GenServer.cast(orchestrator_pid, :stop)
-  end
-
   # GenServer Callbacks
 
   @impl true
@@ -105,19 +89,6 @@ defmodule Gemini.Streaming.ToolOrchestrator do
         send(subscriber_pid, {:stream_error, stream_id, reason})
         {:stop, reason}
     end
-  end
-
-  @impl true
-  def handle_cast({:subscribe, _subscriber_pid}, state) do
-    # For simplicity, we only support one subscriber in this implementation
-    # Multiple subscribers could be added by maintaining a list
-    {:noreply, state}
-  end
-
-  @impl true
-  def handle_cast(:stop, state) do
-    cleanup_streams(state)
-    {:stop, :normal, state}
   end
 
   @impl true
@@ -460,18 +431,5 @@ defmodule Gemini.Streaming.ToolOrchestrator do
     error = "Tool execution failed: #{inspect(reason)}"
     send(state.subscriber_pid, {:stream_error, state.stream_id, error})
     {:stop, :normal, state}
-  end
-
-  @spec cleanup_streams(orchestrator_state()) :: :ok
-  defp cleanup_streams(state) do
-    if state.first_stream_pid && Process.alive?(state.first_stream_pid) do
-      Process.exit(state.first_stream_pid, :shutdown)
-    end
-
-    if state.second_stream_pid && Process.alive?(state.second_stream_pid) do
-      Process.exit(state.second_stream_pid, :shutdown)
-    end
-
-    :ok
   end
 end

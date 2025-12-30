@@ -136,22 +136,6 @@ defmodule Gemini.RateLimiterTest do
       assert usage.input_tokens == 150
       assert usage.output_tokens == 75
     end
-
-    test "checks budget limits" do
-      key = State.build_key("test-model", nil, :token_count)
-
-      # No limit = never over budget
-      assert State.would_exceed_budget?(key, 1000, nil) == false
-
-      # With limit and no usage
-      assert State.would_exceed_budget?(key, 100, 1000) == false
-      assert State.would_exceed_budget?(key, 1001, 1000) == true
-
-      # With existing usage
-      State.record_usage(key, 500, 300)
-      assert State.would_exceed_budget?(key, 100, 1000) == false
-      assert State.would_exceed_budget?(key, 300, 1000) == true
-    end
   end
 
   describe "ConcurrencyGate" do
@@ -562,9 +546,11 @@ defmodule Gemini.RateLimiterTest do
       assert config.adaptive_concurrency == true
     end
 
-    test "nil budget disables budget checking" do
-      key = State.build_key("test-model", nil, :token_count)
-      assert State.would_exceed_budget?(key, 1_000_000, nil) == false
+    test "profile :paid_tier_3 has correct budget" do
+      config = Config.build(profile: :paid_tier_3)
+      assert config.token_budget_per_window == 4_000_000
+      assert config.max_concurrency_per_model == 30
+      assert config.adaptive_concurrency == true
     end
 
     test "budget check uses config default from profile" do

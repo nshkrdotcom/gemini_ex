@@ -3,11 +3,11 @@ defmodule Gemini.Auth.GeminiStrategyTest do
 
   alias Gemini.Auth.GeminiStrategy
 
-  describe "authenticate/1" do
+  describe "headers/1" do
     test "returns headers with API key when present" do
       config = %{api_key: "test-api-key-123"}
 
-      assert {:ok, headers} = GeminiStrategy.authenticate(config)
+      assert {:ok, headers} = GeminiStrategy.headers(config)
 
       assert headers == [
                {"Content-Type", "application/json"},
@@ -18,21 +18,21 @@ defmodule Gemini.Auth.GeminiStrategyTest do
     test "returns error when API key is missing" do
       config = %{}
 
-      assert {:error, error} = GeminiStrategy.authenticate(config)
+      assert {:error, error} = GeminiStrategy.headers(config)
       assert error =~ "API key is missing"
     end
 
     test "returns error when API key is nil" do
       config = %{api_key: nil}
 
-      assert {:error, error} = GeminiStrategy.authenticate(config)
+      assert {:error, error} = GeminiStrategy.headers(config)
       assert error =~ "API key is nil"
     end
 
     test "returns error when API key is empty string" do
       config = %{api_key: ""}
 
-      assert {:error, error} = GeminiStrategy.authenticate(config)
+      assert {:error, error} = GeminiStrategy.headers(config)
       assert error =~ "API key is empty"
     end
   end

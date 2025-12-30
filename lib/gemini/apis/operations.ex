@@ -59,6 +59,9 @@ defmodule Gemini.APIs.Operations do
   alias Gemini.Client.HTTP
   alias Gemini.Types.{ListOperationsResponse, Operation}
 
+  import Gemini.Utils.PollingHelpers, only: [timed_out?: 2]
+  import Gemini.Utils.MapHelpers, only: [build_paginated_path: 2]
+
   @type operation_opts :: [{:auth, :gemini | :vertex_ai}]
 
   @type wait_opts :: [
@@ -319,32 +322,7 @@ defmodule Gemini.APIs.Operations do
   defp normalize_operation_path("operations/" <> _ = name), do: name
   defp normalize_operation_path(name), do: "operations/#{name}"
 
-  defp build_list_path(opts) do
-    query_params = []
-
-    query_params =
-      case Keyword.get(opts, :page_size) do
-        nil -> query_params
-        size -> [{"pageSize", size} | query_params]
-      end
-
-    query_params =
-      case Keyword.get(opts, :page_token) do
-        nil -> query_params
-        token -> [{"pageToken", token} | query_params]
-      end
-
-    query_params =
-      case Keyword.get(opts, :filter) do
-        nil -> query_params
-        filter -> [{"filter", filter} | query_params]
-      end
-
-    case query_params do
-      [] -> "operations"
-      params -> "operations?" <> URI.encode_query(params)
-    end
-  end
+  defp build_list_path(opts), do: build_paginated_path("operations", opts)
 
   defp collect_all_operations(opts, acc) do
     case list(opts) do
@@ -419,8 +397,4 @@ defmodule Gemini.APIs.Operations do
 
   defp maybe_report_progress(nil, _operation), do: :ok
   defp maybe_report_progress(callback, operation), do: callback.(operation)
-
-  defp timed_out?(start_time, timeout) do
-    System.monotonic_time(:millisecond) - start_time >= timeout
-  end
 end

@@ -41,6 +41,9 @@ defmodule Gemini.APIs.Documents do
   alias Gemini.Client.HTTP
   alias Gemini.Types.{Document, ListDocumentsResponse}
 
+  import Gemini.Utils.PollingHelpers, only: [timed_out?: 2]
+  import Gemini.Utils.MapHelpers, only: [build_paginated_path: 2, add_query_param: 3]
+
   @type list_opts :: [
           {:page_size, pos_integer()}
           | {:page_token, String.t()}
@@ -225,16 +228,7 @@ defmodule Gemini.APIs.Documents do
         "ragStores/#{store_name}/documents"
       end
 
-    query_params =
-      []
-      |> maybe_add_param("pageSize", Keyword.get(opts, :page_size))
-      |> maybe_add_param("pageToken", Keyword.get(opts, :page_token))
-      |> maybe_add_param("filter", Keyword.get(opts, :filter))
-
-    case query_params do
-      [] -> base
-      params -> base <> "?" <> URI.encode_query(params)
-    end
+    build_paginated_path(base, opts)
   end
 
   defp collect_all_documents(store_name, opts, acc) do
@@ -260,9 +254,6 @@ defmodule Gemini.APIs.Documents do
         {:error, reason}
     end
   end
-
-  defp maybe_add_param(params, _key, nil), do: params
-  defp maybe_add_param(params, key, value), do: [{key, value} | params]
 
   defp maybe_report_status(nil, _doc), do: :ok
   defp maybe_report_status(callback, doc), do: callback.(doc)
@@ -316,10 +307,6 @@ defmodule Gemini.APIs.Documents do
 
   defp handle_document_state(%{state: state}, _name, _opts, _poll, _timeout, _start, _cb),
     do: {:error, {:unknown_state, state}}
-
-  defp timed_out?(start_time, timeout) do
-    System.monotonic_time(:millisecond) - start_time >= timeout
-  end
 end
 
 defmodule Gemini.APIs.RagStores do
@@ -354,6 +341,8 @@ defmodule Gemini.APIs.RagStores do
 
   alias Gemini.Client.HTTP
   alias Gemini.Types.{ListRagStoresResponse, RagStore}
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3, build_paginated_path: 2]
 
   @type list_opts :: [
           {:page_size, pos_integer()}
@@ -500,26 +489,7 @@ defmodule Gemini.APIs.RagStores do
   defp normalize_store_path("ragStores/" <> _ = name), do: name
   defp normalize_store_path(name), do: "ragStores/#{name}"
 
-  defp build_list_path(opts) do
-    query_params = []
-
-    query_params =
-      case Keyword.get(opts, :page_size) do
-        nil -> query_params
-        size -> [{"pageSize", size} | query_params]
-      end
-
-    query_params =
-      case Keyword.get(opts, :page_token) do
-        nil -> query_params
-        token -> [{"pageToken", token} | query_params]
-      end
-
-    case query_params do
-      [] -> "ragStores"
-      params -> "ragStores?" <> URI.encode_query(params)
-    end
-  end
+  defp build_list_path(opts), do: build_paginated_path("ragStores", opts)
 
   defp collect_all_stores(opts, acc) do
     case list(opts) do
@@ -533,7 +503,4 @@ defmodule Gemini.APIs.RagStores do
         {:error, reason}
     end
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end

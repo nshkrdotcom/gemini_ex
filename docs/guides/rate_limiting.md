@@ -86,20 +86,35 @@ end
 
 ## Quick Start
 
-Choose a profile matching your Google Cloud tier:
+Choose a profile matching your Google Cloud tier. Rate limits are **per-project** (not per-API key)
+and vary by model. View your actual limits in [AI Studio](https://aistudio.google.com/usage?timeRange=last-28-days&tab=rate-limit).
 
-| Profile | Best For | RPM | TPM | Token Budget |
-|---------|----------|-----|-----|--------------|
-| `:free_tier` | Development, testing | 15 | 1M | 32,000 |
-| `:paid_tier_1` | Standard production | 500 | 4M | 1,000,000 |
-| `:paid_tier_2` | High throughput | 1000 | 8M | 2,000,000 |
+### Tier Qualifications
+
+| Tier | Qualification |
+|------|---------------|
+| Free | Users in [eligible countries](https://ai.google.dev/gemini-api/docs/available-regions) |
+| Tier 1 | Billing account [linked to project](https://ai.google.dev/gemini-api/docs/billing#enable-cloud-billing) |
+| Tier 2 | >$250 total spend + 30 days since payment |
+| Tier 3 | >$1,000 total spend + 30 days since payment |
+
+### Profile Settings
+
+| Profile | Best For | Token Budget |
+|---------|----------|--------------|
+| `:free_tier` | Development, testing | 32,000 |
+| `:paid_tier_1` | Standard production | 1,000,000 |
+| `:paid_tier_2` | High throughput | 2,000,000 |
+| `:paid_tier_3` | Maximum throughput | 4,000,000 |
 
 ```elixir
 # Select your tier
 config :gemini_ex, :rate_limiter, profile: :paid_tier_1
 ```
 
-> **Default behavior:** If you don’t choose a profile, `:prod` is used (`token_budget_per_window: 500_000`, `window_duration_ms: 60_000`). The base fallback defaults are 32,000/60s and are used by `:custom` unless overridden. Set `token_budget_per_window: nil` if you need the pre-0.6.1 “unlimited” budgeting behavior.
+> **Default behavior:** If you don't choose a profile, `:prod` is used (`token_budget_per_window: 500_000`, `window_duration_ms: 60_000`). The base fallback defaults are 32,000/60s and are used by `:custom` unless overridden. Set `token_budget_per_window: nil` if you need the pre-0.6.1 "unlimited" budgeting behavior.
+
+> **Note:** Requests per day (RPD) quotas reset at midnight Pacific time.
 
 ## Profiles
 
@@ -110,7 +125,7 @@ appropriate limits for your Google Cloud plan.
 
 #### Free Tier (`:free_tier`)
 
-Conservative settings for Google's free tier (15 RPM / 1M TPM):
+Conservative settings for Google's free tier:
 
 ```elixir
 config :gemini_ex, :rate_limiter, profile: :free_tier
@@ -126,7 +141,7 @@ config :gemini_ex, :rate_limiter, profile: :free_tier
 
 #### Paid Tier 1 (`:paid_tier_1`)
 
-Standard production settings for Tier 1 plans (500 RPM / 4M TPM):
+Standard production settings for Tier 1 (billing account linked):
 
 ```elixir
 config :gemini_ex, :rate_limiter, profile: :paid_tier_1
@@ -142,7 +157,7 @@ config :gemini_ex, :rate_limiter, profile: :paid_tier_1
 
 #### Paid Tier 2 (`:paid_tier_2`)
 
-High throughput settings for Tier 2 plans (1000 RPM / 8M TPM):
+High throughput settings for Tier 2 (>$250 total spend):
 
 ```elixir
 config :gemini_ex, :rate_limiter, profile: :paid_tier_2
@@ -154,6 +169,22 @@ config :gemini_ex, :rate_limiter, profile: :paid_tier_2
 # token_budget_per_window: 2_000_000
 # adaptive_concurrency: true
 # adaptive_ceiling: 30
+```
+
+#### Paid Tier 3 (`:paid_tier_3`)
+
+Maximum throughput settings for Tier 3 (>$1,000 total spend):
+
+```elixir
+config :gemini_ex, :rate_limiter, profile: :paid_tier_3
+
+# Equivalent to:
+# max_concurrency_per_model: 30
+# max_attempts: 2
+# base_backoff_ms: 100
+# token_budget_per_window: 4_000_000
+# adaptive_concurrency: true
+# adaptive_ceiling: 50
 ```
 
 ### Legacy Profiles
@@ -299,9 +330,10 @@ and is used for proactive budget checking.
 
 Each profile includes a default token budget:
 
-- `:free_tier` - 32,000 tokens per minute (~3% of 1M TPM)
-- `:paid_tier_1` - 1,000,000 tokens per minute (25% of 4M TPM)
-- `:paid_tier_2` - 2,000,000 tokens per minute (25% of 8M TPM)
+- `:free_tier` - 32,000 tokens per minute
+- `:paid_tier_1` - 1,000,000 tokens per minute
+- `:paid_tier_2` - 2,000,000 tokens per minute
+- `:paid_tier_3` - 4,000,000 tokens per minute
 - `:prod` - 500,000 tokens per minute
 - `:dev` - 16,000 tokens per minute
 

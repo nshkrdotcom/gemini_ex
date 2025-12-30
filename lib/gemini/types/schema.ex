@@ -54,6 +54,8 @@ defmodule Gemini.Types.Schema do
 
   use TypedStruct
 
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
+
   @type schema_type :: :string | :integer | :number | :boolean | :array | :object
 
   @derive Jason.Encoder
@@ -411,7 +413,4 @@ defmodule Gemini.Types.Schema do
   defp properties_to_api(properties) when is_map(properties) do
     Map.new(properties, fn {k, v} -> {k, to_api_map(v)} end)
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 end

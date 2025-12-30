@@ -26,6 +26,9 @@ defmodule Gemini.APIs.Interactions do
     Tool
   }
 
+  import Gemini.Utils.PollingHelpers, only: [timed_out?: 2]
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
+
   @type auth_strategy :: :gemini | :vertex_ai
   @type result(t) :: {:ok, t} | {:error, Error.t() | term()}
 
@@ -476,9 +479,6 @@ defmodule Gemini.APIs.Interactions do
     )
   end
 
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
-
   defp do_wait_for_completion(id, opts, poll_interval_ms, timeout_ms, start_ms, on_status) do
     case get(id, Keyword.put(opts, :stream, false)) do
       {:ok, %Interaction{} = interaction} ->
@@ -595,9 +595,5 @@ defmodule Gemini.APIs.Interactions do
 
   defp maybe_sleep(poll_interval_ms) do
     if poll_interval_ms > 0, do: Process.sleep(poll_interval_ms)
-  end
-
-  defp timed_out?(start_ms, timeout_ms) do
-    System.monotonic_time(:millisecond) - start_ms > timeout_ms
   end
 end

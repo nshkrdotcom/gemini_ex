@@ -10,29 +10,6 @@ defmodule Gemini.Auth.GeminiStrategy do
 
   @base_url "https://generativelanguage.googleapis.com/v1beta"
 
-  @doc """
-  Authenticate with Gemini API using API key.
-  """
-  def authenticate(%{api_key: api_key}) when is_binary(api_key) and api_key != "" do
-    headers(%{api_key: api_key})
-  end
-
-  def authenticate(%{api_key: nil}) do
-    {:error, "API key is nil"}
-  end
-
-  def authenticate(%{api_key: ""}) do
-    {:error, "API key is empty"}
-  end
-
-  def authenticate(%{}) do
-    {:error, "API key is missing"}
-  end
-
-  def authenticate(_config) do
-    {:error, "Invalid configuration for Gemini authentication"}
-  end
-
   @impl true
   def headers(%{api_key: api_key}) when is_binary(api_key) and api_key != "" do
     {:ok,

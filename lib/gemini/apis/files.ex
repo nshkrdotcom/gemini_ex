@@ -54,6 +54,8 @@ defmodule Gemini.APIs.Files do
   alias Gemini.Client.HTTP
   alias Gemini.Types.{File, ListFilesResponse}
 
+  import Gemini.Utils.MapHelpers, only: [build_paginated_path: 2]
+
   # Use Elixir.File for standard library file operations to avoid shadowing
   @elixir_file Elixir.File
 
@@ -527,26 +529,7 @@ defmodule Gemini.APIs.Files do
   defp normalize_file_path("files/" <> _ = name), do: name
   defp normalize_file_path(name), do: "files/#{name}"
 
-  defp build_list_path(opts) do
-    query_params = []
-
-    query_params =
-      case Keyword.get(opts, :page_size) do
-        nil -> query_params
-        size -> [{"pageSize", size} | query_params]
-      end
-
-    query_params =
-      case Keyword.get(opts, :page_token) do
-        nil -> query_params
-        token -> [{"pageToken", token} | query_params]
-      end
-
-    case query_params do
-      [] -> "files"
-      params -> "files?" <> URI.encode_query(params)
-    end
-  end
+  defp build_list_path(opts), do: build_paginated_path("files", opts)
 
   defp collect_all_files(opts, acc) do
     case list(opts) do

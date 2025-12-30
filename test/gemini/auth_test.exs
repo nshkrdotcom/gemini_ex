@@ -20,28 +20,27 @@ defmodule Gemini.AuthTest do
     end
   end
 
-  describe "authenticate/2" do
-    test "delegates to strategy authenticate/1" do
-      config = %{auth_type: :gemini, api_key: "test-key"}
+  describe "build_headers/2" do
+    test "delegates to strategy headers/1 for gemini" do
+      credentials = %{api_key: "test-key"}
 
-      assert {:ok, headers} = Auth.authenticate(GeminiStrategy, config)
+      assert {:ok, headers} = Auth.build_headers(:gemini, credentials)
       assert is_list(headers)
       assert {"x-goog-api-key", "test-key"} in headers
     end
 
-    test "returns error when strategy authentication fails" do
-      # missing api_key
-      config = %{auth_type: :gemini}
+    test "returns error when credentials are invalid" do
+      credentials = %{}
 
-      assert {:error, _} = Auth.authenticate(GeminiStrategy, config)
+      assert {:error, _} = Auth.build_headers(:gemini, credentials)
     end
   end
 
-  describe "base_url/2" do
+  describe "get_base_url/2" do
     test "delegates to strategy base_url/1" do
-      config = %{auth_type: :gemini}
+      credentials = %{}
 
-      assert Auth.base_url(GeminiStrategy, config) ==
+      assert Auth.get_base_url(:gemini, credentials) ==
                "https://generativelanguage.googleapis.com/v1beta"
     end
   end

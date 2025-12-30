@@ -40,6 +40,8 @@ defmodule Gemini.Types.Generation.Video do
 
   alias Gemini.Types.{Blob, Operation}
 
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
+
   @typedoc """
   Aspect ratio for generated videos.
 
@@ -377,9 +379,6 @@ defmodule Gemini.Types.Generation.Video do
 
   defp add_if_present(map, _key, nil), do: map
   defp add_if_present(map, key, value), do: Map.put(map, key, value)
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 
   defp extract_progress(%Gemini.Types.Operation{metadata: metadata}) when is_map(metadata) do
     # Try various progress field names

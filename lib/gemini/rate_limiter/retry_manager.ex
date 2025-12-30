@@ -12,6 +12,7 @@ defmodule Gemini.RateLimiter.RetryManager do
 
   alias Gemini.RateLimiter.{Config, State}
   alias Gemini.Telemetry
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
   @type retry_result ::
           {:ok, term()}
@@ -290,9 +291,6 @@ defmodule Gemini.RateLimiter.RetryManager do
     |> maybe_put("quotaDimensions", find_quota_field(term, "quotaDimensions"))
     |> maybe_put("quotaValue", find_quota_field(term, "quotaValue"))
   end
-
-  defp maybe_put(map, _key, nil), do: map
-  defp maybe_put(map, key, value), do: Map.put(map, key, value)
 
   defp find_quota_field(term, field) when is_map(term) do
     Map.get(term, field) ||
