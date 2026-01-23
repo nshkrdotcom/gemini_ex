@@ -52,7 +52,8 @@ defmodule Gemini.APIs.Files do
   """
 
   alias Gemini.Client.HTTP
-  alias Gemini.Types.{File, ListFilesResponse}
+  alias Gemini.Config
+  alias Gemini.Types.{File, ListFilesResponse, RegisterFilesResponse}
 
   import Gemini.Utils.MapHelpers, only: [build_paginated_path: 2]
 
@@ -689,5 +690,139 @@ defmodule Gemini.APIs.Files do
 
   defp processing_timed_out?(start_time, timeout) do
     System.monotonic_time(:millisecond) - start_time >= timeout
+  end
+
+  # ===========================================================================
+  # RegisterFiles API (Gemini API Only)
+  # ===========================================================================
+
+  @type register_files_opts :: [
+          {:credentials, map()}
+          | {:config, map()}
+        ]
+
+  @doc """
+  Registers GCS files with the Gemini file service.
+
+  This allows using Google Cloud Storage files directly with Gemini models
+  without uploading them first.
+
+  **Note:** This method is only supported in the Gemini Developer API,
+  not Vertex AI.
+
+  ## Parameters
+
+  - `uris` - List of GCS URIs (e.g., `["gs://bucket/object"]`)
+  - `opts` - Options:
+    - `:credentials` - Google Cloud credentials (required). Can be:
+      - A map with `:token` key containing the access token
+      - A Goth token struct
+    - `:config` - Optional RegisterFilesConfig
+
+  ## Returns
+
+  - `{:ok, RegisterFilesResponse.t()}` - Successfully registered files
+  - `{:error, term()}` - Registration failed
+
+  ## Example
+
+      # Get credentials (using Goth or similar)
+      {:ok, token} = Goth.fetch(MyApp.Goth)
+
+      {:ok, response} = Gemini.APIs.Files.register_files(
+        ["gs://my-bucket/file1.txt", "gs://my-bucket/file2.pdf"],
+        credentials: %{token: token.token}
+      )
+
+      # Use the registered files
+      file_uri = hd(response.files).uri
+      Gemini.generate([
+        %{text: "Summarize this document"},
+        %{file_data: %{file_uri: file_uri}}
+      ])
+
+  ## GCS URI Format
+
+  URIs must be in the format `gs://bucket/object`, for example:
+  - `gs://my-bucket/documents/report.pdf`
+  - `gs://my-bucket/images/photo.jpg`
+
+  The credentials must have read access to the GCS bucket.
+  """
+  @spec register_files([String.t()], register_files_opts()) ::
+          {:ok, RegisterFilesResponse.t()} | {:error, term()}
+  def register_files(uris, opts \\ []) when is_list(uris) do
+    # Validate this is Gemini API only (not Vertex AI)
+    if Config.current_api_type() == :vertex_ai do
+      {:error, "RegisterFiles is only supported in the Gemini Developer API, not Vertex AI"}
+    else
+      do_register_files(uris, opts)
+    end
+  end
+
+  defp do_register_files(uris, opts) do
+    credentials = Keyword.fetch!(opts, :credentials)
+    token = get_token_from_credentials(credentials)
+
+    headers = [
+      {"authorization", "Bearer #{token}"},
+      {"content-type", "application/json"}
+    ]
+
+    # Add quota project header if available
+    headers =
+      case credentials do
+        %{quota_project_id: qp} when is_binary(qp) and qp != "" ->
+          [{"x-goog-user-project", qp} | headers]
+
+        _ ->
+          headers
+      end
+
+    body = Jason.encode!(%{"uris" => uris})
+
+    # Build the URL using the API key
+    api_key = Config.api_key()
+    url = "https://generativelanguage.googleapis.com/v1beta/files:register?key=#{api_key}"
+
+    case Req.post(url, body: body, headers: headers) do
+      {:ok, %Req.Response{status: 200, body: response}} ->
+        {:ok, RegisterFilesResponse.from_api(response)}
+
+      {:ok, %Req.Response{status: status, body: body}} ->
+        {:error, Gemini.Error.http_error(status, body)}
+
+      {:error, reason} ->
+        {:error, Gemini.Error.network_error(reason)}
+    end
+  end
+
+  defp get_token_from_credentials(%{token: token}) when is_binary(token), do: token
+
+  # Handle Goth.Token struct (if Goth is available) - match by struct name
+  defp get_token_from_credentials(%{__struct__: struct_name, token: token})
+       when is_binary(token) do
+    if struct_name |> Module.split() |> List.last() == "Token" do
+      token
+    else
+      raise_credentials_error(%{__struct__: struct_name})
+    end
+  end
+
+  defp get_token_from_credentials(credentials) do
+    raise_credentials_error(credentials)
+  end
+
+  defp raise_credentials_error(credentials) do
+    raise ArgumentError, """
+    Invalid credentials format for register_files.
+
+    Expected a map with :token key or a Goth.Token struct.
+    Got: #{inspect(credentials)}
+
+    Example:
+      {:ok, token} = Goth.fetch(MyApp.Goth)
+      Gemini.APIs.Files.register_files(uris, credentials: %{token: token.token})
+    """
   end
 end

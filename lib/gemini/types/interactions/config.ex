@@ -153,12 +153,13 @@ defmodule Gemini.Types.Interactions.GenerationConfig do
 
   import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
 
-  alias Gemini.Types.Interactions.{SpeechConfig, ThinkingLevel, ToolChoice}
+  alias Gemini.Types.Interactions.{ImageConfig, SpeechConfig, ThinkingLevel, ToolChoice}
 
   @type thinking_summaries :: String.t()
 
   @derive Jason.Encoder
   typedstruct do
+    field(:image_config, ImageConfig.t())
     field(:max_output_tokens, non_neg_integer())
     field(:seed, integer())
     field(:speech_config, [SpeechConfig.t()])
@@ -176,6 +177,7 @@ defmodule Gemini.Types.Interactions.GenerationConfig do
 
   def from_api(%{} = data) do
     %__MODULE__{
+      image_config: ImageConfig.from_api(Map.get(data, "image_config")),
       max_output_tokens: Map.get(data, "max_output_tokens"),
       seed: Map.get(data, "seed"),
       speech_config: map_list(Map.get(data, "speech_config"), &SpeechConfig.from_api/1),
@@ -194,6 +196,7 @@ defmodule Gemini.Types.Interactions.GenerationConfig do
 
   def to_api(%__MODULE__{} = config) do
     %{}
+    |> maybe_put("image_config", ImageConfig.to_api(config.image_config))
     |> maybe_put("max_output_tokens", config.max_output_tokens)
     |> maybe_put("seed", config.seed)
     |> maybe_put("speech_config", map_list(config.speech_config, &SpeechConfig.to_api/1))

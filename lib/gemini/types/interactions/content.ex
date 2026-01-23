@@ -999,6 +999,45 @@ defmodule Gemini.Types.Interactions.MCPServerToolResultContent do
   defp serialize_result_item(value), do: value
 end
 
+defmodule Gemini.Types.Interactions.FileSearchCallContent do
+  @moduledoc """
+  File Search call content block (`type: "file_search_call"`).
+
+  This content type is emitted when the model invokes a file search tool
+  to search through file search stores.
+  """
+
+  use TypedStruct
+
+  import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
+
+  @derive Jason.Encoder
+  typedstruct enforce: true do
+    field(:type, String.t(), enforce: true, default: "file_search_call")
+    field(:id, String.t(), enforce: false)
+  end
+
+  @spec from_api(map() | nil) :: t() | nil
+  def from_api(nil), do: nil
+  def from_api(%__MODULE__{} = content), do: content
+
+  def from_api(%{} = data) do
+    %__MODULE__{
+      type: Map.get(data, "type") || "file_search_call",
+      id: Map.get(data, "id")
+    }
+  end
+
+  @spec to_api(t() | map() | nil) :: map() | nil
+  def to_api(nil), do: nil
+  def to_api(%{} = map) when not is_struct(map), do: map
+
+  def to_api(%__MODULE__{} = content) do
+    %{"type" => "file_search_call"}
+    |> maybe_put("id", content.id)
+  end
+end
+
 defmodule Gemini.Types.Interactions.FileSearchResult do
   @moduledoc """
   An item inside `file_search_result` results.
@@ -1090,6 +1129,7 @@ defmodule Gemini.Types.Interactions.Content do
     CodeExecutionCallContent,
     CodeExecutionResultContent,
     DocumentContent,
+    FileSearchCallContent,
     FileSearchResultContent,
     FunctionCallContent,
     FunctionResultContent,
@@ -1122,6 +1162,7 @@ defmodule Gemini.Types.Interactions.Content do
           | GoogleSearchResultContent.t()
           | MCPServerToolCallContent.t()
           | MCPServerToolResultContent.t()
+          | FileSearchCallContent.t()
           | FileSearchResultContent.t()
 
   @type_to_module %{
@@ -1141,6 +1182,7 @@ defmodule Gemini.Types.Interactions.Content do
     "google_search_result" => GoogleSearchResultContent,
     "mcp_server_tool_call" => MCPServerToolCallContent,
     "mcp_server_tool_result" => MCPServerToolResultContent,
+    "file_search_call" => FileSearchCallContent,
     "file_search_result" => FileSearchResultContent
   }
 
@@ -1186,6 +1228,8 @@ defmodule Gemini.Types.Interactions.Content do
 
   def to_api(%MCPServerToolResultContent{} = content),
     do: MCPServerToolResultContent.to_api(content)
+
+  def to_api(%FileSearchCallContent{} = content), do: FileSearchCallContent.to_api(content)
 
   def to_api(%FileSearchResultContent{} = content), do: FileSearchResultContent.to_api(content)
 end

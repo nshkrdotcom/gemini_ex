@@ -19,6 +19,7 @@ defmodule Gemini.Types.File do
   - `:source_unspecified` - Unknown source
   - `:uploaded` - User uploaded the file
   - `:generated` - API generated the file (e.g., from video generation)
+  - `:registered` - File registered from GCS via RegisterFiles API
 
   ## Example
 
@@ -61,11 +62,13 @@ defmodule Gemini.Types.File do
   - `:source_unspecified` - Unknown source
   - `:uploaded` - User uploaded the file
   - `:generated` - API generated the file (e.g., video generation)
+  - `:registered` - File registered from GCS via RegisterFiles API
   """
   @type file_source ::
           :source_unspecified
           | :uploaded
           | :generated
+          | :registered
 
   @typedoc """
   Video metadata for video files.
@@ -196,6 +199,7 @@ defmodule Gemini.Types.File do
   def source_to_api(:source_unspecified), do: "SOURCE_UNSPECIFIED"
   def source_to_api(:uploaded), do: "UPLOADED"
   def source_to_api(:generated), do: "GENERATED"
+  def source_to_api(:registered), do: "REGISTERED"
 
   @doc """
   Parses API source string to atom.
@@ -204,6 +208,7 @@ defmodule Gemini.Types.File do
   def parse_source("SOURCE_UNSPECIFIED"), do: :source_unspecified
   def parse_source("UPLOADED"), do: :uploaded
   def parse_source("GENERATED"), do: :generated
+  def parse_source("REGISTERED"), do: :registered
   def parse_source(nil), do: nil
   def parse_source(_), do: :source_unspecified
 
