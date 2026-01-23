@@ -213,7 +213,7 @@ defmodule Gemini.Live.SessionLiveTest do
 
       # Session handle should be available after some messages
       # Note: This may take a few messages before a handle is issued
-      handle = Session.get_session_handle(session)
+      _handle = Session.get_session_handle(session)
       # Handle might be nil initially, that's okay
 
       Session.close(session)

@@ -92,8 +92,11 @@ defmodule Gemini.Live.Session do
   - `:on_error` - Callback for errors
   - `:on_close` - Callback for session close
   - `:on_tool_call` - Callback for tool call requests
+  - `:on_tool_call_cancellation` - Callback for tool call cancellation
   - `:on_transcription` - Callback for transcriptions
   - `:on_voice_activity` - Callback for voice activity signals
+  - `:on_session_resumption` - Callback for session resumption updates
+  - `:on_go_away` - Callback for GoAway notices (impending disconnection)
   - `:session_resumption` - Enable session resumption
   - `:resume_handle` - Handle from previous session to resume
   - `:context_window_compression` - Enable context compression
@@ -296,8 +299,11 @@ defmodule Gemini.Live.Session do
         on_error: Keyword.get(opts, :on_error, &default_callback/1),
         on_close: Keyword.get(opts, :on_close, &default_callback/1),
         on_tool_call: Keyword.get(opts, :on_tool_call),
+        on_tool_call_cancellation: Keyword.get(opts, :on_tool_call_cancellation),
         on_transcription: Keyword.get(opts, :on_transcription),
-        on_voice_activity: Keyword.get(opts, :on_voice_activity)
+        on_voice_activity: Keyword.get(opts, :on_voice_activity),
+        on_session_resumption: Keyword.get(opts, :on_session_resumption),
+        on_go_away: Keyword.get(opts, :on_go_away)
       },
       pending_setup: nil,
       session_handle: Keyword.get(opts, :resume_handle),
@@ -509,12 +515,13 @@ defmodule Gemini.Live.Session do
     %{state | usage_metadata: usage || state.usage_metadata}
   end
 
-  defp handle_server_message(%{"toolCall" => tool_call} = msg, state) do
+  defp handle_server_message(%{"toolCall" => _tool_call} = msg, state) do
     parsed = ServerMessage.from_api(msg)
     invoke_callback(state.callbacks.on_message, parsed)
 
-    if state.callbacks.on_tool_call do
-      invoke_callback(state.callbacks.on_tool_call, tool_call)
+    # Invoke specific tool call callback with parsed ToolCall struct
+    if state.callbacks.on_tool_call && parsed.tool_call do
+      invoke_callback(state.callbacks.on_tool_call, parsed.tool_call)
     end
 
     state
@@ -523,21 +530,51 @@ defmodule Gemini.Live.Session do
   defp handle_server_message(%{"toolCallCancellation" => cancellation} = msg, state) do
     parsed = ServerMessage.from_api(msg)
     invoke_callback(state.callbacks.on_message, parsed)
-    Logger.debug("Tool calls cancelled: #{inspect(cancellation["ids"])}")
+
+    cancelled_ids = cancellation["ids"] || []
+    Logger.warning("Tool calls cancelled: #{inspect(cancelled_ids)}")
+
+    # Invoke specific tool call cancellation callback
+    if state.callbacks.on_tool_call_cancellation do
+      invoke_callback(state.callbacks.on_tool_call_cancellation, cancelled_ids)
+    end
+
     state
   end
 
   defp handle_server_message(%{"goAway" => go_away} = msg, state) do
-    Logger.warning("Received GoAway: #{inspect(go_away)}")
+    time_left_ms = parse_time_left(go_away["timeLeft"])
+
+    Logger.warning("GoAway received, #{time_left_ms || "unknown"} ms remaining")
+
     parsed = ServerMessage.from_api(msg)
     invoke_callback(state.callbacks.on_message, parsed)
+
+    # Invoke specific GoAway callback with useful info
+    if state.callbacks.on_go_away do
+      invoke_callback(state.callbacks.on_go_away, %{
+        time_left_ms: time_left_ms,
+        handle: state.session_handle
+      })
+    end
+
     %{state | status: :closing}
   end
 
   defp handle_server_message(%{"sessionResumptionUpdate" => update}, state) do
     handle = update["newHandle"]
-    resumable = update["resumable"]
-    Logger.debug("Session resumption update: resumable=#{resumable}")
+    resumable = update["resumable"] == true
+
+    Logger.debug("Session resumption update: resumable=#{resumable}, handle=#{handle != nil}")
+
+    # Invoke specific session resumption callback
+    if resumable && handle && state.callbacks.on_session_resumption do
+      invoke_callback(state.callbacks.on_session_resumption, %{
+        handle: handle,
+        resumable: true
+      })
+    end
+
     %{state | session_handle: handle}
   end
 
@@ -676,14 +713,46 @@ defmodule Gemini.Live.Session do
   defp format_blob(blob) when is_map(blob), do: blob
 
   @spec format_function_response(map()) :: map()
-  defp format_function_response(%{id: id, name: name, response: response}) do
-    %{"id" => id, "name" => name, "response" => response}
+  defp format_function_response(%{id: id, name: name, response: response} = func_resp) do
+    base = %{"id" => id, "name" => name, "response" => response}
+
+    # Support for async function calling with scheduling
+    scheduling = Map.get(func_resp, :scheduling)
+
+    if scheduling do
+      Map.put(base, "scheduling", scheduling_to_api(scheduling))
+    else
+      base
+    end
   end
 
   defp format_function_response(%{"id" => _, "name" => _, "response" => _} = response),
     do: response
 
   defp format_function_response(response) when is_map(response), do: response
+
+  # Convert scheduling option to API format
+  @spec scheduling_to_api(atom() | String.t()) :: String.t()
+  defp scheduling_to_api(:interrupt), do: "INTERRUPT"
+  defp scheduling_to_api(:when_idle), do: "WHEN_IDLE"
+  defp scheduling_to_api(:silent), do: "SILENT"
+  defp scheduling_to_api(s) when is_binary(s), do: s
+
+  # Parse duration string from GoAway timeLeft field (e.g., "30s" -> 30000ms)
+  @spec parse_time_left(String.t() | nil) :: non_neg_integer() | nil
+  defp parse_time_left(nil), do: nil
+
+  defp parse_time_left(duration) when is_binary(duration) do
+    # Handle duration format like "30s" or "30.5s"
+    trimmed = String.trim_trailing(duration, "s")
+
+    case Float.parse(trimmed) do
+      {seconds, _} -> round(seconds * 1000)
+      :error -> nil
+    end
+  end
+
+  defp parse_time_left(_), do: nil
 
   @spec invoke_callback(callback() | nil, term()) :: :ok
   defp invoke_callback(nil, _arg), do: :ok

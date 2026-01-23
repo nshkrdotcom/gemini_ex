@@ -80,20 +80,18 @@ defmodule Gemini.Live.SessionVertexLiveTest do
 
     @tag :live_vertex_ai
     test "returns error without project_id" do
-      assert {:error, :project_id_required_for_vertex_ai} =
-               Session.start_link(
-                 model: @live_model,
-                 auth: :vertex_ai
-               )
-               |> case do
-        {:ok, pid} ->
-          result = Session.connect(pid)
-          GenServer.stop(pid)
-          result
+      result =
+        case Session.start_link(model: @live_model, auth: :vertex_ai) do
+          {:ok, pid} ->
+            connect_result = Session.connect(pid)
+            GenServer.stop(pid)
+            connect_result
 
-        error ->
-          error
-      end
+          error ->
+            error
+        end
+
+      assert {:error, :project_id_required_for_vertex_ai} = result
     end
 
     @tag :live_vertex_ai
