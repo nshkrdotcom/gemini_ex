@@ -211,13 +211,39 @@ All examples follow a consistent output format:
 - Success `[OK]` or error `[ERROR]` indicators
 - Relevant metadata (tokens, timing, etc.)
 
-## Legacy Examples
+## Live API Examples
+
+Real-time bidirectional streaming with WebSocket connections for voice, video, and interactive applications.
+
+| File | Description |
+|------|-------------|
+| `live_api_demo.exs` | Basic Live API text session |
+| `live_function_calling.exs` | Tool/function calling with Live API |
+| `simple_live_test.exs` | Simple Live API tool test |
+
+### Running Live API Examples
+
+```bash
+# Basic text session
+mix run examples/live_api_demo.exs
+
+# Function calling demo
+mix run examples/live_function_calling.exs
+```
+
+**Requirements:** `GEMINI_API_KEY` environment variable
+
+**Supported Models:**
+- `gemini-2.5-flash-native-audio-preview-12-2025` (recommended for audio)
+- `gemini-2.0-flash-live-001`
+
+## Advanced Examples
 
 The `examples/` directory also contains additional specialized demos for advanced use cases:
 
 | File | Description |
 |------|-------------|
-| `streaming_demo.exs` | Advanced streaming patterns with detailed timing |
+| `streaming_demo.exs` | Advanced SSE streaming patterns with detailed timing |
 | `demo_unified.exs` | Multi-auth coordination demo |
 | `demo.exs` | Original comprehensive demo |
 | `gemini_3_demo.exs` | Gemini 3 thinking levels, built-in tools, image generation, media resolution |

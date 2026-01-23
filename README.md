@@ -203,43 +203,69 @@ end
 
 See `docs/guides/interactions.md` for CRUD, resumption (`last_event_id`), and background/cancel/delete examples.
 
-### Live API (WebSocket) (New in v0.8.x!)
+### Live API (WebSocket)
 
-Bidirectional, low-latency sessions for voice, multimodal, and interactive apps.
+Real-time bidirectional streaming for voice, video, and text interactions.
+
+#### Basic Usage
 
 ```elixir
 alias Gemini.Live.Session
 
-{:ok, pid} =
-  Session.start_link(
-    model: "gemini-2.5-flash",
-    auth: :vertex_ai,
-    on_message: fn msg -> IO.inspect(msg, label: "live message") end,
-    on_error: fn err -> IO.inspect(err, label: "live error") end
-  )
+{:ok, session} = Session.start_link(
+  model: "gemini-2.5-flash-native-audio-preview-12-2025",
+  auth: :gemini,
+  generation_config: %{response_modalities: ["TEXT"]},
+  on_message: fn msg -> IO.inspect(msg) end
+)
 
-:ok = Session.connect(pid)
+:ok = Session.connect(session)
+:ok = Session.send_client_content(session, "Hello!")
 
-# Send text turns or structured client content
-:ok = Session.send(pid, "Streamed hello from Elixir")
-:ok = Session.send_client_content(pid, [%{role: "user", parts: [%{text: "Add a title"}]}])
-
-# Stream real-time inputs (audio/video chunks) and tool responses
-:ok =
-  Session.send_realtime_input(pid, [
-    %{data: audio_chunk, mime_type: "audio/pcm"}
-  ])
-
-:ok =
-  Session.send_tool_response(pid, [
-    %{name: "get_weather", response: %{temperature: 72, condition: "sunny"}}
-  ])
-
-# Close when finished
-:ok = Session.close(pid)
+# Messages delivered via on_message callback
+# Close when done
+Session.close(session)
 ```
 
-Features: connection lifecycle management, automatic message parsing/building, backpressure-aware streaming, and unified telemetry. Available on Vertex AI models that expose the Live API—call `connect/1` after `start_link/1` to open the WebSocket.
+#### Audio Streaming
+
+```elixir
+{:ok, session} = Session.start_link(
+  model: "gemini-2.5-flash-native-audio-preview-12-2025",
+  auth: :gemini,
+  generation_config: %{response_modalities: ["AUDIO"]},
+  input_audio_transcription: %{},
+  output_audio_transcription: %{},
+  on_message: fn msg -> handle_audio_response(msg) end
+)
+
+# Send audio chunks (16-bit PCM, 16kHz, mono)
+Session.send_realtime_input(session, audio: %{
+  data: pcm_data,
+  mime_type: "audio/pcm;rate=16000"
+})
+```
+
+#### Function Calling
+
+```elixir
+tools = [
+  %{function_declarations: [
+    %{name: "get_weather", description: "Get weather", parameters: %{...}}
+  ]}
+]
+
+{:ok, session} = Session.start_link(
+  model: "gemini-2.5-flash-native-audio-preview-12-2025",
+  tools: tools,
+  on_tool_call: fn %{function_calls: calls} ->
+    responses = Enum.map(calls, &execute_function/1)
+    Session.send_tool_response(session, responses)
+  end
+)
+```
+
+See the [Live API Guide](docs/guides/live_api.md) for complete documentation including voice activity detection, session resumption, and context window compression.
 
 ### Rate Limiting & Concurrency (built-in)
 
@@ -577,6 +603,63 @@ IO.puts("Tuned model: #{completed.tuned_model}")
 ```
 
 You also get `list/1`, `list_all/1`, `get/2`, and `cancel/2` helpers plus polling and progress callbacks.
+
+## RegisterFiles API (Gemini API only)
+
+Register existing GCS files with the Gemini API without uploading. Ideal for large files already in Cloud Storage.
+
+```elixir
+alias Gemini.APIs.Files
+
+# GCS credentials with read access to the bucket
+credentials = %{
+  "type" => "service_account",
+  "client_email" => "...",
+  "private_key" => "...",
+  # ... other service account fields
+}
+
+# Register GCS files
+{:ok, response} = Files.register_files(
+  ["gs://my-bucket/documents/report.pdf", "gs://my-bucket/images/photo.jpg"],
+  credentials: credentials
+)
+
+# Use registered files in generation
+Enum.each(response.files, fn file ->
+  IO.puts("Registered: #{file.name} - #{file.uri}")
+end)
+
+{:ok, response} = Gemini.generate([
+  "Summarize this document",
+  %{file_data: %{file_uri: hd(response.files).uri}}
+])
+```
+
+**Note:** This feature is only available in the Gemini Developer API, not Vertex AI. The credentials must have read access to the GCS bucket.
+
+## Model Armor (Vertex AI only)
+
+Enterprise content filtering with centralized policy management. Apply Model Armor templates to filter prompt and response content.
+
+```elixir
+alias Gemini.Types.ModelArmorConfig
+
+config = %ModelArmorConfig{
+  prompt_template_name: "projects/my-project/locations/us-central1/templates/prompt-filter",
+  response_template_name: "projects/my-project/locations/us-central1/templates/response-filter"
+}
+
+# Use in generate request (Vertex AI only)
+{:ok, response} = Gemini.generate("Hello world",
+  auth: :vertex_ai,
+  model_armor_config: config
+)
+```
+
+**Important:**
+- Model Armor is only supported in Vertex AI, not the Gemini Developer API
+- `model_armor_config` and `safety_settings` are mutually exclusive - you cannot use both
 
 ### Multi-turn Conversations
 

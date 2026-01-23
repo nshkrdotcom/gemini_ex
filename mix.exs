@@ -145,6 +145,11 @@ defmodule Gemini.MixProject do
           Gemini.Auth.GeminiStrategy,
           Gemini.Auth.VertexStrategy
         ],
+        "Live API": [
+          Gemini.Live.Session,
+          Gemini.Live.Audio,
+          Gemini.Live.EphemeralToken
+        ],
         Streaming: [
           Gemini.Streaming.UnifiedManager,
           Gemini.Streaming.StateManager,
@@ -154,13 +159,18 @@ defmodule Gemini.MixProject do
         "HTTP Client": [
           Gemini.Client,
           Gemini.Client.HTTP,
-          Gemini.Client.HTTPStreaming
+          Gemini.Client.HTTPStreaming,
+          Gemini.Client.WebSocket
         ],
+        "Types - Live": ~r/Gemini\.Types\.Live\..*/,
         "Types & Schemas": [
           Gemini.Types.Content,
           Gemini.Types.Response,
           Gemini.Types.Model,
-          Gemini.Types.Request
+          Gemini.Types.Request,
+          Gemini.Types.ModelArmorConfig,
+          Gemini.Types.RegisterFilesConfig,
+          Gemini.Types.RegisterFilesResponse
         ],
         Configuration: [Gemini.Config],
         "Error Handling": [Gemini.Error],

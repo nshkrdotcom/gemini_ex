@@ -219,15 +219,13 @@ This release brings the Elixir client to near-complete feature parity with the P
 - **`Gemini.APIs.FileSearchStores.upload_to_store/3`**: Upload and index content
 - **`Gemini.APIs.FileSearchStores.wait_for_active/2`**: Wait for store to become active
 
-#### 🌐 Live/WebSocket API - Real-time Communication
+#### Live/WebSocket API - Real-time Communication
 - **`Gemini.Live.Session`**: GenServer for WebSocket session management
 - **`Gemini.Live.Session.connect/1`**: Establish WebSocket connections
-- **`Gemini.Live.Session.send/2`**: Send messages over WebSocket
 - **`Gemini.Live.Session.send_client_content/3`**: Send content with turn completion
-- **`Gemini.Live.Session.send_realtime_input/3`**: Send audio/video input streams
-- **`Gemini.Live.Session.send_tool_response/3`**: Send tool/function responses
+- **`Gemini.Live.Session.send_realtime_input/2`**: Send audio/video input streams
+- **`Gemini.Live.Session.send_tool_response/2`**: Send tool/function responses
 - **`Gemini.Live.Session.close/1`**: Gracefully close sessions
-- **`Gemini.Live.Message`**: Message parsing and building utilities
 - **Real-time streaming**: Bidirectional communication for interactive applications
 - **Audio/video input**: Support for real-time media streams
 
