@@ -52,12 +52,12 @@ defmodule Gemini.MixProject do
       {:altar, "~> 0.2.0"},
 
       # Development and testing
-      {:ex_doc, "~> 0.38.2", only: :dev, runtime: false},
+      {:ex_doc, "~> 0.40.0", only: :dev, runtime: false},
       {:credo, "~> 1.7.12", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4.5", only: [:dev], runtime: false},
       {:mox, "~> 1.0", only: :test},
-      {:meck, "~> 0.9", only: :test},
-      {:supertester, "~> 0.4.0", only: :test},
+      {:meck, "~> 1.1.0", only: :test},
+      {:supertester, "~> 0.5.1", only: :test},
       {:bypass, "~> 2.1", only: :test}
     ]
   end
