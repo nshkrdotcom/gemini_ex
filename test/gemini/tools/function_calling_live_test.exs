@@ -119,7 +119,7 @@ defmodule Gemini.Tools.FunctionCallingLiveTest do
              "Expected model to generate a function call, got: #{inspect(response)}"
 
       calls = Coordinator.extract_function_calls(response)
-      assert length(calls) >= 1
+      assert calls != []
 
       [call | _] = calls
       assert call.name == "calculate"
@@ -250,7 +250,7 @@ defmodule Gemini.Tools.FunctionCallingLiveTest do
 
       # Verify the loop executed at least one function call
       assert call_count >= 1, "Expected at least one function call"
-      assert length(history) >= 1, "Expected call history to have entries"
+      assert history != [], "Expected call history to have entries"
 
       # Verify the final response is not an error
       refute match?({:error, _}, final_response),

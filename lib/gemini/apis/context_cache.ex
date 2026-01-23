@@ -322,7 +322,7 @@ defmodule Gemini.APIs.ContextCache do
 
   defp maybe_add_tools(map, opts) do
     case Keyword.get(opts, :tools) do
-      tools when is_list(tools) and length(tools) > 0 ->
+      [_ | _] = tools ->
         Map.put(map, :tools, ToolSerialization.to_api_tool_list(tools))
 
       _ ->

@@ -49,6 +49,10 @@ mix run examples/01_basic_generation.exs
 | 08 | `08_token_counting.exs` | Token counting, cost estimation, code vs prose |
 | 09 | `09_safety_settings.exs` | Content safety filters, harm categories, thresholds |
 | 10 | `10_system_instructions.exs` | Persona setup, formatting rules, domain experts |
+| 11 | `11_live_text_chat.exs` | Live API multi-turn text conversations |
+| 12 | `12_live_audio_streaming.exs` | Live API audio input/output streaming |
+| 13 | `13_live_session_resumption.exs` | Session resume across disconnections |
+| 14 | `14_live_function_calling.exs` | Tool/function calling with telemetry |
 
 ## Example Details
 
@@ -211,24 +215,103 @@ All examples follow a consistent output format:
 - Success `[OK]` or error `[ERROR]` indicators
 - Relevant metadata (tokens, timing, etc.)
 
-## Live API Examples
+### 11 - Live Text Chat
+Real-time bidirectional text conversations with the Live API:
+- Multi-turn conversations with context retention
+- Response timing measurements
+- System instructions for persona customization
 
-Real-time bidirectional streaming with WebSocket connections for voice, video, and interactive applications.
+```elixir
+{:ok, session} = Session.start_link(
+  model: "gemini-2.5-flash-native-audio-preview-12-2025",
+  generation_config: %{response_modalities: ["TEXT"]},
+  system_instruction: "You are a helpful assistant.",
+  on_message: fn msg -> handle_message(msg) end
+)
+:ok = Session.connect(session)
+:ok = Session.send_client_content(session, "Hello!")
+```
+
+### 12 - Live Audio Streaming
+Audio input/output streaming for voice applications:
+- Sending audio chunks (16-bit PCM, 16kHz mono)
+- Receiving audio responses (24kHz PCM)
+- Transcription callbacks for input/output
+- Voice activity signals
+
+```elixir
+# Send audio blob
+audio = %{data: pcm_data, mime_type: "audio/pcm;rate=16000"}
+Session.send_realtime_input(session, audio: audio)
+
+# Signal activity boundaries
+Session.send_realtime_input(session, activity_start: true)
+Session.send_realtime_input(session, activity_end: true)
+```
+
+### 13 - Live Session Resumption
+Reconnect to sessions while preserving conversation context:
+- Enable session resumption in config
+- Save handle from `on_session_resumption` callback
+- Resume with `resume_handle:` option
+- Context preserved across reconnections
+
+```elixir
+# Enable resumption
+{:ok, session} = Session.start_link(
+  model: "gemini-2.5-flash-native-audio-preview-12-2025",
+  session_resumption: %{},
+  on_session_resumption: fn %{handle: h} -> save_handle(h) end
+)
+
+# Later: resume with saved handle
+{:ok, session2} = Session.start_link(
+  model: "gemini-2.5-flash-native-audio-preview-12-2025",
+  resume_handle: saved_handle
+)
+```
+
+### 14 - Live Function Calling
+Tool/function calling with full telemetry observability:
+- Define function declarations
+- Handle tool call requests
+- Send responses back to model
+- Observe all events via telemetry
+
+```elixir
+tools = [%{function_declarations: [%{name: "get_weather", ...}]}]
+
+{:ok, session} = Session.start_link(
+  tools: tools,
+  on_tool_call: fn %{function_calls: calls} ->
+    responses = execute_calls(calls)
+    Session.send_tool_response(session, responses)
+  end
+)
+```
+
+## Live API Examples (Legacy)
+
+Additional Live API examples without numbered naming:
 
 | File | Description |
 |------|-------------|
 | `live_api_demo.exs` | Basic Live API text session |
 | `live_function_calling.exs` | Tool/function calling with Live API |
 | `simple_live_test.exs` | Simple Live API tool test |
+| `live_auto_tool_test.exs` | Automatic tool execution |
 
 ### Running Live API Examples
 
 ```bash
-# Basic text session
-mix run examples/live_api_demo.exs
+# Numbered examples (included in run_all.sh)
+mix run examples/11_live_text_chat.exs
+mix run examples/12_live_audio_streaming.exs
+mix run examples/13_live_session_resumption.exs
+mix run examples/14_live_function_calling.exs
 
-# Function calling demo
-mix run examples/live_function_calling.exs
+# Legacy examples
+mix run examples/live_api_demo.exs
 ```
 
 **Requirements:** `GEMINI_API_KEY` environment variable
@@ -236,6 +319,23 @@ mix run examples/live_function_calling.exs
 **Supported Models:**
 - `gemini-2.5-flash-native-audio-preview-12-2025` (recommended for audio)
 - `gemini-2.0-flash-live-001`
+
+### Telemetry Events
+
+The Live API emits telemetry events you can observe:
+```elixir
+:telemetry.attach("my-handler", [:gemini, :live, :session, :message, :received], handler_fn, nil)
+```
+
+Available events:
+- `[:gemini, :live, :session, :init]` - Session initialization
+- `[:gemini, :live, :session, :ready]` - Session connected
+- `[:gemini, :live, :session, :message, :sent]` - Message sent
+- `[:gemini, :live, :session, :message, :received]` - Message received
+- `[:gemini, :live, :session, :tool_call]` - Tool call requested
+- `[:gemini, :live, :session, :close]` - Session closed
+- `[:gemini, :live, :session, :error]` - Error occurred
+- `[:gemini, :live, :session, :go_away]` - GoAway notice
 
 ## Advanced Examples
 

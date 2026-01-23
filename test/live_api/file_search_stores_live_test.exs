@@ -166,7 +166,7 @@ defmodule Gemini.APIs.FileSearchStoresLiveTest do
 
         assert is_list(response.file_search_stores)
 
-        if length(response.file_search_stores) > 0 do
+        if response.file_search_stores != [] do
           assert length(response.file_search_stores) <= 1
         end
       else

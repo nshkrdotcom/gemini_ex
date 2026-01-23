@@ -19,10 +19,10 @@ defmodule Gemini.Live.SessionLiveTest do
   @live_model "gemini-2.5-flash-native-audio-preview-12-2025"
 
   setup do
-    unless System.get_env("GEMINI_API_KEY") do
-      {:skip, "GEMINI_API_KEY required for live tests"}
-    else
+    if System.get_env("GEMINI_API_KEY") do
       :ok
+    else
+      {:skip, "GEMINI_API_KEY required for live tests"}
     end
   end
 

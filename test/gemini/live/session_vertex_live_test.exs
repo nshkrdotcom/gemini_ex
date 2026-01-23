@@ -26,10 +26,10 @@ defmodule Gemini.Live.SessionVertexLiveTest do
     project_id = System.get_env("VERTEX_PROJECT_ID")
     has_auth = System.get_env("VERTEX_SERVICE_ACCOUNT") || System.get_env("VERTEX_ACCESS_TOKEN")
 
-    unless project_id && has_auth do
-      {:skip, "VERTEX_PROJECT_ID and VERTEX_SERVICE_ACCOUNT (or VERTEX_ACCESS_TOKEN) required"}
-    else
+    if project_id && has_auth do
       {:ok, project_id: project_id}
+    else
+      {:skip, "VERTEX_PROJECT_ID and VERTEX_SERVICE_ACCOUNT (or VERTEX_ACCESS_TOKEN) required"}
     end
   end
 

@@ -479,7 +479,7 @@ defmodule Gemini.StreamingIntegrationTest do
           events = collect_stream_events(stream_id, 10_000)
 
           # Verify we got some events
-          assert length(events) > 0
+          assert events != []
 
           # Check that we got completion or error
           final_event = List.last(events)
@@ -508,7 +508,7 @@ defmodule Gemini.StreamingIntegrationTest do
 
                   # Should get an error event
                   error_events = Enum.filter(events, &(&1.type == :error))
-                  assert length(error_events) > 0
+                  assert error_events != []
 
                 {:error, _reason} ->
                   # Also acceptable - error caught at start

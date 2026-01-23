@@ -26,9 +26,9 @@ defmodule Gemini.APIs.Models do
   """
 
   alias Gemini.Client
+  alias Gemini.{Error, Telemetry}
   alias Gemini.Types.Request.{GetModelRequest, ListModelsRequest}
   alias Gemini.Types.Response.{ListModelsResponse, Model}
-  alias Gemini.{Error, Telemetry}
 
   require Logger
 

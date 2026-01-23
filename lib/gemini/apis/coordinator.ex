@@ -47,10 +47,10 @@ defmodule Gemini.APIs.Coordinator do
     MediaResolution,
     Modality,
     Part,
-    SpeechConfig
+    SpeechConfig,
+    ToolSerialization
   }
 
-  alias Gemini.Types.ToolSerialization
   alias Gemini.Types.GenerationConfig.{ImageConfig, ThinkingConfig}
   alias Gemini.Types.Part.MediaResolution, as: PartMediaResolution
   alias Gemini.Types.Response.EmbedContentBatch, as: EmbedContentBatchResponse
@@ -1204,7 +1204,7 @@ defmodule Gemini.APIs.Coordinator do
   # Tools serialization helpers
   defp maybe_put_tools(map, opts) do
     case Keyword.get(opts, :tools) do
-      tools when is_list(tools) and length(tools) > 0 ->
+      [_ | _] = tools ->
         api_tools = ToolSerialization.to_api_tool_list(tools)
         Map.put(map, :tools, api_tools)
 

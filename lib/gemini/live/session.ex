@@ -322,6 +322,7 @@ defmodule Gemini.Live.Session do
         {:reply, :ok, new_state}
 
       {:error, reason} = error ->
+        emit_telemetry_error(reason)
         invoke_callback(state.callbacks.on_error, reason)
         {:reply, error, state}
     end
@@ -335,8 +336,12 @@ defmodule Gemini.Live.Session do
     message = build_client_content_message(content, opts)
 
     case WebSocket.send(state.websocket, message) do
-      :ok -> {:reply, :ok, state}
-      error -> {:reply, error, state}
+      :ok ->
+        emit_telemetry_message_sent(:client_content, %{model: state.config.model})
+        {:reply, :ok, state}
+
+      error ->
+        {:reply, error, state}
     end
   end
 
@@ -348,8 +353,12 @@ defmodule Gemini.Live.Session do
     message = build_realtime_input_message(opts)
 
     case WebSocket.send(state.websocket, message) do
-      :ok -> {:reply, :ok, state}
-      error -> {:reply, error, state}
+      :ok ->
+        emit_telemetry_message_sent(:realtime_input, %{model: state.config.model})
+        {:reply, :ok, state}
+
+      error ->
+        {:reply, error, state}
     end
   end
 
@@ -365,8 +374,16 @@ defmodule Gemini.Live.Session do
     }
 
     case WebSocket.send(state.websocket, message) do
-      :ok -> {:reply, :ok, state}
-      error -> {:reply, error, state}
+      :ok ->
+        emit_telemetry_message_sent(:tool_response, %{
+          model: state.config.model,
+          response_count: length(responses)
+        })
+
+        {:reply, :ok, state}
+
+      error ->
+        {:reply, error, state}
     end
   end
 
@@ -375,6 +392,7 @@ defmodule Gemini.Live.Session do
   end
 
   def handle_call(:close, _from, state) do
+    emit_telemetry_close(:user_requested)
     new_state = do_close(state)
     {:reply, :ok, new_state}
   end
@@ -402,12 +420,14 @@ defmodule Gemini.Live.Session do
 
   def handle_info({:gun_ws, _pid, _ref, {:close, code, reason}}, state) do
     Logger.info("Live API WebSocket closed: #{code} - #{reason}")
+    emit_telemetry_close(:server_closed)
     invoke_callback(state.callbacks.on_close, {code, reason})
     {:noreply, %{state | status: :disconnected, websocket: nil}}
   end
 
   def handle_info({:gun_down, _pid, :http2, reason, _}, state) do
     Logger.warning("Live API connection down: #{inspect(reason)}")
+    emit_telemetry_error({:connection_down, reason})
     invoke_callback(state.callbacks.on_error, {:connection_down, reason})
     {:noreply, %{state | status: :disconnected}}
   end
@@ -498,6 +518,7 @@ defmodule Gemini.Live.Session do
   @spec handle_server_message(map(), state()) :: state()
   defp handle_server_message(%{"setupComplete" => _}, state) do
     Logger.debug("Received setupComplete")
+    emit_telemetry_message_received(:setup_complete, %{model: state.config.model})
     parsed = ServerMessage.new(setup_complete: %SetupComplete{})
     invoke_callback(state.callbacks.on_message, parsed)
     %{state | status: :ready}
@@ -505,6 +526,7 @@ defmodule Gemini.Live.Session do
 
   defp handle_server_message(%{"serverContent" => content} = msg, state) do
     parsed = ServerMessage.from_api(msg)
+    emit_telemetry_message_received(:server_content, %{model: state.config.model})
     invoke_callback(state.callbacks.on_message, parsed)
 
     # Handle transcriptions
@@ -517,10 +539,16 @@ defmodule Gemini.Live.Session do
 
   defp handle_server_message(%{"toolCall" => _tool_call} = msg, state) do
     parsed = ServerMessage.from_api(msg)
+    emit_telemetry_message_received(:tool_call, %{model: state.config.model})
     invoke_callback(state.callbacks.on_message, parsed)
 
     # Invoke specific tool call callback with parsed ToolCall struct
     if state.callbacks.on_tool_call && parsed.tool_call do
+      # Emit telemetry for each function call
+      Enum.each(parsed.tool_call.function_calls || [], fn call ->
+        emit_telemetry_tool_call(call.id || "unknown", call.name || "unknown")
+      end)
+
       invoke_callback(state.callbacks.on_tool_call, parsed.tool_call)
     end
 
@@ -546,6 +574,8 @@ defmodule Gemini.Live.Session do
     time_left_ms = parse_time_left(go_away["timeLeft"])
 
     Logger.warning("GoAway received, #{time_left_ms || "unknown"} ms remaining")
+    emit_telemetry_go_away(time_left_ms)
+    emit_telemetry_message_received(:go_away, %{model: state.config.model})
 
     parsed = ServerMessage.from_api(msg)
     invoke_callback(state.callbacks.on_message, parsed)
@@ -779,6 +809,8 @@ defmodule Gemini.Live.Session do
     end
   end
 
+  # Telemetry Functions
+
   @spec emit_telemetry_init(String.t(), atom()) :: :ok
   defp emit_telemetry_init(model, auth) do
     Telemetry.execute(
@@ -794,6 +826,60 @@ defmodule Gemini.Live.Session do
       [:gemini, :live, :session, :ready],
       %{system_time: System.system_time()},
       %{model: model}
+    )
+  end
+
+  @spec emit_telemetry_message_received(atom(), map()) :: :ok
+  defp emit_telemetry_message_received(message_type, metadata) do
+    Telemetry.execute(
+      [:gemini, :live, :session, :message, :received],
+      %{system_time: System.system_time()},
+      Map.merge(%{message_type: message_type}, metadata)
+    )
+  end
+
+  @spec emit_telemetry_message_sent(atom(), map()) :: :ok
+  defp emit_telemetry_message_sent(message_type, metadata) do
+    Telemetry.execute(
+      [:gemini, :live, :session, :message, :sent],
+      %{system_time: System.system_time()},
+      Map.merge(%{message_type: message_type}, metadata)
+    )
+  end
+
+  @spec emit_telemetry_tool_call(String.t(), String.t()) :: :ok
+  defp emit_telemetry_tool_call(call_id, function_name) do
+    Telemetry.execute(
+      [:gemini, :live, :session, :tool_call],
+      %{system_time: System.system_time()},
+      %{call_id: call_id, function_name: function_name}
+    )
+  end
+
+  @spec emit_telemetry_close(atom()) :: :ok
+  defp emit_telemetry_close(reason) do
+    Telemetry.execute(
+      [:gemini, :live, :session, :close],
+      %{system_time: System.system_time()},
+      %{reason: reason}
+    )
+  end
+
+  @spec emit_telemetry_error(term()) :: :ok
+  defp emit_telemetry_error(error) do
+    Telemetry.execute(
+      [:gemini, :live, :session, :error],
+      %{system_time: System.system_time()},
+      %{error: error}
+    )
+  end
+
+  @spec emit_telemetry_go_away(non_neg_integer() | nil) :: :ok
+  defp emit_telemetry_go_away(time_left_ms) do
+    Telemetry.execute(
+      [:gemini, :live, :session, :go_away],
+      %{system_time: System.system_time(), time_left_ms: time_left_ms},
+      %{}
     )
   end
 end

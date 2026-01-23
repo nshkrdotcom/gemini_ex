@@ -48,7 +48,7 @@ defmodule Gemini.APIs.ImagesLiveTest do
         case Images.generate("A serene mountain landscape at sunset", config) do
           {:ok, images} ->
             assert is_list(images)
-            assert length(images) >= 1
+            assert images != []
 
             image = hd(images)
             assert %GeneratedImage{} = image
@@ -77,7 +77,7 @@ defmodule Gemini.APIs.ImagesLiveTest do
         case Images.generate("A cute cat playing with a ball of yarn", config) do
           {:ok, images} ->
             assert is_list(images)
-            assert length(images) >= 1
+            assert images != []
 
             Enum.each(images, fn image ->
               assert %GeneratedImage{} = image
@@ -106,7 +106,7 @@ defmodule Gemini.APIs.ImagesLiveTest do
         case Images.generate("A peaceful garden scene", config) do
           {:ok, images} ->
             assert is_list(images)
-            assert length(images) >= 1
+            assert images != []
 
           {:error, reason} ->
             IO.puts("\nImage generation failed: #{inspect(reason)}")

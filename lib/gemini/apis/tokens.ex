@@ -39,10 +39,10 @@ defmodule Gemini.APIs.Tokens do
   alias Gemini.APIs.Models
   alias Gemini.Client
   alias Gemini.Config
+  alias Gemini.{Error, Telemetry}
   alias Gemini.Types.Content
   alias Gemini.Types.Request.{CountTokensRequest, GenerateContentRequest}
   alias Gemini.Types.Response.CountTokensResponse
-  alias Gemini.{Error, Telemetry}
 
   require Logger
 

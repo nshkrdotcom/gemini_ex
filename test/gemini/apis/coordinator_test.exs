@@ -140,7 +140,7 @@ defmodule Gemini.APIs.CoordinatorTest do
 
       candidates = raw_api_structure["candidates"]
       assert is_list(candidates)
-      assert length(candidates) > 0
+      assert candidates != []
 
       first_candidate = List.first(candidates)
       assert Map.has_key?(first_candidate, "content")
@@ -150,7 +150,7 @@ defmodule Gemini.APIs.CoordinatorTest do
 
       parts = content["parts"]
       text_parts = Enum.filter(parts, &Map.has_key?(&1, "text"))
-      assert length(text_parts) > 0
+      assert text_parts != []
     end
 
     test "atomize_keys converts camelCase to snake_case for API responses" do

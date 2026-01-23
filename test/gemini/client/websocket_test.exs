@@ -28,6 +28,59 @@ defmodule Gemini.Client.WebSocketTest do
       assert conn.project_id == nil
       assert conn.location == nil
     end
+
+    test "has default retry configuration" do
+      conn = %WebSocket{}
+      assert conn.retry_config == %{attempts: 3, delay: 1000, backoff: 2.0}
+    end
+  end
+
+  describe "retryable_error?/1" do
+    test "returns true for timeout" do
+      assert WebSocket.retryable_error?(:timeout)
+    end
+
+    test "returns true for closed" do
+      assert WebSocket.retryable_error?(:closed)
+    end
+
+    test "returns true for connection refused" do
+      assert WebSocket.retryable_error?(:econnrefused)
+    end
+
+    test "returns true for connection reset" do
+      assert WebSocket.retryable_error?(:econnreset)
+    end
+
+    test "returns true for etimedout" do
+      assert WebSocket.retryable_error?(:etimedout)
+    end
+
+    test "returns true for connection_failed tuple" do
+      assert WebSocket.retryable_error?({:connection_failed, :some_reason})
+    end
+
+    test "returns true for upgrade_timeout" do
+      assert WebSocket.retryable_error?(:upgrade_timeout)
+    end
+
+    test "returns true for upgrade_error with stream_error" do
+      assert WebSocket.retryable_error?(
+               {:upgrade_error, {:stream_error, :protocol_error, "reason"}}
+             )
+    end
+
+    test "returns false for invalid api key" do
+      refute WebSocket.retryable_error?(:invalid_api_key)
+    end
+
+    test "returns false for project_id_required_for_vertex_ai" do
+      refute WebSocket.retryable_error?(:project_id_required_for_vertex_ai)
+    end
+
+    test "returns false for upgrade_failed with status" do
+      refute WebSocket.retryable_error?({:upgrade_failed, 401, []})
+    end
   end
 
   describe "connected?/1" do

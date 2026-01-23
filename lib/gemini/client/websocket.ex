@@ -4,9 +4,10 @@ defmodule Gemini.Client.WebSocket do
 
   This module provides low-level WebSocket connectivity with:
   - TLS/HTTP2 connection management
-  - Automatic reconnection handling
+  - Automatic reconnection handling with configurable retry logic
   - Message framing and parsing
   - Auth strategy integration (Gemini API / Vertex AI)
+  - Comprehensive telemetry integration
 
   ## Usage
 
@@ -16,6 +17,17 @@ defmodule Gemini.Client.WebSocket do
       :ok = WebSocket.send(conn, %{setup: setup_config})
       {:ok, message} = WebSocket.receive(conn)
       :ok = WebSocket.close(conn)
+
+  ## Connection Options
+
+  - `:model` - Required. Model name for the Live API
+  - `:project_id` - Required for Vertex AI
+  - `:location` - Vertex AI location (default: "us-central1")
+  - `:api_version` - API version (default: "v1alpha")
+  - `:timeout` - Connection timeout in ms (default: 30000)
+  - `:retry_attempts` - Number of retry attempts for transient failures (default: 3)
+  - `:retry_delay` - Initial delay between retries in ms (default: 1000)
+  - `:retry_backoff` - Backoff multiplier for retries (default: 2.0)
 
   ## Connection State
 
@@ -29,12 +41,25 @@ defmodule Gemini.Client.WebSocket do
 
   - **Gemini API**: `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=API_KEY`
   - **Vertex AI**: `wss://{location}-aiplatform.googleapis.com/ws/google.cloud.aiplatform.v1beta1.LlmBidiService/BidiGenerateContent?project=...&location=...`
+
+  ## Telemetry Events
+
+  This module emits the following telemetry events:
+
+  - `[:gemini, :live, :websocket, :connect, :start]` - Connection attempt started
+  - `[:gemini, :live, :websocket, :connect, :stop]` - Connection established
+  - `[:gemini, :live, :websocket, :connect, :exception]` - Connection failed
+  - `[:gemini, :live, :websocket, :send]` - Message sent
+  - `[:gemini, :live, :websocket, :receive]` - Message received
+  - `[:gemini, :live, :websocket, :close]` - Connection closed
+  - `[:gemini, :live, :websocket, :retry]` - Retry attempt
   """
 
   require Logger
 
   alias Gemini.Auth.MultiAuthCoordinator
   alias Gemini.Config
+  alias Gemini.Telemetry
 
   @type auth_strategy :: :gemini | :vertex_ai
   @type connection_status :: :connecting | :connected | :closing | :closed
@@ -47,8 +72,25 @@ defmodule Gemini.Client.WebSocket do
           model: String.t() | nil,
           project_id: String.t() | nil,
           location: String.t() | nil,
-          api_version: String.t()
+          api_version: String.t(),
+          retry_config: retry_config()
         }
+
+  @type retry_config :: %{
+          attempts: non_neg_integer(),
+          delay: non_neg_integer(),
+          backoff: float()
+        }
+
+  @type connection_error ::
+          :project_id_required_for_vertex_ai
+          | :no_api_key
+          | {:open_failed, term()}
+          | {:connection_failed, term()}
+          | {:upgrade_failed, integer(), list()}
+          | {:upgrade_error, term()}
+          | :upgrade_timeout
+          | {:max_retries_exceeded, term()}
 
   @enforce_keys []
   defstruct [
@@ -59,7 +101,8 @@ defmodule Gemini.Client.WebSocket do
     :project_id,
     :location,
     status: :connecting,
-    api_version: "v1alpha"
+    api_version: "v1alpha",
+    retry_config: %{attempts: 3, delay: 1000, backoff: 2.0}
   ]
 
   # Gemini API endpoint
@@ -72,6 +115,14 @@ defmodule Gemini.Client.WebSocket do
   # Connection timeouts
   @connect_timeout 30_000
   @upgrade_timeout 10_000
+
+  # Default retry configuration
+  @default_retry_attempts 3
+  @default_retry_delay 1_000
+  @default_retry_backoff 2.0
+
+  # Retryable error types
+  @retryable_errors [:timeout, :closed, :econnrefused, :econnreset, :etimedout]
 
   # Build gun options at runtime to avoid compile-time function capture issue
   @spec gun_opts() :: map()
@@ -105,6 +156,9 @@ defmodule Gemini.Client.WebSocket do
     - `:location` - Vertex AI location (default: "us-central1")
     - `:api_version` - API version (default: "v1alpha")
     - `:timeout` - Connection timeout in ms (default: 30000)
+    - `:retry_attempts` - Number of retry attempts (default: 3)
+    - `:retry_delay` - Initial retry delay in ms (default: 1000)
+    - `:retry_backoff` - Backoff multiplier (default: 2.0)
 
   ## Returns
 
@@ -120,27 +174,56 @@ defmodule Gemini.Client.WebSocket do
         project_id: "my-project",
         location: "us-central1"
       )
+
+      # With custom retry configuration
+      {:ok, conn} = WebSocket.connect(:gemini,
+        model: "gemini-2.5-flash",
+        retry_attempts: 5,
+        retry_delay: 2000,
+        retry_backoff: 1.5
+      )
   """
-  @spec connect(auth_strategy(), keyword()) :: {:ok, t()} | {:error, term()}
+  @spec connect(auth_strategy(), keyword()) :: {:ok, t()} | {:error, connection_error()}
   def connect(auth_strategy, opts \\ []) do
+    start_time = System.monotonic_time()
     model = Keyword.fetch!(opts, :model)
     project_id = Keyword.get(opts, :project_id)
     location = Keyword.get(opts, :location, "us-central1")
     api_version = Keyword.get(opts, :api_version, "v1alpha")
     timeout = Keyword.get(opts, :timeout, @connect_timeout)
 
+    retry_config = %{
+      attempts: Keyword.get(opts, :retry_attempts, @default_retry_attempts),
+      delay: Keyword.get(opts, :retry_delay, @default_retry_delay),
+      backoff: Keyword.get(opts, :retry_backoff, @default_retry_backoff)
+    }
+
     conn = %__MODULE__{
       auth_strategy: auth_strategy,
       model: model,
       project_id: project_id,
       location: location,
-      api_version: api_version
+      api_version: api_version,
+      retry_config: retry_config
     }
 
-    with {:ok, conn} <- validate_config(conn),
-         {:ok, conn} <- open_connection(conn, timeout),
-         {:ok, conn} <- upgrade_to_websocket(conn) do
-      {:ok, %{conn | status: :connected}}
+    # Emit telemetry start event
+    emit_connect_start(conn)
+
+    result =
+      with {:ok, conn} <- validate_config(conn) do
+        connect_with_retry(conn, timeout, retry_config.attempts, retry_config.delay)
+      end
+
+    # Emit telemetry stop/exception event
+    case result do
+      {:ok, conn} ->
+        emit_connect_stop(conn, start_time)
+        {:ok, conn}
+
+      {:error, reason} ->
+        emit_connect_exception(conn, reason, start_time)
+        {:error, reason}
     end
   end
 
@@ -169,10 +252,11 @@ defmodule Gemini.Client.WebSocket do
       })
   """
   @spec send(t(), map()) :: :ok | {:error, term()}
-  def send(%__MODULE__{status: :connected, gun_pid: pid, stream_ref: ref}, message)
+  def send(%__MODULE__{status: :connected, gun_pid: pid, stream_ref: ref} = conn, message)
       when is_map(message) do
     json = Jason.encode!(message)
     :gun.ws_send(pid, ref, {:text, json})
+    emit_send(conn, message, byte_size(json))
     :ok
   catch
     :error, reason -> {:error, reason}
@@ -200,33 +284,47 @@ defmodule Gemini.Client.WebSocket do
   - `{:error, reason}` - Other error
   """
   @spec receive(t(), timeout()) :: {:ok, map()} | {:error, term()}
-  def receive(%__MODULE__{gun_pid: pid, stream_ref: ref} = _conn, timeout \\ 60_000) do
-    receive do
-      {:gun_ws, ^pid, ^ref, {:text, data}} ->
-        case Jason.decode(data) do
-          {:ok, message} -> {:ok, message}
-          {:error, _} = error -> error
-        end
+  def receive(%__MODULE__{gun_pid: pid, stream_ref: ref} = conn, timeout \\ 60_000) do
+    start_time = System.monotonic_time()
 
-      {:gun_ws, ^pid, ^ref, {:close, code, reason}} ->
-        Logger.debug("WebSocket closed: code=#{code}, reason=#{reason}")
-        {:error, {:closed, code, reason}}
+    result =
+      receive do
+        {:gun_ws, ^pid, ^ref, {:text, data}} ->
+          case Jason.decode(data) do
+            {:ok, message} -> {:ok, message}
+            {:error, _} = error -> error
+          end
 
-      {:gun_down, ^pid, :http2, reason, _} ->
-        Logger.warning("Gun connection down: #{inspect(reason)}")
-        {:error, {:connection_down, reason}}
+        {:gun_ws, ^pid, ^ref, {:close, code, reason}} ->
+          Logger.debug("WebSocket closed: code=#{code}, reason=#{reason}")
+          {:error, {:closed, code, reason}}
 
-      {:gun_error, ^pid, ^ref, reason} ->
-        Logger.error("WebSocket error: #{inspect(reason)}")
-        {:error, reason}
+        {:gun_down, ^pid, :http2, reason, _} ->
+          Logger.warning("Gun connection down: #{inspect(reason)}")
+          {:error, {:connection_down, reason}}
 
-      {:gun_error, ^pid, reason} ->
-        Logger.error("Gun error: #{inspect(reason)}")
-        {:error, reason}
-    after
-      timeout ->
-        {:error, :timeout}
+        {:gun_error, ^pid, ^ref, reason} ->
+          Logger.error("WebSocket error: #{inspect(reason)}")
+          {:error, reason}
+
+        {:gun_error, ^pid, reason} ->
+          Logger.error("Gun error: #{inspect(reason)}")
+          {:error, reason}
+      after
+        timeout ->
+          {:error, :timeout}
+      end
+
+    # Emit telemetry for received message
+    case result do
+      {:ok, message} ->
+        emit_receive(conn, message, start_time)
+
+      _ ->
+        :ok
     end
+
+    result
   catch
     :exit, reason ->
       {:error, {:exit, reason}}
@@ -262,16 +360,21 @@ defmodule Gemini.Client.WebSocket do
   - `:ok` - Always returns :ok
   """
   @spec close(t()) :: :ok
-  def close(%__MODULE__{gun_pid: nil}), do: :ok
-
-  def close(%__MODULE__{gun_pid: pid, stream_ref: ref, status: :connected}) do
-    :gun.ws_send(pid, ref, :close)
-    :gun.close(pid)
+  def close(%__MODULE__{gun_pid: nil} = conn) do
+    emit_close(conn, :already_closed)
     :ok
   end
 
-  def close(%__MODULE__{gun_pid: pid}) do
+  def close(%__MODULE__{gun_pid: pid, stream_ref: ref, status: :connected} = conn) do
+    :gun.ws_send(pid, ref, :close)
     :gun.close(pid)
+    emit_close(conn, :graceful)
+    :ok
+  end
+
+  def close(%__MODULE__{gun_pid: pid} = conn) do
+    :gun.close(pid)
+    emit_close(conn, :forced)
     :ok
   end
 
@@ -288,6 +391,32 @@ defmodule Gemini.Client.WebSocket do
   def connected?(%__MODULE__{status: :connected}), do: true
   def connected?(_), do: false
 
+  @doc """
+  Checks if an error is retryable.
+
+  Returns true if the error is a transient failure that might succeed on retry.
+
+  ## Parameters
+
+  - `error` - The error to check
+
+  ## Returns
+
+  - `true` if the error is retryable
+  - `false` otherwise
+  """
+  @spec retryable_error?(term()) :: boolean()
+  def retryable_error?(:timeout), do: true
+  def retryable_error?(:closed), do: true
+  def retryable_error?(:econnrefused), do: true
+  def retryable_error?(:econnreset), do: true
+  def retryable_error?(:etimedout), do: true
+  def retryable_error?({:connection_failed, _}), do: true
+  def retryable_error?({:open_failed, reason}) when reason in @retryable_errors, do: true
+  def retryable_error?({:upgrade_error, {:stream_error, _, _}}), do: true
+  def retryable_error?(:upgrade_timeout), do: true
+  def retryable_error?(_), do: false
+
   # Private Functions
 
   @spec validate_config(t()) :: {:ok, t()} | {:error, atom()}
@@ -296,6 +425,46 @@ defmodule Gemini.Client.WebSocket do
   end
 
   defp validate_config(conn), do: {:ok, conn}
+
+  @spec connect_with_retry(t(), timeout(), non_neg_integer(), non_neg_integer()) ::
+          {:ok, t()} | {:error, connection_error()}
+  defp connect_with_retry(conn, timeout, attempts_remaining, current_delay) do
+    case do_connect(conn, timeout) do
+      {:ok, connected_conn} ->
+        {:ok, connected_conn}
+
+      {:error, reason} when attempts_remaining > 0 ->
+        if retryable_error?(reason) do
+          Logger.warning(
+            "WebSocket connection failed (#{inspect(reason)}), " <>
+              "retrying in #{current_delay}ms (#{attempts_remaining} attempts remaining)"
+          )
+
+          emit_retry(conn, reason, attempts_remaining, current_delay)
+          Process.sleep(current_delay)
+
+          next_delay = round(current_delay * conn.retry_config.backoff)
+          connect_with_retry(conn, timeout, attempts_remaining - 1, next_delay)
+        else
+          # Non-retryable error
+          Logger.error("WebSocket connection failed with non-retryable error: #{inspect(reason)}")
+          {:error, reason}
+        end
+
+      {:error, reason} ->
+        # No more retries
+        Logger.error("WebSocket connection failed after all retries: #{inspect(reason)}")
+        {:error, {:max_retries_exceeded, reason}}
+    end
+  end
+
+  @spec do_connect(t(), timeout()) :: {:ok, t()} | {:error, term()}
+  defp do_connect(conn, timeout) do
+    with {:ok, conn} <- open_connection(conn, timeout),
+         {:ok, conn} <- upgrade_to_websocket(conn) do
+      {:ok, %{conn | status: :connected}}
+    end
+  end
 
   @spec open_connection(t(), timeout()) :: {:ok, t()} | {:error, term()}
   defp open_connection(%__MODULE__{auth_strategy: :gemini} = conn, timeout) do
@@ -336,16 +505,16 @@ defmodule Gemini.Client.WebSocket do
 
     Logger.debug("Upgrading to WebSocket: #{path}")
 
-    stream_ref = :gun.ws_upgrade(conn.gun_pid, path, headers, %{protocols: [:http]})
+    stream_ref = :gun.ws_upgrade(conn.gun_pid, path, headers, %{})
 
     receive do
       {:gun_upgrade, _pid, ^stream_ref, ["websocket"], _headers} ->
         Logger.debug("WebSocket upgrade successful")
         {:ok, %{conn | stream_ref: stream_ref}}
 
-      {:gun_response, _pid, ^stream_ref, :fin, status, headers} ->
+      {:gun_response, _pid, ^stream_ref, :fin, status, resp_headers} ->
         Logger.error("WebSocket upgrade failed: status=#{status}")
-        {:error, {:upgrade_failed, status, headers}}
+        {:error, {:upgrade_failed, status, resp_headers}}
 
       {:gun_error, _pid, ^stream_ref, reason} ->
         Logger.error("WebSocket upgrade error: #{inspect(reason)}")
@@ -441,5 +610,127 @@ defmodule Gemini.Client.WebSocket do
     ]
 
     MultiAuthCoordinator.get_credentials(:vertex_ai, opts)
+  end
+
+  # Telemetry helpers
+
+  @spec emit_connect_start(t()) :: :ok
+  defp emit_connect_start(conn) do
+    Telemetry.execute(
+      [:gemini, :live, :websocket, :connect, :start],
+      %{system_time: System.system_time()},
+      %{
+        auth_strategy: conn.auth_strategy,
+        model: conn.model,
+        location: conn.location
+      }
+    )
+  end
+
+  @spec emit_connect_stop(t(), integer()) :: :ok
+  defp emit_connect_stop(conn, start_time) do
+    duration = Telemetry.calculate_duration(start_time)
+
+    Telemetry.execute(
+      [:gemini, :live, :websocket, :connect, :stop],
+      %{duration: duration},
+      %{
+        auth_strategy: conn.auth_strategy,
+        model: conn.model,
+        location: conn.location,
+        status: :connected
+      }
+    )
+  end
+
+  @spec emit_connect_exception(t(), term(), integer()) :: :ok
+  defp emit_connect_exception(conn, reason, start_time) do
+    duration = Telemetry.calculate_duration(start_time)
+
+    Telemetry.execute(
+      [:gemini, :live, :websocket, :connect, :exception],
+      %{duration: duration},
+      %{
+        auth_strategy: conn.auth_strategy,
+        model: conn.model,
+        location: conn.location,
+        error: reason
+      }
+    )
+  end
+
+  @spec emit_send(t(), map(), non_neg_integer()) :: :ok
+  defp emit_send(conn, message, size) do
+    Telemetry.execute(
+      [:gemini, :live, :websocket, :send],
+      %{size: size},
+      %{
+        auth_strategy: conn.auth_strategy,
+        model: conn.model,
+        message_type: detect_message_type(message)
+      }
+    )
+  end
+
+  @spec emit_receive(t(), map(), integer()) :: :ok
+  defp emit_receive(conn, message, start_time) do
+    duration = Telemetry.calculate_duration(start_time)
+
+    Telemetry.execute(
+      [:gemini, :live, :websocket, :receive],
+      %{duration: duration},
+      %{
+        auth_strategy: conn.auth_strategy,
+        model: conn.model,
+        message_type: detect_message_type(message)
+      }
+    )
+  end
+
+  @spec emit_close(t(), atom()) :: :ok
+  defp emit_close(conn, reason) do
+    Telemetry.execute(
+      [:gemini, :live, :websocket, :close],
+      %{},
+      %{
+        auth_strategy: conn.auth_strategy,
+        model: conn.model,
+        close_reason: reason
+      }
+    )
+  end
+
+  @spec emit_retry(t(), term(), non_neg_integer(), non_neg_integer()) :: :ok
+  defp emit_retry(conn, error, attempts_remaining, delay) do
+    Telemetry.execute(
+      [:gemini, :live, :websocket, :retry],
+      %{delay: delay, attempts_remaining: attempts_remaining},
+      %{
+        auth_strategy: conn.auth_strategy,
+        model: conn.model,
+        error: error
+      }
+    )
+  end
+
+  # Key mappings for message type detection: {string_key, atom_key, type}
+  @message_type_keys [
+    {"setup", :setup, :setup},
+    {"setupComplete", :setup_complete, :setup_complete},
+    {"clientContent", :client_content, :client_content},
+    {"serverContent", :server_content, :server_content},
+    {"realtimeInput", :realtime_input, :realtime_input},
+    {"toolCall", :tool_call, :tool_call},
+    {"toolResponse", :tool_response, :tool_response},
+    {"goAway", :go_away, :go_away}
+  ]
+
+  @spec detect_message_type(map()) :: atom()
+  defp detect_message_type(message) when is_map(message) do
+    Enum.find_value(@message_type_keys, :unknown, fn {string_key, atom_key, type} ->
+      if Map.has_key?(message, string_key) or Map.has_key?(message, atom_key) do
+        type
+      end
+    end)
   end
 end

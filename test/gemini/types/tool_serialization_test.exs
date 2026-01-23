@@ -1,8 +1,8 @@
 defmodule Gemini.Types.ToolSerializationTest do
   use ExUnit.Case, async: true
 
-  alias Gemini.Types.ToolSerialization
   alias Altar.ADM.{FunctionDeclaration, ToolConfig}
+  alias Gemini.Types.ToolSerialization
 
   describe "to_api_tool_list/1" do
     test "transforms FunctionDeclaration into API tool list with camelCase keys and schema" do

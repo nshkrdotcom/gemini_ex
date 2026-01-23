@@ -19,10 +19,10 @@ defmodule Gemini.Live.FeaturesLiveTest do
   @live_model "gemini-2.5-flash-native-audio-preview-12-2025"
 
   setup do
-    unless System.get_env("GEMINI_API_KEY") do
-      {:skip, "GEMINI_API_KEY required for live tests"}
-    else
+    if System.get_env("GEMINI_API_KEY") do
       :ok
+    else
+      {:skip, "GEMINI_API_KEY required for live tests"}
     end
   end
 
@@ -381,7 +381,7 @@ defmodule Gemini.Live.FeaturesLiveTest do
           generation_config: %{response_modalities: ["TEXT"]},
           context_window_compression: %{
             sliding_window: %{target_tokens: 8000},
-            trigger_tokens: 16000
+            trigger_tokens: 16_000
           },
           on_message: fn _ -> :ok end
         )

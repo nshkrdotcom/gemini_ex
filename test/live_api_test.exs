@@ -92,7 +92,7 @@ defmodule LiveAPITest do
         case Gemini.list_models() do
           {:ok, response} ->
             IO.puts("  ✅ Found #{length(response.models)} models")
-            assert length(response.models) > 0
+            assert response.models != []
 
           {:error, error} ->
             IO.puts("  ❌ List models failed: #{inspect(error)}")

@@ -19,7 +19,7 @@ defmodule Gemini.IntegrationTest do
         {:ok, response} = Gemini.list_models()
 
         assert is_list(response.models)
-        assert length(response.models) > 0
+        assert response.models != []
 
         # Check that we have common models
         model_names = Enum.map(response.models, & &1.name)
@@ -76,11 +76,11 @@ defmodule Gemini.IntegrationTest do
       if has_auth do
         {:ok, response} = Gemini.generate("What is 2+2?")
 
-        assert length(response.candidates) > 0
+        assert response.candidates != []
 
         candidate = List.first(response.candidates)
         assert candidate.content != nil
-        assert length(candidate.content.parts) > 0
+        assert candidate.content.parts != []
 
         {:ok, text} = Gemini.extract_text(response)
         assert text =~ "4"

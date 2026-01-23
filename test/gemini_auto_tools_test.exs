@@ -91,7 +91,7 @@ defmodule Gemini.AutoToolsTest do
       {:ok, response} ->
         # Should receive a final text response
         assert %Gemini.Types.Response.GenerateContentResponse{} = response
-        assert length(response.candidates) > 0
+        assert response.candidates != []
 
         # Extract text from the response
         case Gemini.extract_text(response) do
@@ -156,7 +156,7 @@ defmodule Gemini.AutoToolsTest do
         final_chunks = collect_stream_events(stream_id, [], 30_000)
 
         # Verify we received text chunks (not function call chunks)
-        assert length(final_chunks) > 0
+        assert final_chunks != []
 
         # All chunks should be text data, no function calls should be visible to subscriber
         Enum.each(final_chunks, fn chunk ->
