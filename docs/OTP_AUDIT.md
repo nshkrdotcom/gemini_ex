@@ -1,0 +1,390 @@
+# OTP Process Audit
+
+Scope: `spawn`, `spawn_link`, `spawn_monitor`, `Task.start`, `Task.async`,
+`GenServer.start` (non-link), `Agent.start` (non-link), `:proc_lib`, `Process.spawn`.
+
+## Summary
+
+- Production code uses 4 process creation sites: 2 bare `spawn` and 2 `spawn_link`,
+  all remediated to supervised tasks.
+- Test, example, and documentation files include additional process creation usages.
+- No occurrences found in production code for `spawn_monitor`, `Task.start`,
+  `GenServer.start` (non-link), `Agent.start` (non-link), `:proc_lib`,
+  or `Process.spawn`. A single `Task.start` appears in documentation only.
+
+## Production Code (lib/)
+
+- `lib/gemini/rate_limiter/concurrency_gate.ex:304`
+  - Pattern: `spawn`
+  - Purpose: holder watcher monitors permit holder and releases on DOWN
+  - Risk: unsupervised watcher can die and leak permit slots
+  - Status: fixed (TaskSupervisor)
+- `lib/gemini/client/http_streaming.ex:161`
+  - Pattern: `spawn`
+  - Purpose: run SSE streaming loop and forward events to target process
+  - Risk: unsupervised stream process can crash and leave caller hanging
+  - Status: fixed (TaskSupervisor)
+- `lib/gemini/streaming/tool_orchestrator.ex:127`
+  - Pattern: `spawn_link`
+  - Purpose: execute tool calls while orchestrator waits for result
+  - Risk: linked but unsupervised; tool crash can take down orchestrator
+  - Status: fixed (TaskSupervisor, error capture)
+- `lib/gemini/apis/interactions.ex:414`
+  - Pattern: `spawn_link`
+  - Purpose: stream SSE events to process, relay to Stream.resource
+  - Risk: linked but unsupervised; failure handling tied to caller lifecycle
+  - Status: fixed (TaskSupervisor)
+
+## Tests (test/)
+
+- `test/gemini/auth/token_cache_test.exs:214`
+  - Pattern: `Task.async`
+  - Purpose: concurrent writes to token cache
+  - Risk: test-only, short-lived process
+  - Status: justified (test-only)
+- `test/gemini/auth/token_cache_test.exs:230`
+  - Pattern: `Task.async`
+  - Purpose: concurrent reads from token cache
+  - Risk: test-only, short-lived process
+  - Status: justified (test-only)
+- `test/gemini/auth/token_cache_test.exs:242`
+  - Pattern: `Task.async`
+  - Purpose: concurrent mixed operations on token cache
+  - Risk: test-only, short-lived process
+  - Status: justified (test-only)
+- `test/gemini/auth/token_cache_test.exs:243`
+  - Pattern: `Task.async`
+  - Purpose: concurrent mixed operations on token cache
+  - Risk: test-only, short-lived process
+  - Status: justified (test-only)
+- `test/gemini/auth/token_cache_test.exs:244`
+  - Pattern: `Task.async`
+  - Purpose: concurrent mixed operations on token cache
+  - Risk: test-only, short-lived process
+  - Status: justified (test-only)
+- `test/gemini/auth/multi_auth_coordinator_test.exs:146`
+  - Pattern: `Task.async`
+  - Purpose: concurrent auth coordination tests
+  - Risk: test-only, short-lived process
+  - Status: justified (test-only)
+- `test/gemini/auth/multi_auth_coordinator_test.exs:147`
+  - Pattern: `Task.async`
+  - Purpose: concurrent auth coordination tests
+  - Risk: test-only, short-lived process
+  - Status: justified (test-only)
+- `test/gemini/auth/multi_auth_coordinator_test.exs:148`
+  - Pattern: `Task.async`
+  - Purpose: concurrent auth coordination tests
+  - Risk: test-only, short-lived process
+  - Status: justified (test-only)
+- `test/gemini/auth/multi_auth_coordinator_test.exs:173`
+  - Pattern: `Task.async`
+  - Purpose: concurrent auth coordination tests
+  - Risk: test-only, short-lived process
+  - Status: justified (test-only)
+- `test/gemini/auth/adc_test.exs:365`
+  - Pattern: `Task.async`
+  - Purpose: concurrent access token retrieval
+  - Risk: test-only, short-lived process
+  - Status: justified (test-only)
+- `test/gemini/auth/adc_test.exs:378`
+  - Pattern: `Task.async`
+  - Purpose: concurrent cache writes for ADC
+  - Risk: test-only, short-lived process
+  - Status: justified (test-only)
+- `test/gemini/rate_limiter_test.exs:448`
+  - Pattern: `Task.async`
+  - Purpose: parallel request execution test
+  - Risk: test-only, short-lived process
+  - Status: justified (test-only)
+- `test/gemini/rate_limiter_test.exs:484`
+  - Pattern: `Task.async`
+  - Purpose: parallel request execution test
+  - Risk: test-only, short-lived process
+  - Status: justified (test-only)
+- `test/gemini/rate_limiter_test.exs:807`
+  - Pattern: `Task.async`
+  - Purpose: concurrent budget reservation test
+  - Risk: test-only, short-lived process
+  - Status: justified (test-only)
+- `test/gemini/rate_limiter_test.exs:812`
+  - Pattern: `Task.async`
+  - Purpose: concurrent budget reservation test
+  - Risk: test-only, short-lived process
+  - Status: justified (test-only)
+- `test/gemini/streaming/integration_test.exs:307`
+  - Pattern: `spawn`
+  - Purpose: simulate subscriber process in streaming tests
+  - Risk: test-only, short-lived process
+  - Status: justified (test-only)
+- `test/gemini/streaming/integration_test.exs:345`
+  - Pattern: `spawn`
+  - Purpose: simulate subscriber death cleanup
+  - Risk: test-only, short-lived process
+  - Status: justified (test-only)
+- `test/gemini/streaming/unified_manager_rate_limit_test.exs:39`
+  - Pattern: `spawn`
+  - Purpose: stub streaming process for rate limit tests
+  - Risk: test-only, short-lived process
+  - Status: justified (test-only)
+- `test/gemini/streaming/unified_manager_rate_limit_test.exs:108`
+  - Pattern: `spawn`
+  - Purpose: stub streaming process for permit release test
+  - Risk: test-only, short-lived process
+  - Status: justified (test-only)
+- `test/gemini/streaming/tool_orchestrator_test.exs:24`
+  - Pattern: `spawn`
+  - Purpose: stub stream process for orchestrator test
+  - Risk: test-only, short-lived process
+  - Status: justified (test-only)
+
+## Examples (examples/)
+
+- `examples/multi_auth_demo.exs:77`
+  - Pattern: `Task.async`
+  - Purpose: concurrent auth demo
+  - Risk: example only
+  - Status: justified (example-only)
+- `examples/multi_auth_demo.exs:116`
+  - Pattern: `Task.async`
+  - Purpose: concurrent auth demo
+  - Risk: example only
+  - Status: justified (example-only)
+
+## Scripts (repo root)
+
+- `repro_concurrency_gate.exs:23`
+  - Pattern: `Task.async`
+  - Purpose: reproduction script for concurrency gate behavior
+  - Risk: script only
+  - Status: justified (script-only)
+
+## Documentation (docs/, *.md)
+
+These are documentation examples and do not execute in production.
+
+- `CLAUDE.md:181`
+  - Pattern: `Task.async`
+  - Purpose: concurrent usage examples
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `CLAUDE.md:182`
+  - Pattern: `Task.async`
+  - Purpose: concurrent usage examples
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `CLAUDE.md:183`
+  - Pattern: `Task.async`
+  - Purpose: concurrent usage examples
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `CLAUDE.md:184`
+  - Pattern: `Task.async`
+  - Purpose: concurrent usage examples
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `CLAUDE.md:379`
+  - Pattern: `Task.async`
+  - Purpose: concurrent usage examples
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `CLAUDE.md:380`
+  - Pattern: `Task.async`
+  - Purpose: concurrent usage examples
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `CLAUDE.md:381`
+  - Pattern: `Task.async`
+  - Purpose: concurrent usage examples
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `CLAUDE.md:382`
+  - Pattern: `Task.async`
+  - Purpose: concurrent usage examples
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `STREAMING_ARCHITECTURE.md:68`
+  - Pattern: `spawn_link`
+  - Purpose: architecture example
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `STREAMING_ARCHITECTURE.md:705`
+  - Pattern: `spawn`
+  - Purpose: architecture example
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `STREAMING_ARCHITECTURE.md:1383`
+  - Pattern: `Task.start`
+  - Purpose: architecture example
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `docs/COMPLETE_IMPLEMENTATION_CHECKLIST_AND_NEXT_STEPS.md:183`
+  - Pattern: `Task.async`
+  - Purpose: concurrent usage examples
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `docs/COMPLETE_IMPLEMENTATION_CHECKLIST_AND_NEXT_STEPS.md:184`
+  - Pattern: `Task.async`
+  - Purpose: concurrent usage examples
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `docs/COMPLETE_IMPLEMENTATION_CHECKLIST_AND_NEXT_STEPS.md:187`
+  - Pattern: `Task.async`
+  - Purpose: concurrent usage examples
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `docs/COMPLETE_IMPLEMENTATION_CHECKLIST_AND_NEXT_STEPS.md:188`
+  - Pattern: `Task.async`
+  - Purpose: concurrent usage examples
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `docs/COMPLETE_IMPLEMENTATION_CHECKLIST_AND_NEXT_STEPS.md:191`
+  - Pattern: `Task.async`
+  - Purpose: concurrent usage examples
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `docs/COMPLETE_IMPLEMENTATION_CHECKLIST_AND_NEXT_STEPS.md:192`
+  - Pattern: `Task.async`
+  - Purpose: concurrent usage examples
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `docs/TESTS_IMPLEMENTATION_PRIORITY_PLAN.md:137`
+  - Pattern: `Task.async`
+  - Purpose: concurrent usage examples
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `docs/TESTS_IMPLEMENTATION_PRIORITY_PLAN.md:138`
+  - Pattern: `Task.async`
+  - Purpose: concurrent usage examples
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `docs/TESTS_IMPLEMENTATION_PRIORITY_PLAN.md:139`
+  - Pattern: `Task.async`
+  - Purpose: concurrent usage examples
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `docs/TESTS_IMPLEMENTATION_PRIORITY_PLAN.md:140`
+  - Pattern: `Task.async`
+  - Purpose: concurrent usage examples
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `docs/MULTI_AUTH_COORDINATION_CAPABILITY_SPECIFICATION.md:27`
+  - Pattern: `Task.async`
+  - Purpose: concurrent usage examples
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `docs/MULTI_AUTH_COORDINATION_CAPABILITY_SPECIFICATION.md:28`
+  - Pattern: `Task.async`
+  - Purpose: concurrent usage examples
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `docs/MULTI_AUTH_COORDINATION_CAPABILITY_SPECIFICATION.md:199`
+  - Pattern: `Task.async`
+  - Purpose: concurrent usage examples
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `docs/MULTI_AUTH_COORDINATION_CAPABILITY_SPECIFICATION.md:200`
+  - Pattern: `Task.async`
+  - Purpose: concurrent usage examples
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `docs/MULTI_AUTH_COORDINATION_CAPABILITY_SPECIFICATION.md:201`
+  - Pattern: `Task.async`
+  - Purpose: concurrent usage examples
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `docs/MULTI_AUTH_TECHNICAL_IMPLEMENTATION_SPECIFICATION.md:864`
+  - Pattern: `Task.async`
+  - Purpose: concurrent usage examples
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `docs/MULTI_AUTH_TECHNICAL_IMPLEMENTATION_SPECIFICATION.md:865`
+  - Pattern: `Task.async`
+  - Purpose: concurrent usage examples
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `docs/MULTI_AUTH_IMPLEMENTATION_ROADMAP_AND_MIGRATION_GUIDE.md:125`
+  - Pattern: `Task.async`
+  - Purpose: concurrent usage examples
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `docs/MULTI_AUTH_IMPLEMENTATION_ROADMAP_AND_MIGRATION_GUIDE.md:126`
+  - Pattern: `Task.async`
+  - Purpose: concurrent usage examples
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `docs/MULTI_AUTH_IMPLEMENTATION_ROADMAP_AND_MIGRATION_GUIDE.md:127`
+  - Pattern: `Task.async`
+  - Purpose: concurrent usage examples
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `docs/MULTI_AUTH_IMPLEMENTATION_ROADMAP_AND_MIGRATION_GUIDE.md:219`
+  - Pattern: `Task.async`
+  - Purpose: concurrent usage examples
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `docs/MULTI_AUTH_IMPLEMENTATION_ROADMAP_AND_MIGRATION_GUIDE.md:220`
+  - Pattern: `Task.async`
+  - Purpose: concurrent usage examples
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `docs/MULTI_AUTH_IMPLEMENTATION_ROADMAP_AND_MIGRATION_GUIDE.md:532`
+  - Pattern: `Task.async`
+  - Purpose: concurrent usage examples
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `docs/MULTI_AUTH_IMPLEMENTATION_ROADMAP_AND_MIGRATION_GUIDE.md:535`
+  - Pattern: `Task.async`
+  - Purpose: concurrent usage examples
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `docs/MULTI_AUTH_IMPLEMENTATION_ROADMAP_AND_MIGRATION_GUIDE.md:699`
+  - Pattern: `Task.async`
+  - Purpose: concurrent usage examples
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `docs/MULTI_AUTH_IMPLEMENTATION_ROADMAP_AND_MIGRATION_GUIDE.md:708`
+  - Pattern: `Task.async`
+  - Purpose: concurrent usage examples
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `docs/PATTERNS.md:60`
+  - Pattern: `Task.async`
+  - Purpose: concurrent usage examples
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `docs/PATTERNS.md:61`
+  - Pattern: `Task.async`
+  - Purpose: concurrent usage examples
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `docs/20251220/02_README_UPDATE_PLAN.md:246`
+  - Pattern: `Task.async`
+  - Purpose: concurrent usage examples
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `docs/20251220/02_README_UPDATE_PLAN.md:247`
+  - Pattern: `Task.async`
+  - Purpose: concurrent usage examples
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `docs/guides/file_search_stores.md:483`
+  - Pattern: `Task.async`
+  - Purpose: concurrent usage examples
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `docs/20251205/rate_limiting/streaming_rate_limiter_integration.md:40`
+  - Pattern: `spawn`
+  - Purpose: architecture example
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `docs/20251205/rate_limiting/streaming_rate_limiter_integration.md:70`
+  - Pattern: `spawn`
+  - Purpose: architecture example
+  - Risk: docs only
+  - Status: justified (docs-only)
+- `docs/20251205/rate_limiting/streaming_rate_limiter_integration.md:133`
+  - Pattern: `spawn`
+  - Purpose: architecture example
+  - Risk: docs only
+  - Status: justified (docs-only)

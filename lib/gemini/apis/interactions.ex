@@ -16,6 +16,7 @@ defmodule Gemini.APIs.Interactions do
   alias Gemini.Client.HTTPStreaming
   alias Gemini.Config
   alias Gemini.Error
+  alias Gemini.TaskSupervisor
 
   alias Gemini.Types.Interactions.{
     AgentConfig,
@@ -410,45 +411,8 @@ defmodule Gemini.APIs.Interactions do
       |> Keyword.put(:method, method)
       |> Keyword.put(:add_sse_params, false)
 
-    stream_pid =
-      spawn_link(fn ->
-        callback = fn
-          %{type: :data, data: %{done: true}} ->
-            :ok
-
-          %{type: :data, data: data} ->
-            send(parent, {:interactions_stream, ref, :data, data})
-            :ok
-
-          %{type: :error, error: error} ->
-            send(parent, {:interactions_stream, ref, :error, error})
-            :stop
-
-          %{type: :complete} ->
-            send(parent, {:interactions_stream, ref, :complete})
-            :ok
-        end
-
-        try do
-          _ = HTTPStreaming.stream_sse(url, headers, body, callback, stream_opts)
-        rescue
-          exception ->
-            send(
-              parent,
-              {:interactions_stream, ref, :error,
-               Error.network_error("Stream crashed", exception)}
-            )
-        catch
-          :exit, reason ->
-            send(
-              parent,
-              {:interactions_stream, ref, :error, Error.network_error("Stream exited", reason)}
-            )
-        after
-          send(parent, {:interactions_stream, ref, :done})
-          :ok
-        end
-      end)
+    callback = build_stream_callback(parent, ref)
+    stream_pid = start_stream_worker(parent, ref, url, headers, body, callback, stream_opts)
 
     Stream.resource(
       fn -> %{ref: ref, pid: stream_pid} end,
@@ -477,6 +441,58 @@ defmodule Gemini.APIs.Interactions do
         end
       end
     )
+  end
+
+  defp build_stream_callback(parent, ref) do
+    fn
+      %{type: :data, data: %{done: true}} ->
+        :ok
+
+      %{type: :data, data: data} ->
+        send(parent, {:interactions_stream, ref, :data, data})
+        :ok
+
+      %{type: :error, error: error} ->
+        send(parent, {:interactions_stream, ref, :error, error})
+        :stop
+
+      %{type: :complete} ->
+        send(parent, {:interactions_stream, ref, :complete})
+        :ok
+    end
+  end
+
+  defp start_stream_worker(parent, ref, url, headers, body, callback, stream_opts) do
+    case TaskSupervisor.start_child(fn ->
+           run_stream_worker(parent, ref, url, headers, body, callback, stream_opts)
+         end) do
+      {:ok, pid} -> pid
+      {:error, reason} -> raise "Failed to start interactions stream: #{inspect(reason)}"
+    end
+  end
+
+  defp run_stream_worker(parent, ref, url, headers, body, callback, stream_opts) do
+    _ = HTTPStreaming.stream_sse(url, headers, body, callback, stream_opts)
+    :ok
+  rescue
+    exception ->
+      send(
+        parent,
+        {:interactions_stream, ref, :error, Error.network_error("Stream crashed", exception)}
+      )
+
+      :ok
+  catch
+    :exit, reason ->
+      send(
+        parent,
+        {:interactions_stream, ref, :error, Error.network_error("Stream exited", reason)}
+      )
+
+      :ok
+  after
+    send(parent, {:interactions_stream, ref, :done})
+    :ok
   end
 
   defp do_wait_for_completion(id, opts, poll_interval_ms, timeout_ms, start_ms, on_status) do

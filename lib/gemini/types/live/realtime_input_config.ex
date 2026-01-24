@@ -66,6 +66,32 @@ defmodule Gemini.Types.Live.RealtimeInputConfig do
     )
   end
 
+  def to_api(%{} = value) do
+    %{}
+    |> maybe_put(
+      "automaticActivityDetection",
+      AutomaticActivityDetection.to_api(
+        value[:automatic_activity_detection] ||
+          value["automaticActivityDetection"] ||
+          value["automatic_activity_detection"]
+      )
+    )
+    |> maybe_put(
+      "activityHandling",
+      normalize_enum(
+        value[:activity_handling] || value["activityHandling"] || value["activity_handling"],
+        &ActivityHandling.to_api/1
+      )
+    )
+    |> maybe_put(
+      "turnCoverage",
+      normalize_enum(
+        value[:turn_coverage] || value["turnCoverage"] || value["turn_coverage"],
+        &TurnCoverage.to_api/1
+      )
+    )
+  end
+
   @doc """
   Parses from API response.
   """
@@ -88,4 +114,8 @@ defmodule Gemini.Types.Live.RealtimeInputConfig do
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
+
+  defp normalize_enum(nil, _fun), do: nil
+  defp normalize_enum(value, fun) when is_atom(value), do: fun.(value)
+  defp normalize_enum(value, _fun), do: value
 end

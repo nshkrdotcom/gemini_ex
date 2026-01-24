@@ -20,6 +20,7 @@ defmodule Gemini.Streaming.ToolOrchestrator do
   alias Gemini.Chat
   alias Gemini.Client.HTTPStreaming
   alias Gemini.Config
+  alias Gemini.TaskSupervisor
   alias Gemini.Tools
   alias Gemini.Types.Content
 
@@ -103,33 +104,7 @@ defmodule Gemini.Streaming.ToolOrchestrator do
         {:noreply, updated_state}
 
       function_calls ->
-        # Function calls detected, transition to tool execution phase
-        Logger.debug("Detected #{length(function_calls)} function calls, executing tools")
-
-        # Stop the first stream
-        if state.first_stream_pid do
-          Process.exit(state.first_stream_pid, :shutdown)
-        end
-
-        # Add model's function call turn to chat history
-        updated_chat = Chat.add_turn(state.chat, "model", function_calls)
-
-        new_state = %{
-          updated_state
-          | phase: :executing_tools,
-            chat: updated_chat,
-            first_stream_pid: nil
-        }
-
-        # Execute tools and send result to self
-        orchestrator_pid = self()
-
-        spawn_link(fn ->
-          result = Tools.execute_calls(function_calls)
-          send(orchestrator_pid, {:tool_execution_complete, result})
-        end)
-
-        {:noreply, new_state}
+        handle_function_calls(function_calls, updated_state, state)
     end
   end
 
@@ -393,6 +368,51 @@ defmodule Gemini.Streaming.ToolOrchestrator do
   end
 
   defp extract_call_from_part(_), do: []
+
+  defp handle_function_calls(function_calls, updated_state, state) do
+    Logger.debug("Detected #{length(function_calls)} function calls, executing tools")
+
+    stop_first_stream(state.first_stream_pid)
+
+    updated_chat = Chat.add_turn(state.chat, "model", function_calls)
+
+    new_state = %{
+      updated_state
+      | phase: :executing_tools,
+        chat: updated_chat,
+        first_stream_pid: nil
+    }
+
+    start_tool_execution(function_calls, new_state)
+  end
+
+  defp start_tool_execution(function_calls, state) do
+    orchestrator_pid = self()
+
+    case TaskSupervisor.start_child(fn ->
+           result =
+             try do
+               Tools.execute_calls(function_calls)
+             rescue
+               exception -> {:error, exception}
+             catch
+               :exit, reason -> {:error, reason}
+             end
+
+           send(orchestrator_pid, {:tool_execution_complete, result})
+         end) do
+      {:ok, _pid} ->
+        {:noreply, state}
+
+      {:error, reason} ->
+        error = "Tool execution failed to start: #{inspect(reason)}"
+        send(state.subscriber_pid, {:stream_error, state.stream_id, error})
+        {:stop, :normal, state}
+    end
+  end
+
+  defp stop_first_stream(nil), do: :ok
+  defp stop_first_stream(pid), do: Process.exit(pid, :shutdown)
 
   @spec handle_tool_execution_success(orchestrator_state(), [Altar.ADM.ToolResult.t()]) ::
           {:noreply, orchestrator_state()} | {:stop, :normal, orchestrator_state()}

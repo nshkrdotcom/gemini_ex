@@ -14,6 +14,9 @@ defmodule Gemini.RateLimiter.ConcurrencyGate do
   """
 
   alias Gemini.RateLimiter.Config
+  alias Gemini.TaskSupervisor
+
+  require Logger
 
   @ets_table :gemini_concurrency_permits
   @lock_table :gemini_concurrency_locks
@@ -301,17 +304,24 @@ defmodule Gemini.RateLimiter.ConcurrencyGate do
   end
 
   defp start_holder_watcher(model, holder_pid) do
-    spawn(fn ->
-      ref = Process.monitor(holder_pid)
+    case TaskSupervisor.start_child(fn ->
+           ref = Process.monitor(holder_pid)
 
-      receive do
-        :cancel ->
-          Process.demonitor(ref, [:flush])
+           receive do
+             :cancel ->
+               Process.demonitor(ref, [:flush])
 
-        {:DOWN, ^ref, :process, ^holder_pid, _reason} ->
-          handle_holder_down(model, holder_pid)
-      end
-    end)
+             {:DOWN, ^ref, :process, ^holder_pid, _reason} ->
+               handle_holder_down(model, holder_pid)
+           end
+         end) do
+      {:ok, pid} ->
+        pid
+
+      {:error, reason} ->
+        Logger.error("Failed to start holder watcher: #{inspect(reason)}")
+        raise "Failed to start holder watcher: #{inspect(reason)}"
+    end
   end
 
   def handle_holder_down(model, holder_pid) do

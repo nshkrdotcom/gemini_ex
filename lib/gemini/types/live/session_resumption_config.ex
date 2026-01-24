@@ -41,13 +41,22 @@ defmodule Gemini.Types.Live.SessionResumptionConfig do
   @doc """
   Converts to API format (camelCase).
   """
-  @spec to_api(t() | nil) :: map() | nil
+  @spec to_api(t() | map() | nil) :: map() | nil
   def to_api(nil), do: nil
 
   def to_api(%__MODULE__{} = value) do
     %{}
     |> maybe_put("handle", value.handle)
     |> maybe_put("transparent", value.transparent)
+  end
+
+  # Handle plain maps (common when passing config from examples)
+  def to_api(%{} = value) when value == %{}, do: %{}
+
+  def to_api(%{} = value) do
+    %{}
+    |> maybe_put("handle", fetch_value(value, :handle, "handle"))
+    |> maybe_put("transparent", fetch_value(value, :transparent, "transparent"))
   end
 
   @doc """
@@ -65,4 +74,17 @@ defmodule Gemini.Types.Live.SessionResumptionConfig do
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
+
+  defp fetch_value(map, atom_key, string_key) do
+    cond do
+      Map.has_key?(map, atom_key) ->
+        Map.get(map, atom_key)
+
+      Map.has_key?(map, string_key) ->
+        Map.get(map, string_key)
+
+      true ->
+        nil
+    end
+  end
 end

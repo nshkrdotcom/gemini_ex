@@ -78,7 +78,7 @@ defmodule Gemini.Types.Live.Setup do
   @spec new(String.t(), keyword()) :: t()
   def new(model, opts \\ []) when is_binary(model) do
     %__MODULE__{
-      model: model,
+      model: normalize_model_name(model),
       generation_config: Keyword.get(opts, :generation_config),
       system_instruction: Keyword.get(opts, :system_instruction),
       tools: Keyword.get(opts, :tools),
@@ -254,6 +254,11 @@ defmodule Gemini.Types.Live.Setup do
     |> maybe_put("parts", convert_parts_to_api(parts))
   end
 
+  # Handle plain strings by wrapping in Content format
+  defp convert_content_to_api(text) when is_binary(text) do
+    %{"parts" => [%{"text" => text}]}
+  end
+
   defp convert_content_to_api(other), do: other
 
   defp convert_parts_to_api(parts) when is_list(parts) do
@@ -301,6 +306,15 @@ defmodule Gemini.Types.Live.Setup do
       role: data["role"],
       parts: data["parts"]
     }
+  end
+
+  # Normalize model name to include "models/" prefix if not already present
+  defp normalize_model_name(model) when is_binary(model) do
+    if String.starts_with?(model, "models/") do
+      model
+    else
+      "models/#{model}"
+    end
   end
 
   defp maybe_put(map, _key, nil), do: map

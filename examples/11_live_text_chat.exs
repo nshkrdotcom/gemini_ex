@@ -25,7 +25,7 @@ Process.put(:response_start, nil)
 
 # Message handler - receives all server messages
 handler = fn
-  %{setup_complete: _} ->
+  %{setup_complete: sc} when not is_nil(sc) ->
     IO.puts("[Setup complete - session ready]")
 
   %{server_content: content} when not is_nil(content) ->
@@ -65,9 +65,10 @@ end
 IO.puts("\nStarting Live API chat session...")
 
 # Start session with text-only responses
+# Note: gemini-2.0-flash-exp supports both TEXT and AUDIO modes via Live API
 {:ok, session} =
   Session.start_link(
-    model: "gemini-2.5-flash-native-audio-preview-12-2025",
+    model: "gemini-2.0-flash-exp",
     auth: :gemini,
     generation_config: %{
       response_modalities: ["TEXT"],

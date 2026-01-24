@@ -68,18 +68,43 @@ defmodule Gemini.Types.Live.AutomaticActivityDetection do
     |> maybe_put("disabled", value.disabled)
     |> maybe_put(
       "startOfSpeechSensitivity",
-      if(value.start_of_speech_sensitivity,
-        do: StartSensitivity.to_api(value.start_of_speech_sensitivity)
+      normalize_enum(value.start_of_speech_sensitivity, &StartSensitivity.to_api/1)
+    )
+    |> maybe_put(
+      "endOfSpeechSensitivity",
+      normalize_enum(value.end_of_speech_sensitivity, &EndSensitivity.to_api/1)
+    )
+    |> maybe_put("prefixPaddingMs", value.prefix_padding_ms)
+    |> maybe_put("silenceDurationMs", value.silence_duration_ms)
+  end
+
+  def to_api(%{} = value) do
+    %{}
+    |> maybe_put("disabled", fetch_value(value, [:disabled, "disabled"]))
+    |> maybe_put(
+      "startOfSpeechSensitivity",
+      fetch_enum(
+        value,
+        [:start_of_speech_sensitivity, "startOfSpeechSensitivity", "start_of_speech_sensitivity"],
+        &StartSensitivity.to_api/1
       )
     )
     |> maybe_put(
       "endOfSpeechSensitivity",
-      if(value.end_of_speech_sensitivity,
-        do: EndSensitivity.to_api(value.end_of_speech_sensitivity)
+      fetch_enum(
+        value,
+        [:end_of_speech_sensitivity, "endOfSpeechSensitivity", "end_of_speech_sensitivity"],
+        &EndSensitivity.to_api/1
       )
     )
-    |> maybe_put("prefixPaddingMs", value.prefix_padding_ms)
-    |> maybe_put("silenceDurationMs", value.silence_duration_ms)
+    |> maybe_put(
+      "prefixPaddingMs",
+      fetch_value(value, [:prefix_padding_ms, "prefixPaddingMs", "prefix_padding_ms"])
+    )
+    |> maybe_put(
+      "silenceDurationMs",
+      fetch_value(value, [:silence_duration_ms, "silenceDurationMs", "silence_duration_ms"])
+    )
   end
 
   @doc """
@@ -104,4 +129,24 @@ defmodule Gemini.Types.Live.AutomaticActivityDetection do
 
   defp maybe_put(map, _key, nil), do: map
   defp maybe_put(map, key, value), do: Map.put(map, key, value)
+
+  defp fetch_enum(map, keys, fun) do
+    map
+    |> fetch_value(keys)
+    |> normalize_enum(fun)
+  end
+
+  defp fetch_value(map, keys) do
+    Enum.reduce_while(keys, nil, fn key, _acc ->
+      if Map.has_key?(map, key) do
+        {:halt, Map.get(map, key)}
+      else
+        {:cont, nil}
+      end
+    end)
+  end
+
+  defp normalize_enum(nil, _fun), do: nil
+  defp normalize_enum(value, fun) when is_atom(value), do: fun.(value)
+  defp normalize_enum(value, _fun), do: value
 end

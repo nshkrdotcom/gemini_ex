@@ -30,6 +30,7 @@ defmodule Gemini.Types.Live.AudioTranscriptionConfig do
   @spec to_api(t() | nil) :: map() | nil
   def to_api(nil), do: nil
   def to_api(%__MODULE__{}), do: %{}
+  def to_api(%{}), do: %{}
 
   @doc """
   Parses from API response.

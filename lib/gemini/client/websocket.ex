@@ -125,10 +125,11 @@ defmodule Gemini.Client.WebSocket do
   @retryable_errors [:timeout, :closed, :econnrefused, :econnreset, :etimedout]
 
   # Build gun options at runtime to avoid compile-time function capture issue
+  # WebSocket connections require HTTP/1.1 for the upgrade handshake
   @spec gun_opts() :: map()
   defp gun_opts do
     %{
-      protocols: [:http2],
+      protocols: [:http],
       transport: :tls,
       tls_opts: [
         verify: :verify_peer,
@@ -137,10 +138,7 @@ defmodule Gemini.Client.WebSocket do
         customize_hostname_check: [
           match_fun: :public_key.pkix_verify_hostname_match_fun(:https)
         ]
-      ],
-      http2_opts: %{
-        keepalive: :infinity
-      }
+      ]
     }
   end
 
@@ -290,6 +288,13 @@ defmodule Gemini.Client.WebSocket do
     result =
       receive do
         {:gun_ws, ^pid, ^ref, {:text, data}} ->
+          case Jason.decode(data) do
+            {:ok, message} -> {:ok, message}
+            {:error, _} = error -> error
+          end
+
+        # Live API sends binary frames containing JSON
+        {:gun_ws, ^pid, ^ref, {:binary, data}} ->
           case Jason.decode(data) do
             {:ok, message} -> {:ok, message}
             {:error, _} = error -> error
@@ -484,8 +489,8 @@ defmodule Gemini.Client.WebSocket do
     case :gun.open(String.to_charlist(host), port, gun_opts()) do
       {:ok, pid} ->
         case :gun.await_up(pid, timeout) do
-          {:ok, :http2} ->
-            Logger.debug("Gun connection established with HTTP/2")
+          {:ok, protocol} when protocol in [:http, :http2] ->
+            Logger.debug("Gun connection established with #{protocol}")
             {:ok, %{conn | gun_pid: pid}}
 
           {:error, reason} ->

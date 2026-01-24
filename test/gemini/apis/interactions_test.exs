@@ -494,4 +494,49 @@ defmodule Gemini.APIs.InteractionsTest do
       assert interaction.id == "int_vertex"
     end
   end
+
+  describe "stream supervision" do
+    test "streaming does not link the caller to the stream process" do
+      :meck.new(Gemini.Auth.MultiAuthCoordinator, [:non_strict])
+      :meck.new(Gemini.Client.HTTPStreaming, [:non_strict])
+
+      :meck.expect(Gemini.Auth.MultiAuthCoordinator, :coordinate_auth, fn _auth, _opts ->
+        {:ok, :gemini, []}
+      end)
+
+      :meck.expect(Gemini.Auth.MultiAuthCoordinator, :get_credentials, fn _auth, _opts ->
+        {:ok, %{api_key: "test"}}
+      end)
+
+      :meck.expect(Gemini.Client.HTTPStreaming, :stream_sse, fn _url,
+                                                                _headers,
+                                                                _body,
+                                                                _callback,
+                                                                _opts ->
+        Process.sleep(200)
+        {:ok, :completed}
+      end)
+
+      links_before =
+        Process.info(self(), :links)
+        |> elem(1)
+        |> MapSet.new()
+
+      assert {:ok, stream} =
+               Interactions.create("hello",
+                 auth: :gemini,
+                 model: "models/test",
+                 stream: true,
+                 max_retries: 0
+               )
+
+      links_after =
+        Process.info(self(), :links)
+        |> elem(1)
+        |> MapSet.new()
+
+      assert MapSet.equal?(links_before, links_after)
+      assert [] == Enum.to_list(stream)
+    end
+  end
 end

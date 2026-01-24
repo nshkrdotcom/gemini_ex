@@ -40,7 +40,7 @@ end
 
 # Message handler
 handler = fn
-  %{setup_complete: _} ->
+  %{setup_complete: sc} when not is_nil(sc) ->
     IO.puts("[Setup complete]")
 
   %{server_content: content} when not is_nil(content) ->
@@ -52,7 +52,7 @@ handler = fn
       IO.puts("\n[Turn complete]")
     end
 
-  %{go_away: _} ->
+  %{go_away: ga} when not is_nil(ga) ->
     IO.puts("\n[Warning: Session ending soon]")
 
   _ ->
@@ -75,7 +75,7 @@ IO.puts("Starting initial session with resumption enabled...")
 
 {:ok, session1} =
   Session.start_link(
-    model: "gemini-2.5-flash-native-audio-preview-12-2025",
+    model: "gemini-2.0-flash-exp",
     auth: :gemini,
     generation_config: %{response_modalities: ["TEXT"]},
     # Enable session resumption
@@ -142,7 +142,7 @@ if saved_handle do
   # Start a new session with the saved handle
   {:ok, session2} =
     Session.start_link(
-      model: "gemini-2.5-flash-native-audio-preview-12-2025",
+      model: "gemini-2.0-flash-exp",
       auth: :gemini,
       generation_config: %{response_modalities: ["TEXT"]},
       # Provide the handle to resume

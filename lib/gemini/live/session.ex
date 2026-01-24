@@ -32,7 +32,7 @@ defmodule Gemini.Live.Session do
   - `on_message` - Called for each server message
   - `on_error` - Called on errors
   - `on_close` - Called when session closes
-  - `on_tool_call` - Called when model requests tool execution
+  - `on_tool_call` - Called when model requests tool execution (may return tool responses)
   - `on_transcription` - Called for audio transcriptions
   - `on_voice_activity` - Called for voice activity signals
 
@@ -57,14 +57,24 @@ defmodule Gemini.Live.Session do
   alias Gemini.Client.WebSocket
   alias Gemini.Config
   alias Gemini.Telemetry
-  alias Gemini.Types.Live.{ServerMessage, Setup, SetupComplete}
+  alias Gemini.Types.Live.{ServerMessage, Setup, SetupComplete, ToolCall}
 
   @type session_status :: :disconnected | :connecting | :setup_pending | :ready | :closing
 
   @type callback :: (term() -> any())
+  @type tool_response :: map()
+  @type tool_responses :: [tool_response()]
+  @type tool_call_callback_result ::
+          :ok
+          | {:tool_response, tool_responses()}
+          | {:send_tool_response, tool_responses()}
+          | tool_responses()
+  @type tool_call_callback :: (ToolCall.t() -> tool_call_callback_result())
 
   @type state :: %{
-          websocket: WebSocket.t() | nil,
+          websocket: WebSocket.t() | term() | nil,
+          websocket_module: module(),
+          websocket_opts: keyword(),
           status: session_status(),
           config: map(),
           callbacks: map(),
@@ -88,10 +98,12 @@ defmodule Gemini.Live.Session do
   - `:generation_config` - Generation configuration
   - `:system_instruction` - System instruction content
   - `:tools` - Tool declarations
+  - `:realtime_input_config` - Realtime input configuration
   - `:on_message` - Callback for server messages
   - `:on_error` - Callback for errors
   - `:on_close` - Callback for session close
-  - `:on_tool_call` - Callback for tool call requests
+  - `:on_tool_call` - Callback for tool call requests (may return tool responses)
+    - Return `{:tool_response, responses}` or a list of responses to send automatically
   - `:on_tool_call_cancellation` - Callback for tool call cancellation
   - `:on_transcription` - Callback for transcriptions
   - `:on_voice_activity` - Callback for voice activity signals
@@ -100,6 +112,8 @@ defmodule Gemini.Live.Session do
   - `:session_resumption` - Enable session resumption
   - `:resume_handle` - Handle from previous session to resume
   - `:context_window_compression` - Enable context compression
+  - `:websocket_module` - Advanced: override WebSocket client module (useful for testing)
+  - `:websocket_opts` - Advanced: extra options passed to WebSocket.connect/2
 
   ## Returns
 
@@ -228,7 +242,12 @@ defmodule Gemini.Live.Session do
   """
   @spec send_tool_response(GenServer.server(), list()) :: :ok | {:error, term()}
   def send_tool_response(session, responses) do
-    GenServer.call(session, {:send_tool_response, responses})
+    if session == self() or resolve_session_pid(session) == self() do
+      GenServer.cast(session, {:send_tool_response, responses})
+      :ok
+    else
+      GenServer.call(session, {:send_tool_response, responses})
+    end
   end
 
   @doc """
@@ -289,6 +308,7 @@ defmodule Gemini.Live.Session do
         generation_config: Keyword.get(opts, :generation_config),
         system_instruction: Keyword.get(opts, :system_instruction),
         tools: Keyword.get(opts, :tools),
+        realtime_input_config: Keyword.get(opts, :realtime_input_config),
         session_resumption: Keyword.get(opts, :session_resumption),
         context_window_compression: Keyword.get(opts, :context_window_compression),
         input_audio_transcription: Keyword.get(opts, :input_audio_transcription),
@@ -308,6 +328,8 @@ defmodule Gemini.Live.Session do
       pending_setup: nil,
       session_handle: Keyword.get(opts, :resume_handle),
       usage_metadata: nil,
+      websocket_module: Keyword.get(opts, :websocket_module, WebSocket),
+      websocket_opts: Keyword.get(opts, :websocket_opts, []),
       owner: self()
     }
 
@@ -335,7 +357,7 @@ defmodule Gemini.Live.Session do
   def handle_call({:send_client_content, content, opts}, _from, %{status: :ready} = state) do
     message = build_client_content_message(content, opts)
 
-    case WebSocket.send(state.websocket, message) do
+    case state.websocket_module.send(state.websocket, message) do
       :ok ->
         emit_telemetry_message_sent(:client_content, %{model: state.config.model})
         {:reply, :ok, state}
@@ -352,7 +374,7 @@ defmodule Gemini.Live.Session do
   def handle_call({:send_realtime_input, opts}, _from, %{status: :ready} = state) do
     message = build_realtime_input_message(opts)
 
-    case WebSocket.send(state.websocket, message) do
+    case state.websocket_module.send(state.websocket, message) do
       :ok ->
         emit_telemetry_message_sent(:realtime_input, %{model: state.config.model})
         {:reply, :ok, state}
@@ -366,29 +388,11 @@ defmodule Gemini.Live.Session do
     {:reply, {:error, {:not_ready, state.status}}, state}
   end
 
-  def handle_call({:send_tool_response, responses}, _from, %{status: :ready} = state) do
-    message = %{
-      "toolResponse" => %{
-        "functionResponses" => Enum.map(responses, &format_function_response/1)
-      }
-    }
-
-    case WebSocket.send(state.websocket, message) do
-      :ok ->
-        emit_telemetry_message_sent(:tool_response, %{
-          model: state.config.model,
-          response_count: length(responses)
-        })
-
-        {:reply, :ok, state}
-
-      error ->
-        {:reply, error, state}
+  def handle_call({:send_tool_response, responses}, _from, state) do
+    case do_send_tool_response(state, responses) do
+      :ok -> {:reply, :ok, state}
+      error -> {:reply, error, state}
     end
-  end
-
-  def handle_call({:send_tool_response, _}, _from, state) do
-    {:reply, {:error, {:not_ready, state.status}}, state}
   end
 
   def handle_call(:close, _from, state) do
@@ -406,16 +410,19 @@ defmodule Gemini.Live.Session do
   end
 
   @impl true
-  def handle_info({:gun_ws, _pid, _ref, {:text, data}}, state) do
-    case Jason.decode(data) do
-      {:ok, message} ->
-        new_state = handle_server_message(message, state)
-        {:noreply, new_state}
+  def handle_cast({:send_tool_response, responses}, state) do
+    _ = do_send_tool_response(state, responses)
+    {:noreply, state}
+  end
 
-      {:error, reason} ->
-        Logger.error("Failed to decode Live API message: #{inspect(reason)}")
-        {:noreply, state}
-    end
+  @impl true
+  def handle_info({:gun_ws, _pid, _ref, {:text, data}}, state) do
+    handle_websocket_data(data, state)
+  end
+
+  # Live API sends binary frames containing JSON
+  def handle_info({:gun_ws, _pid, _ref, {:binary, data}}, state) do
+    handle_websocket_data(data, state)
   end
 
   def handle_info({:gun_ws, _pid, _ref, {:close, code, reason}}, state) do
@@ -425,7 +432,8 @@ defmodule Gemini.Live.Session do
     {:noreply, %{state | status: :disconnected, websocket: nil}}
   end
 
-  def handle_info({:gun_down, _pid, :http2, reason, _}, state) do
+  def handle_info({:gun_down, _pid, protocol, reason, _}, state)
+      when protocol in [:http, :http2] do
     Logger.warning("Live API connection down: #{inspect(reason)}")
     emit_telemetry_error({:connection_down, reason})
     invoke_callback(state.callbacks.on_error, {:connection_down, reason})
@@ -435,6 +443,19 @@ defmodule Gemini.Live.Session do
   def handle_info(msg, state) do
     Logger.debug("Unhandled Live API message: #{inspect(msg)}")
     {:noreply, state}
+  end
+
+  # Helper to handle WebSocket data (text or binary frames)
+  defp handle_websocket_data(data, state) do
+    case Jason.decode(data) do
+      {:ok, message} ->
+        new_state = handle_server_message(message, state)
+        {:noreply, new_state}
+
+      {:error, reason} ->
+        Logger.error("Failed to decode Live API message: #{inspect(reason)}")
+        {:noreply, state}
+    end
   end
 
   @impl true
@@ -447,16 +468,21 @@ defmodule Gemini.Live.Session do
 
   @spec do_connect(state()) :: {:ok, state()} | {:error, term()}
   defp do_connect(state) do
-    ws_opts = [
+    base_opts = [
       model: state.config.model,
       project_id: state.config.project_id,
       location: state.config.location
     ]
 
-    with {:ok, websocket} <- WebSocket.connect(state.config.auth, ws_opts),
-         setup <- build_setup(state.config),
-         :ok <- send_setup(websocket, setup),
-         {:ok, updated_state} <- wait_for_setup_complete(%{state | websocket: websocket}) do
+    ws_opts = Keyword.merge(state.websocket_opts, base_opts)
+
+    websocket_module = state.websocket_module
+
+    with {:ok, websocket} <- websocket_module.connect(state.config.auth, ws_opts),
+         setup <- build_setup(state.config, state.session_handle),
+         :ok <- send_setup(websocket_module, websocket, setup),
+         {:ok, updated_state} <-
+           wait_for_setup_complete(websocket_module, %{state | websocket: websocket}) do
       emit_telemetry_ready(state.config.model)
       {:ok, updated_state}
     end
@@ -466,22 +492,49 @@ defmodule Gemini.Live.Session do
   defp do_close(%{websocket: nil} = state), do: %{state | status: :disconnected}
 
   defp do_close(%{websocket: ws} = state) do
-    WebSocket.close(ws)
+    state.websocket_module.close(ws)
     %{state | websocket: nil, status: :disconnected}
   end
 
-  @spec send_setup(WebSocket.t(), Setup.t()) :: :ok | {:error, term()}
-  defp send_setup(websocket, setup) do
+  @spec send_setup(module(), WebSocket.t() | term(), Setup.t()) :: :ok | {:error, term()}
+  defp send_setup(websocket_module, websocket, setup) do
     message = %{"setup" => Setup.to_api(setup)}
-    WebSocket.send(websocket, message)
+    websocket_module.send(websocket, message)
   end
 
-  @spec wait_for_setup_complete(state()) :: {:ok, state()} | {:error, term()}
-  defp wait_for_setup_complete(state) do
+  @spec do_send_tool_response(state(), list()) :: :ok | {:error, term()}
+  defp do_send_tool_response(%{status: :ready, websocket: websocket} = state, responses)
+       when is_list(responses) and not is_nil(websocket) do
+    message = %{
+      "toolResponse" => %{
+        "functionResponses" => Enum.map(responses, &format_function_response/1)
+      }
+    }
+
+    case state.websocket_module.send(websocket, message) do
+      :ok ->
+        emit_telemetry_message_sent(:tool_response, %{
+          model: state.config.model,
+          response_count: length(responses)
+        })
+
+        :ok
+
+      error ->
+        error
+    end
+  end
+
+  defp do_send_tool_response(state, _responses) do
+    {:error, {:not_ready, state.status}}
+  end
+
+  @spec wait_for_setup_complete(module(), state()) :: {:ok, state()} | {:error, term()}
+  defp wait_for_setup_complete(websocket_module, state) do
     state = %{state | status: :setup_pending}
 
     # Wait for setup_complete message with a timeout
-    case WebSocket.receive(state.websocket, 30_000) do
+    case websocket_module.receive(state.websocket, 30_000) do
       {:ok, %{"setupComplete" => _}} ->
         Logger.debug("Live API setup complete, session ready")
         {:ok, %{state | status: :ready}}
@@ -493,7 +546,7 @@ defmodule Gemini.Live.Session do
         if new_state.status == :ready do
           {:ok, new_state}
         else
-          wait_for_setup_complete(new_state)
+          wait_for_setup_complete(websocket_module, new_state)
         end
 
       {:error, reason} ->
@@ -501,18 +554,34 @@ defmodule Gemini.Live.Session do
     end
   end
 
-  @spec build_setup(map()) :: Setup.t()
-  defp build_setup(config) do
+  @spec build_setup(map(), String.t() | nil) :: Setup.t()
+  defp build_setup(config, resume_handle) do
+    # Build session resumption config with the resume handle if provided
+    session_resumption = build_session_resumption_config(config.session_resumption, resume_handle)
+
     Setup.new(
       config.model,
       generation_config: config.generation_config,
       system_instruction: config.system_instruction,
       tools: config.tools,
-      session_resumption: config.session_resumption,
+      realtime_input_config: config.realtime_input_config,
+      session_resumption: session_resumption,
       context_window_compression: config.context_window_compression,
       input_audio_transcription: config.input_audio_transcription,
       output_audio_transcription: config.output_audio_transcription
     )
+  end
+
+  # Build session resumption config, merging the resume handle if provided
+  @spec build_session_resumption_config(map() | nil, String.t() | nil) :: map() | nil
+  defp build_session_resumption_config(nil, nil), do: nil
+  defp build_session_resumption_config(nil, handle) when is_binary(handle), do: %{handle: handle}
+
+  defp build_session_resumption_config(config, nil) when is_map(config), do: config
+
+  defp build_session_resumption_config(config, handle)
+       when is_map(config) and is_binary(handle) do
+    Map.put(config, :handle, handle)
   end
 
   @spec handle_server_message(map(), state()) :: state()
@@ -549,7 +618,9 @@ defmodule Gemini.Live.Session do
         emit_telemetry_tool_call(call.id || "unknown", call.name || "unknown")
       end)
 
-      invoke_callback(state.callbacks.on_tool_call, parsed.tool_call)
+      state.callbacks.on_tool_call
+      |> invoke_callback_result(parsed.tool_call)
+      |> maybe_send_tool_response_from_callback(state)
     end
 
     state
@@ -788,14 +859,62 @@ defmodule Gemini.Live.Session do
   defp invoke_callback(nil, _arg), do: :ok
 
   defp invoke_callback(callback, arg) when is_function(callback, 1) do
-    try do
-      callback.(arg)
-    rescue
-      e -> Logger.error("Live session callback error: #{inspect(e)}")
+    callback.(arg)
+    :ok
+  rescue
+    e ->
+      Logger.error("Live session callback error: #{inspect(e)}")
+      :ok
+  catch
+    :exit, reason ->
+      Logger.error("Live session callback exit: #{inspect(reason)}")
+      :ok
+  end
+
+  @spec invoke_callback_result(tool_call_callback() | nil, term()) ::
+          {:ok, term()} | {:error, term()}
+  defp invoke_callback_result(nil, _arg), do: {:ok, nil}
+
+  defp invoke_callback_result(callback, arg) when is_function(callback, 1) do
+    {:ok, callback.(arg)}
+  rescue
+    e ->
+      Logger.error("Live session callback error: #{inspect(e)}")
+      {:error, e}
+  catch
+    :exit, reason ->
+      Logger.error("Live session callback exit: #{inspect(reason)}")
+      {:error, reason}
+  end
+
+  @spec maybe_send_tool_response_from_callback({:ok, term()} | {:error, term()}, state()) :: :ok
+  defp maybe_send_tool_response_from_callback({:ok, result}, state) do
+    case normalize_tool_responses(result) do
+      {:ok, responses} -> _ = do_send_tool_response(state, responses)
+      :ignore -> :ok
     end
 
     :ok
   end
+
+  defp maybe_send_tool_response_from_callback({:error, _reason}, _state), do: :ok
+
+  @spec normalize_tool_responses(term()) :: {:ok, tool_responses()} | :ignore
+  defp normalize_tool_responses({:tool_response, responses}) when is_list(responses),
+    do: {:ok, responses}
+
+  defp normalize_tool_responses({:send_tool_response, responses}) when is_list(responses),
+    do: {:ok, responses}
+
+  defp normalize_tool_responses(responses) when is_list(responses),
+    do: {:ok, responses}
+
+  defp normalize_tool_responses(_), do: :ignore
+
+  @spec resolve_session_pid(GenServer.server()) :: pid() | nil
+  defp resolve_session_pid(pid) when is_pid(pid), do: pid
+  defp resolve_session_pid(name) when is_atom(name), do: Process.whereis(name)
+  defp resolve_session_pid(_), do: nil
 
   @spec default_callback(term()) :: :ok
   defp default_callback(_), do: :ok

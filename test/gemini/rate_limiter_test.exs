@@ -176,6 +176,28 @@ defmodule Gemini.RateLimiterTest do
       assert ConcurrencyGate.available_permits("test-model", config) == 2
     end
 
+    test "holder watchers run under task supervisor" do
+      model = "watcher-test-#{System.unique_integer()}"
+      config = Config.build(max_concurrency_per_model: 1)
+
+      assert ConcurrencyGate.acquire(model, config) == :ok
+
+      state = ConcurrencyGate.get_state(model)
+      {_, watcher_pid} = Map.fetch!(state.holders, self())
+      assert Process.alive?(watcher_pid)
+
+      task_supervisor = Process.whereis(Gemini.TaskSupervisor)
+      assert is_pid(task_supervisor)
+
+      children = Supervisor.which_children(task_supervisor)
+
+      assert Enum.any?(children, fn {_id, pid, _type, _modules} ->
+               pid == watcher_pid
+             end)
+
+      assert ConcurrencyGate.release(model) == :ok
+    end
+
     test "disabled when concurrency is nil" do
       config = Config.build(max_concurrency_per_model: nil)
 

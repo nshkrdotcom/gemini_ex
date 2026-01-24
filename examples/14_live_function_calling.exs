@@ -133,14 +133,9 @@ defmodule DemoTools do
   end
 end
 
-# Store session for tool handler
-Process.put(:session_pid, nil)
-
 # Tool call handler
 tool_handler = fn %{function_calls: calls} ->
   IO.puts("\n[Executing #{length(calls)} tool call(s)]")
-
-  session = Process.get(:session_pid)
 
   responses =
     Enum.map(calls, fn call ->
@@ -172,13 +167,13 @@ tool_handler = fn %{function_calls: calls} ->
       }
     end)
 
-  IO.puts("[Sending tool responses]")
-  Session.send_tool_response(session, responses)
+  IO.puts("[Returning tool responses]")
+  {:tool_response, responses}
 end
 
 # Message handler
 message_handler = fn
-  %{setup_complete: _} ->
+  %{setup_complete: sc} when not is_nil(sc) ->
     IO.puts("[Setup complete]")
 
   %{server_content: content} when not is_nil(content) ->
@@ -190,12 +185,12 @@ message_handler = fn
       IO.puts("\n[Turn complete]")
     end
 
-  %{tool_call: _} ->
+  %{tool_call: tc} when not is_nil(tc) ->
     # Handled by on_tool_call callback
     :ok
 
-  %{tool_call_cancellation: ids} when is_list(ids) ->
-    IO.puts("[Tool calls cancelled: #{inspect(ids)}]")
+  %{tool_call_cancellation: tc_cancel} when not is_nil(tc_cancel) ->
+    IO.puts("[Tool calls cancelled: #{inspect(tc_cancel)}]")
 
   _ ->
     :ok
@@ -206,7 +201,7 @@ IO.puts("Starting Live API session with tools...")
 # Start session
 {:ok, session} =
   Session.start_link(
-    model: "gemini-2.5-flash-native-audio-preview-12-2025",
+    model: "gemini-2.0-flash-exp",
     auth: :gemini,
     generation_config: %{response_modalities: ["TEXT"]},
     tools: tools,
@@ -215,8 +210,6 @@ IO.puts("Starting Live API session with tools...")
     on_tool_call_cancellation: fn ids -> IO.puts("[Cancelled: #{inspect(ids)}]") end,
     on_error: fn err -> IO.puts("\n[Error: #{inspect(err)}]") end
   )
-
-Process.put(:session_pid, session)
 
 IO.puts("[OK] Session started")
 

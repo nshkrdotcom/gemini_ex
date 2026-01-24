@@ -10,6 +10,27 @@ defmodule Gemini.Live.SessionTest do
 
   alias Gemini.Live.Session
 
+  defmodule WebSocketStub do
+    @moduledoc false
+    import Kernel, except: [send: 2]
+
+    def connect(_auth, opts) do
+      test_pid = Keyword.fetch!(opts, :test_pid)
+      {:ok, %{test_pid: test_pid}}
+    end
+
+    def send(%{test_pid: pid}, message) do
+      Kernel.send(pid, {:websocket_send, message})
+      :ok
+    end
+
+    def receive(_conn, _timeout) do
+      {:ok, %{"setupComplete" => %{}}}
+    end
+
+    def close(_conn), do: :ok
+  end
+
   describe "start_link/1" do
     test "starts session with valid config" do
       {:ok, pid} =
@@ -188,6 +209,27 @@ defmodule Gemini.Live.SessionTest do
       assert Session.get_session_handle(pid) == "previous-session-handle"
       GenServer.stop(pid)
     end
+
+    test "includes resume_handle in setup payload when connecting" do
+      {:ok, pid} =
+        Session.start_link(
+          model: "gemini-2.5-flash-native-audio-preview-12-2025",
+          auth: :gemini,
+          resume_handle: "test-handle-12345",
+          session_resumption: %{transparent: true},
+          websocket_module: WebSocketStub,
+          websocket_opts: [test_pid: self()]
+        )
+
+      assert :ok = Session.connect(pid)
+
+      assert_receive {:websocket_send, %{"setup" => setup}}, 1_000
+      assert %{"sessionResumption" => session_resumption} = setup
+      assert session_resumption["handle"] == "test-handle-12345"
+      assert session_resumption["transparent"] == true
+
+      GenServer.stop(pid)
+    end
   end
 
   describe "close/1" do
@@ -218,6 +260,48 @@ defmodule Gemini.Live.SessionTest do
       # Since we can't actually connect, we just verify the session is in disconnected state
       assert Session.status(pid) == :disconnected
       GenServer.stop(pid)
+    end
+  end
+
+  describe "tool call callbacks" do
+    test "callback can send tool responses without deadlock" do
+      Process.flag(:trap_exit, true)
+      parent = self()
+
+      {:ok, pid} =
+        Session.start_link(
+          model: "gemini-2.5-flash-native-audio-preview-12-2025",
+          auth: :gemini,
+          on_tool_call: fn _tool_call ->
+            send(parent, :callback_started)
+
+            result =
+              Session.send_tool_response(self(), [
+                %{id: "call_1", name: "tool", response: %{ok: true}}
+              ])
+
+            send(parent, {:callback_result, result})
+          end
+        )
+
+      on_exit(fn ->
+        if Process.alive?(pid) do
+          Process.exit(pid, :kill)
+        end
+      end)
+
+      message = %{
+        "toolCall" => %{
+          "functionCalls" => [
+            %{"id" => "call_1", "name" => "tool", "args" => %{}}
+          ]
+        }
+      }
+
+      send(pid, {:gun_ws, self(), make_ref(), {:text, Jason.encode!(message)}})
+
+      assert_receive :callback_started, 500
+      assert_receive {:callback_result, _result}, 500
     end
   end
 end

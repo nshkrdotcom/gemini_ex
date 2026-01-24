@@ -12,6 +12,7 @@ defmodule Gemini.Client.HTTPStreaming do
   alias Gemini.Config
   alias Gemini.Error
   alias Gemini.SSE.Parser
+  alias Gemini.TaskSupervisor
   alias Gemini.Telemetry
 
   require Logger
@@ -157,18 +158,40 @@ defmodule Gemini.Client.HTTPStreaming do
     end
 
     # Start streaming in a separate process
-    stream_pid =
-      spawn(fn ->
-        case stream_sse(url, headers, body, callback, opts) do
-          {:ok, :completed} ->
-            send(target_pid, {:stream_complete, stream_id})
+    TaskSupervisor.start_child(fn ->
+      url
+      |> safe_stream_sse(headers, body, callback, opts)
+      |> forward_stream_result(target_pid, stream_id)
+    end)
+  end
 
-          {:error, error} ->
-            send(target_pid, {:stream_error, stream_id, error})
-        end
-      end)
+  @spec safe_stream_sse(
+          String.t(),
+          [{String.t(), String.t()}],
+          map() | nil,
+          stream_callback(),
+          keyword()
+        ) ::
+          {:ok, :completed} | {:error, term()}
+  defp safe_stream_sse(url, headers, body, callback, opts) do
+    stream_sse(url, headers, body, callback, opts)
+  rescue
+    exception -> {:error, exception}
+  catch
+    :exit, reason -> {:error, reason}
+  end
 
-    {:ok, stream_pid}
+  @spec forward_stream_result({:ok, :completed} | {:error, term()}, pid(), String.t()) :: :ok
+  defp forward_stream_result(result, target_pid, stream_id) do
+    case result do
+      {:ok, :completed} ->
+        send(target_pid, {:stream_complete, stream_id})
+
+      {:error, error} ->
+        send(target_pid, {:stream_error, stream_id, error})
+    end
+
+    :ok
   end
 
   # Private implementation

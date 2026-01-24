@@ -24,6 +24,8 @@ defmodule Gemini.Supervisor do
   @spec init(term()) :: {:ok, {Supervisor.sup_flags(), [Supervisor.child_spec()]}}
   def init(_init_arg) do
     children = [
+      # Task supervision for background work
+      Gemini.TaskSupervisor,
       # Rate limiting infrastructure (must start first)
       {RateLimitManager, []},
       # Streaming infrastructure

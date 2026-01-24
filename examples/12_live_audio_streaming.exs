@@ -72,21 +72,30 @@ end
 
 # Message handler
 handler = fn
-  %{setup_complete: _} ->
+  %{setup_complete: sc} when not is_nil(sc) ->
     IO.puts("[Setup complete - audio session ready]")
 
   %{server_content: content} when not is_nil(content) ->
     # Handle audio output
     if content.model_turn && content.model_turn.parts do
       for part <- content.model_turn.parts do
-        if part.inline_data && part.inline_data.mime_type =~ "audio" do
-          bytes = byte_size(part.inline_data.data || "")
+        inline_data = Map.get(part, :inline_data) || Map.get(part, "inlineData")
+
+        mime_type =
+          inline_data && (Map.get(inline_data, :mime_type) || Map.get(inline_data, "mimeType"))
+
+        data = inline_data && (Map.get(inline_data, :data) || Map.get(inline_data, "data"))
+
+        if is_binary(mime_type) && String.contains?(mime_type, "audio") do
+          bytes = if is_binary(data), do: byte_size(data), else: 0
           AudioStats.record_received(bytes)
           IO.write("[Audio chunk received: #{bytes} bytes] ")
         end
 
-        if part.text do
-          IO.write(part.text)
+        text = Map.get(part, :text) || Map.get(part, "text")
+
+        if text do
+          IO.write(text)
         end
       end
     end
@@ -126,9 +135,11 @@ IO.puts("Note: Using simulated audio data for demo\n")
     model: "gemini-2.5-flash-native-audio-preview-12-2025",
     auth: :gemini,
     generation_config: %{
-      # Request both audio and text responses
-      response_modalities: ["AUDIO", "TEXT"]
+      # Request audio responses
+      response_modalities: ["AUDIO"]
     },
+    # Manual activity detection to allow explicit start/end signals
+    realtime_input_config: %{automatic_activity_detection: %{disabled: true}},
     # Enable transcription so we can see what was "heard"
     input_audio_transcription: %{},
     output_audio_transcription: %{},
@@ -167,7 +178,7 @@ IO.puts(">>> Sending simulated audio chunks...")
 :ok = Session.send_realtime_input(session, activity_start: true)
 
 # Send several audio chunks
-for i <- 1..5 do
+for _i <- 1..5 do
   # 3200 bytes = 100ms of 16kHz 16-bit mono audio
   chunk = generate_audio_chunk.(3200)
   AudioStats.record_sent(3200)
