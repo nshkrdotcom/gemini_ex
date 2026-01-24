@@ -8,6 +8,9 @@ defmodule Gemini.Live.EphemeralTokenTest do
 
   use ExUnit.Case, async: true
 
+  # These tests call EphemeralToken.create/1 which requires API authentication
+  @moduletag :live_api
+
   alias Gemini.Live.EphemeralToken
 
   describe "create/1 request building" do
