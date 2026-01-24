@@ -87,9 +87,9 @@ defmodule Gemini.APIs.CoordinatorTest do
         ]
       }
 
-      # Should return empty string when no text parts found
-      {:ok, text} = Coordinator.extract_text(response)
-      assert text == ""
+      # Should return error when no text parts found
+      {:error, reason} = Coordinator.extract_text(response)
+      assert reason == "No text content found in response"
     end
 
     test "extract_text combines multiple text parts" do

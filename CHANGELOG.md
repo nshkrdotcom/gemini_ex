@@ -5,6 +5,92 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-01-23
+
+### Added
+
+#### Live API (Bidirectional Streaming)
+- **WebSocket Infrastructure**: New `Gemini.Client.WebSocket` module using `:gun` for HTTP/2 + TLS connections with support
+  for both Gemini API and Vertex AI endpoints
+- **Session Management**: `Gemini.Live.Session` GenServer for managing WebSocket connection lifecycle with callback-based
+message routing (`on_message`, `on_error`, `on_close`)
+- **Model Resolution**: `Gemini.Live.Models` for runtime model availability detection based on API key capabilities and
+regional rollout status
+- **Function Calling**: Full tool call/response protocol with async scheduling modes (`INTERRUPT`, `WHEN_IDLE`, `SILENT`)
+- **Session Resumption**: Handle-based reconnection support for preserving context across WebSocket disconnections
+- **Context Window Compression**: Sliding window configuration for managing long conversations
+- **Ephemeral Tokens**: Client-side WebSocket authentication token generation
+- **Audio Utilities**: `Gemini.Live.Audio` module for PCM audio handling with native audio features
+- **Native Audio Features**: Affective dialog, proactivity configuration, and thinking budgets
+- **GoAway Handling**: Graceful session termination message support
+
+#### Live API Type Definitions
+- `BidiGenerateContentSetup` and `SetupComplete` for session handshake
+- `ClientContent` and `RealtimeInput` for client messages
+- `ServerContent`, `ToolCall`, and `ToolResponse` for server messages
+- Audio transcription, voice activity detection, and go-away types
+- Media resolution and thinking configuration types
+
+#### Gap Features (Python SDK v1.57.0-v1.60.0 Parity)
+- **RegisterFiles API**: GCS file registration support (Gemini API only)
+- **ModelArmorConfig**: Enterprise content filtering with mutual exclusivity validation against safety settings (Vertex AI
+only)
+- **ImageConfig**: New aspect ratios (4:5, 5:4) for social media image generation
+- **FileSearchCallContent**: New type for file search interactions
+- **Gemini 3 Pro**: Tokenizer mapping support
+
+#### OTP Supervision
+- **TaskSupervisor**: Centralized `Gemini.TaskSupervisor` in application supervision tree for managed async tasks
+- Supervised task creation in `ConcurrencyGate`, `HTTPStreaming`, `ToolOrchestrator`, and `Interactions` modules
+
+#### Telemetry
+- Session lifecycle events (`start`, `stop`)
+- Message throughput metrics
+- Tool execution tracking
+- Error state observability
+- WebSocket connection lifecycle events
+
+#### Examples
+- Example 11: Multi-turn text chat demo
+- Example 12: Audio input and output streaming demo
+- Example 13: Session resumption and context preservation demo
+- Example 14: Function calling with telemetry observation
+- `examples/live_api_demo.exs`: Basic Live API usage
+- `examples/live_function_calling.exs`: Tool use demonstration
+- `examples/run_all.sh`: Script for running all examples
+
+### Changed
+
+- **Live API Version**: Upgraded from v1alpha to v1beta as default (v1alpha still supported for advanced features)
+- **WebSocket Handshake**: Updated to use HTTP/1.1 for Live API compatibility
+- **WebSocket Frames**: Added support for binary JSON frames
+- **Model Name Normalization**: Automatic `models/` prefix addition when missing
+- **Text Extraction**: Refactored to support decoding inline text blobs and `application/json` parts
+- **Live API Configuration**: `to_api` conversions now handle plain maps for dynamic options
+- **Setup Types**: Extended to include media resolution and thinking configurations
+
+### Fixed
+
+- Empty text parts validation in content generation
+- Potential deadlock in `Live.Session` resolved via async tool response callbacks
+- Session resumption handle passing during setup phase
+- Bare `spawn` and `spawn_link` calls replaced with supervised tasks (prevents resource leaks)
+
+### Security
+
+- **Query Parameter Redaction**: Sensitive parameters (API keys, access tokens) now redacted in WebSocket connection
+logging
+
+### Documentation
+
+- Comprehensive Live API guide (`docs/guides/live_api.md`)
+- Updated README.md with Live API and new features sections
+- Updated `examples/README.md` with new example descriptions
+- Added `OTP_AUDIT.md` for process creation site tracking
+- Added `OTP_REMEDIATION_PLAN.md` for supervision strategy documentation
+- Updated `mix.exs` `:extras` with new guides
+- Reorganized and streamlined guides
+
 ## [0.8.8] - 2025-12-29
 
 ### Added
@@ -1814,6 +1900,8 @@ config :gemini_ex,
 - Minimal latency overhead
 - Concurrent request processing
 
+[0.9.0]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.9.0
+[0.8.8]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.8.8
 [0.8.7]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.8.7
 [0.8.6]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.8.6
 [0.8.5]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.8.5

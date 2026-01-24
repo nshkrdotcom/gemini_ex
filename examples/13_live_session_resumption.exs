@@ -9,7 +9,14 @@
 # - Handling network interruptions gracefully
 # - Switching between voice/text modes
 # - Long-running conversations that may need reconnection
+#
+# MODEL NOTE: This example uses the canonical TEXT model from Google's docs:
+#   gemini-live-2.5-flash-preview with response_modalities: ["TEXT"]
+#
+# If this model is not yet available, see examples/12_live_audio_streaming.exs
+# for a working AUDIO example using flash_2_5_native_audio_preview_12_2025.
 
+alias Gemini.Live.Models
 alias Gemini.Live.Session
 
 IO.puts("=== Live API Session Resumption Demo ===\n")
@@ -73,9 +80,12 @@ end
 IO.puts("--- Part 1: Initial Session ---\n")
 IO.puts("Starting initial session with resumption enabled...")
 
+live_model = Models.resolve(:text)
+IO.puts("[Using model: #{live_model}]")
+
 {:ok, session1} =
   Session.start_link(
-    model: "gemini-2.0-flash-exp",
+    model: live_model,
     auth: :gemini,
     generation_config: %{response_modalities: ["TEXT"]},
     # Enable session resumption
@@ -142,7 +152,7 @@ if saved_handle do
   # Start a new session with the saved handle
   {:ok, session2} =
     Session.start_link(
-      model: "gemini-2.0-flash-exp",
+      model: live_model,
       auth: :gemini,
       generation_config: %{response_modalities: ["TEXT"]},
       # Provide the handle to resume

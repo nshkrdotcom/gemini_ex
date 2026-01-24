@@ -3,13 +3,16 @@
 # Run with: mix run examples/12_live_audio_streaming.exs
 #
 # Demonstrates sending and receiving audio with the Live API.
-# This example uses simulated audio data for demonstration purposes.
+# Uses a real audio file (test/fixtures/audio/deepspeech.wav) for input.
+# Saves received audio to /tmp/gemini_audio_response.pcm
 #
-# For real audio applications, you would:
-# - Capture microphone input as 16-bit PCM, 16kHz mono
-# - Send audio chunks in real-time
-# - Play received audio (24kHz PCM output)
+# Audio formats:
+# - Input:  16-bit PCM, 16kHz, mono (WAV file)
+# - Output: 16-bit PCM, 24kHz, mono (saved to /tmp)
+#
+# To play the output: aplay -f S16_LE -r 24000 -c 1 /tmp/gemini_audio_response.pcm
 
+alias Gemini.Live.Models
 alias Gemini.Live.Session
 
 IO.puts("=== Live API Audio Streaming Demo ===\n")
@@ -63,12 +66,26 @@ end
 
 AudioStats.init()
 
-# Generate synthetic audio data (simulated PCM)
-# In a real app, this would be actual microphone input
-generate_audio_chunk = fn size ->
-  # Generate random PCM-like data (16-bit samples)
-  :crypto.strong_rand_bytes(size)
-end
+# Load real audio from WAV file
+audio_file_path = Path.join([__DIR__, "..", "test", "fixtures", "audio", "deepspeech.wav"])
+
+audio_pcm_data =
+  case File.read(audio_file_path) do
+    {:ok, wav_data} ->
+      # Skip 44-byte WAV header to get raw PCM data
+      <<_header::binary-size(44), pcm_data::binary>> = wav_data
+      IO.puts("[OK] Loaded audio file: #{byte_size(pcm_data)} bytes of PCM data")
+      pcm_data
+
+    {:error, reason} ->
+      IO.puts("[Error] Could not load audio file #{audio_file_path}: #{inspect(reason)}")
+      System.halt(1)
+  end
+
+# Output file for received audio
+output_audio_path = "/tmp/gemini_audio_response.pcm"
+File.write!(output_audio_path, "")
+IO.puts("[OK] Output audio will be saved to: #{output_audio_path}")
 
 # Message handler
 handler = fn
@@ -86,10 +103,12 @@ handler = fn
 
         data = inline_data && (Map.get(inline_data, :data) || Map.get(inline_data, "data"))
 
-        if is_binary(mime_type) && String.contains?(mime_type, "audio") do
-          bytes = if is_binary(data), do: byte_size(data), else: 0
-          AudioStats.record_received(bytes)
-          IO.write("[Audio chunk received: #{bytes} bytes] ")
+        if is_binary(mime_type) && String.contains?(mime_type, "audio") && is_binary(data) do
+          # Decode base64 audio data and append to output file
+          decoded = Base.decode64!(data)
+          File.write!("/tmp/gemini_audio_response.pcm", decoded, [:append])
+          AudioStats.record_received(byte_size(decoded))
+          IO.write("[Audio: #{byte_size(decoded)} bytes] ")
         end
 
         text = Map.get(part, :text) || Map.get(part, "text")
@@ -127,39 +146,92 @@ error_handler = fn error ->
 end
 
 IO.puts("Starting Live API audio session...")
-IO.puts("Note: Using simulated audio data for demo\n")
 
 # Start session configured for audio
-{:ok, session} =
-  Session.start_link(
-    model: "gemini-2.5-flash-native-audio-preview-12-2025",
-    auth: :gemini,
-    generation_config: %{
-      # Request audio responses
-      response_modalities: ["AUDIO"]
-    },
-    # Manual activity detection to allow explicit start/end signals
-    realtime_input_config: %{automatic_activity_detection: %{disabled: true}},
-    # Enable transcription so we can see what was "heard"
-    input_audio_transcription: %{},
-    output_audio_transcription: %{},
-    on_message: handler,
-    on_error: error_handler
+audio_model = Models.resolve(:audio)
+IO.puts("[Using model: #{audio_model}]")
+
+# Native audio extras (affective dialog, proactivity, thinking) require v1alpha.
+base_generation_config = %{response_modalities: ["AUDIO"]}
+
+native_generation_config = %{
+  response_modalities: ["AUDIO"],
+  thinking_config: %{
+    thinking_budget: 1024,
+    include_thoughts: true
+  }
+}
+
+base_opts = [
+  model: audio_model,
+  auth: :gemini,
+  generation_config: base_generation_config,
+  # Manual activity detection to allow explicit start/end signals
+  realtime_input_config: %{automatic_activity_detection: %{disabled: true}},
+  # Enable transcription so we can see what was "heard"
+  input_audio_transcription: %{},
+  output_audio_transcription: %{},
+  on_message: handler,
+  on_error: error_handler
+]
+
+native_opts =
+  Keyword.merge(
+    base_opts,
+    api_version: "v1alpha",
+    generation_config: native_generation_config,
+    enable_affective_dialog: true,
+    proactivity: %{proactive_audio: true}
   )
 
-IO.puts("[OK] Session started")
+start_and_connect = fn opts ->
+  case Session.start_link(opts) do
+    {:ok, session} ->
+      case Session.connect(session) do
+        :ok ->
+          {:ok, session}
 
-# Connect
+        {:error, reason} ->
+          GenServer.stop(session)
+          {:error, reason}
+      end
+
+    {:error, reason} ->
+      {:error, reason}
+  end
+end
+
 IO.puts("Connecting to Live API...")
 
-case Session.connect(session) do
-  :ok ->
-    IO.puts("[OK] Connected\n")
+session_result =
+  case start_and_connect.(native_opts) do
+    {:ok, session} ->
+      {:ok, session}
 
-  {:error, reason} ->
-    IO.puts("[Error] Connection failed: #{inspect(reason)}")
-    System.halt(1)
-end
+    {:error, {:setup_failed, {:closed, 1007, reason}}} = error ->
+      if is_binary(reason) and String.contains?(reason, "Unknown name") do
+        IO.puts("[Warning] Native audio extras not available; retrying with base audio setup.")
+
+        start_and_connect.(base_opts)
+      else
+        error
+      end
+
+    {:error, reason} ->
+      {:error, reason}
+  end
+
+session =
+  case session_result do
+    {:ok, session} ->
+      IO.puts("[OK] Session started")
+      IO.puts("[OK] Connected\n")
+      session
+
+    {:error, reason} ->
+      IO.puts("[Error] Connection failed: #{inspect(reason)}")
+      System.halt(1)
+  end
 
 Process.sleep(500)
 
@@ -170,18 +242,34 @@ IO.puts(">>> Sending text: #{prompt}\n")
 :ok = Session.send_client_content(session, prompt)
 Process.sleep(5000)
 
-# Demo 2: Simulate sending audio input
-IO.puts("\n--- Demo 2: Simulated audio input ---")
-IO.puts(">>> Sending simulated audio chunks...")
+# Demo 2: Send real audio input from WAV file
+IO.puts("\n--- Demo 2: Real audio input (deepspeech.wav) ---")
+IO.puts(">>> Sending audio from file...")
 
 # Signal activity start (manual turn detection)
 :ok = Session.send_realtime_input(session, activity_start: true)
 
-# Send several audio chunks
-for _i <- 1..5 do
-  # 3200 bytes = 100ms of 16kHz 16-bit mono audio
-  chunk = generate_audio_chunk.(3200)
-  AudioStats.record_sent(3200)
+# Send audio in chunks (3200 bytes = 100ms of 16kHz 16-bit mono audio)
+chunk_size = 3200
+chunks = for <<chunk::binary-size(chunk_size) <- audio_pcm_data>>, do: chunk
+
+# Also get any remaining partial chunk
+remaining_size = rem(byte_size(audio_pcm_data), chunk_size)
+
+chunks =
+  if remaining_size > 0 do
+    last_chunk =
+      binary_part(audio_pcm_data, byte_size(audio_pcm_data) - remaining_size, remaining_size)
+
+    chunks ++ [last_chunk]
+  else
+    chunks
+  end
+
+IO.puts(">>> Sending #{length(chunks)} chunks...")
+
+for chunk <- chunks do
+  AudioStats.record_sent(byte_size(chunk))
 
   audio_blob = %{
     data: chunk,
@@ -193,7 +281,7 @@ for _i <- 1..5 do
   Process.sleep(100)
 end
 
-IO.puts(" [#{5} chunks sent]")
+IO.puts(" [#{length(chunks)} chunks sent]")
 
 # Signal activity end
 :ok = Session.send_realtime_input(session, activity_end: true)
@@ -230,11 +318,17 @@ Session.close(session)
 
 IO.puts("\n=== Demo complete ===")
 
+# Show output file info
+output_size = File.stat!(output_audio_path).size
+
 IO.puts("""
 
-Note: This demo uses simulated audio data. For real audio streaming:
-- Input:  16-bit PCM, 16kHz sample rate, mono
-- Output: 16-bit PCM, 24kHz sample rate, mono
+Audio saved to: #{output_audio_path}
+Output file size: #{output_size} bytes
 
-See the documentation for integrating with real audio capture/playback.
+To play the response audio:
+  aplay -f S16_LE -r 24000 -c 1 #{output_audio_path}
+
+Or convert to WAV:
+  sox -t raw -r 24000 -b 16 -c 1 -e signed-integer #{output_audio_path} /tmp/response.wav
 """)

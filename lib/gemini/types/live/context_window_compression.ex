@@ -40,14 +40,28 @@ defmodule Gemini.Types.Live.ContextWindowCompression do
 
   @doc """
   Converts to API format (camelCase).
+
+  Accepts structs, maps with atom keys, or maps with string keys.
+  Uses fetch_value to properly preserve falsey values like 0 or false.
   """
-  @spec to_api(t() | nil) :: map() | nil
+  @spec to_api(t() | map() | nil) :: map() | nil
   def to_api(nil), do: nil
 
   def to_api(%__MODULE__{} = value) do
     %{}
     |> maybe_put("triggerTokens", value.trigger_tokens)
     |> maybe_put("slidingWindow", SlidingWindow.to_api(value.sliding_window))
+  end
+
+  def to_api(%{} = value) when not is_struct(value) do
+    trigger_tokens = fetch_value(value, [:trigger_tokens, "trigger_tokens", "triggerTokens"])
+
+    sliding_window =
+      fetch_value(value, [:sliding_window, "sliding_window", "slidingWindow"])
+
+    %{}
+    |> maybe_put("triggerTokens", trigger_tokens)
+    |> maybe_put("slidingWindow", SlidingWindow.to_api(sliding_window))
   end
 
   @doc """
@@ -63,6 +77,20 @@ defmodule Gemini.Types.Live.ContextWindowCompression do
         (data["slidingWindow"] || data["sliding_window"])
         |> SlidingWindow.from_api()
     }
+  end
+
+  # Fetches value from map trying multiple keys, preserving falsey values like 0 or false
+  defp fetch_value(map, keys) do
+    Enum.find_value(keys, fn key ->
+      case Map.fetch(map, key) do
+        {:ok, value} -> {:found, value}
+        :error -> nil
+      end
+    end)
+    |> case do
+      {:found, value} -> value
+      nil -> nil
+    end
   end
 
   defp maybe_put(map, _key, nil), do: map

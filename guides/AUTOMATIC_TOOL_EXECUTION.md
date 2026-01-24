@@ -2,6 +2,8 @@
 
 This document describes the implementation of the automatic tool execution feature for the Gemini Elixir client, providing Python-SDK-like functionality that hides the complexity of multi-turn tool-calling from end users.
 
+> **Note:** This document covers tool execution for HTTP-based `generateContent` requests. For real-time tool calling via WebSocket, see the [Live API Guide](docs/guides/live_api.md#tool-use-and-function-calling) which uses callback-based tool handling via `on_tool_call`.
+
 ## Overview
 
 The automatic tool execution feature implements a high-level orchestration system that:

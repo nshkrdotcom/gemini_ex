@@ -21,7 +21,7 @@ A comprehensive Elixir client for Google's Gemini AI API with dual authenticatio
 - **Application Default Credentials (ADC)**: Zero-config GCP auth with automatic discovery and token refresh (NEW in v0.8.x!)
 - **Advanced Streaming**: Production-grade Server-Sent Events streaming with real-time processing
 - **Interactions API**: Stateful interactions (CRUD), background execution, SSE streaming, and resumption
-- **Live API (WebSocket)**: Bidirectional, low-latency sessions with real-time input/output (NEW in v0.8.x!)
+- **Live API (WebSocket)**: Bidirectional, low-latency sessions with real-time input/output, native audio with affective dialog and proactivity (Enhanced in v0.9.0!)
 - **Automatic Rate Limiting**: Built-in rate limit handling with retries, concurrency gating, and adaptive backoff
 - **Files API**: Upload, manage, and use files with Gemini models for multimodal content (NEW in v0.7.0!)
 - **File Search Stores**: RAG store creation, ingestion, and semantic search (NEW in v0.8.x!)
@@ -58,7 +58,7 @@ Add `gemini` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:gemini_ex, "~> 0.8.8"}
+    {:gemini_ex, "~> 0.9.0"}
   ]
 end
 ```
@@ -205,15 +205,27 @@ See `docs/guides/interactions.md` for CRUD, resumption (`last_event_id`), and ba
 
 ### Live API (WebSocket)
 
-Real-time bidirectional streaming for voice, video, and text interactions.
+Real-time bidirectional streaming for voice, video, and text interactions. The v0.9.0 release upgrades to v1beta as the default API version while supporting v1alpha for advanced native audio features.
+
+#### Model Resolution
+
+Live API model availability varies by API key and regional rollout. Use `Gemini.Live.Models.resolve/1` to automatically select an available model:
+
+```elixir
+alias Gemini.Live.Models
+
+# Resolve best available model for your key
+text_model = Models.resolve(:text)   # For text responses
+audio_model = Models.resolve(:audio) # For native audio responses
+```
 
 #### Basic Usage
 
 ```elixir
-alias Gemini.Live.Session
+alias Gemini.Live.{Models, Session}
 
 {:ok, session} = Session.start_link(
-  model: "gemini-2.5-flash-native-audio-preview-12-2025",
+  model: Models.resolve(:text),
   auth: :gemini,
   generation_config: %{response_modalities: ["TEXT"]},
   on_message: fn msg -> IO.inspect(msg) end
@@ -227,15 +239,20 @@ alias Gemini.Live.Session
 Session.close(session)
 ```
 
-#### Audio Streaming
+#### Audio Streaming with Native Audio Features
 
 ```elixir
+alias Gemini.Live.{Models, Session}
+
 {:ok, session} = Session.start_link(
-  model: "gemini-2.5-flash-native-audio-preview-12-2025",
+  model: Models.resolve(:audio),
   auth: :gemini,
+  api_version: "v1alpha",  # Required for affective dialog and proactivity
   generation_config: %{response_modalities: ["AUDIO"]},
   input_audio_transcription: %{},
   output_audio_transcription: %{},
+  enable_affective_dialog: true,  # Emotion-aware responses
+  proactivity: %{proactive_audio: true},  # Model can choose not to respond
   on_message: fn msg -> handle_audio_response(msg) end
 )
 
@@ -249,6 +266,8 @@ Session.send_realtime_input(session, audio: %{
 #### Function Calling
 
 ```elixir
+alias Gemini.Live.{Models, Session}
+
 tools = [
   %{function_declarations: [
     %{name: "get_weather", description: "Get weather", parameters: %{...}}
@@ -256,16 +275,16 @@ tools = [
 ]
 
 {:ok, session} = Session.start_link(
-  model: "gemini-2.5-flash-native-audio-preview-12-2025",
+  model: Models.resolve(:text),
   tools: tools,
   on_tool_call: fn %{function_calls: calls} ->
     responses = Enum.map(calls, &execute_function/1)
-    Session.send_tool_response(session, responses)
+    {:tool_response, responses}  # Return to send automatically
   end
 )
 ```
 
-See the [Live API Guide](docs/guides/live_api.md) for complete documentation including voice activity detection, session resumption, and context window compression.
+See the [Live API Guide](docs/guides/live_api.md) for complete documentation including voice activity detection, session resumption, thinking budgets, and context window compression.
 
 ### Rate Limiting & Concurrency (built-in)
 
@@ -1253,6 +1272,74 @@ mix run examples/live_api_test.exs
 
 **Requirements:** `GEMINI_API_KEY` and/or Vertex AI credentials
 
+---
+
+#### 11. **`11_live_text_chat.exs`** - Live API Multi-Turn Text Chat
+**Real-time bidirectional text conversations using the Live API.**
+
+```bash
+mix run examples/11_live_text_chat.exs
+```
+
+**Features demonstrated:**
+- Multi-turn conversations with context retention
+- Automatic model resolution via `Gemini.Live.Models.resolve(:text)`
+- Response timing measurements
+- System instructions for persona customization
+
+**Requirements:** `GEMINI_API_KEY` environment variable
+
+---
+
+#### 12. **`12_live_audio_streaming.exs`** - Live API Audio Streaming
+**Audio input/output streaming for voice applications.**
+
+```bash
+mix run examples/12_live_audio_streaming.exs
+```
+
+**Features demonstrated:**
+- Sending audio chunks (16-bit PCM, 16kHz mono)
+- Receiving audio responses (24kHz PCM)
+- Input/output transcription callbacks
+- Voice activity detection signals
+
+**Requirements:** `GEMINI_API_KEY` environment variable
+
+---
+
+#### 13. **`13_live_session_resumption.exs`** - Live API Session Resumption
+**Reconnect to sessions while preserving conversation context.**
+
+```bash
+mix run examples/13_live_session_resumption.exs
+```
+
+**Features demonstrated:**
+- Enable session resumption in config
+- Save handle from `on_session_resumption` callback
+- Resume with `resume_handle:` option
+- Context preservation across reconnections
+
+**Requirements:** `GEMINI_API_KEY` environment variable
+
+---
+
+#### 14. **`14_live_function_calling.exs`** - Live API Function Calling
+**Tool/function calling with full telemetry observability.**
+
+```bash
+mix run examples/14_live_function_calling.exs
+```
+
+**Features demonstrated:**
+- Define function declarations for Live API
+- Handle tool call requests in real-time
+- Send responses back to model
+- Observe all events via telemetry
+
+**Requirements:** `GEMINI_API_KEY` environment variable
+
 ### Example Output
 
 Each example provides detailed output with:
@@ -1426,7 +1513,7 @@ Gemini.embed_content("Text", model: "gemini-embedding-001")
   - `files.md` - Files API
   - `function_calling.md` - Tool/function calling patterns
   - `image_generation.md` - Imagen text-to-image/edit/upscale
-  - `live_api.md` - WebSocket Live API
+  - `live_api.md` - WebSocket Live API with native audio features
   - `operations.md` - Long-running operations and polling
   - `rate_limiting.md` - Limiter configuration and tuning
   - `structured_outputs.md` - JSON schema and property ordering
@@ -1443,6 +1530,36 @@ The library features a modular, layered architecture:
 - **Streaming Layer**: Advanced SSE processing with state management
 - **HTTP Layer**: Dual client system for standard and streaming requests
 - **Type Layer**: Comprehensive schemas with runtime validation
+
+## Telemetry
+
+The library emits telemetry events for observability and monitoring. Attach handlers to observe API calls and Live API sessions.
+
+### Live API Telemetry Events
+
+```elixir
+# Attach a handler for Live API messages
+:telemetry.attach(
+  "my-live-handler",
+  [:gemini, :live, :session, :message, :received],
+  fn event, measurements, metadata, _config ->
+    IO.inspect({event, measurements, metadata})
+  end,
+  nil
+)
+```
+
+**Available Live API events:**
+- `[:gemini, :live, :session, :init]` - Session initialization
+- `[:gemini, :live, :session, :ready]` - Session connected and ready
+- `[:gemini, :live, :session, :message, :sent]` - Message sent to server
+- `[:gemini, :live, :session, :message, :received]` - Message received from server
+- `[:gemini, :live, :session, :tool_call]` - Tool call requested
+- `[:gemini, :live, :session, :close]` - Session closed
+- `[:gemini, :live, :session, :error]` - Error occurred
+- `[:gemini, :live, :session, :go_away]` - GoAway notice received
+
+See `examples/telemetry_showcase.exs` for a complete telemetry integration example.
 
 ## Advanced Usage
 

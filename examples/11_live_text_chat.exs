@@ -4,7 +4,14 @@
 #
 # Demonstrates a multi-turn text conversation using the Live API
 # with streaming responses and conversation context.
+#
+# MODEL NOTE:
+# This example uses Gemini.Live.Models.resolve(:text) to select an available
+# Live text model for your key/region. If you want to pin a model explicitly,
+# replace it with Gemini.Config.get_model(:live_2_5_flash_preview) (TEXT) or
+# Gemini.Config.get_model(:flash_2_5_native_audio_preview_12_2025) (AUDIO).
 
+alias Gemini.Live.Models
 alias Gemini.Live.Session
 
 IO.puts("=== Live API Text Chat ===\n")
@@ -65,10 +72,12 @@ end
 IO.puts("\nStarting Live API chat session...")
 
 # Start session with text-only responses
-# Note: gemini-2.0-flash-exp supports both TEXT and AUDIO modes via Live API
+live_model = Models.resolve(:text)
+IO.puts("[Using model: #{live_model}]")
+
 {:ok, session} =
   Session.start_link(
-    model: "gemini-2.0-flash-exp",
+    model: live_model,
     auth: :gemini,
     generation_config: %{
       response_modalities: ["TEXT"],

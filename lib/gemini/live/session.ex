@@ -95,9 +95,12 @@ defmodule Gemini.Live.Session do
   - `:auth` - Auth strategy (`:gemini` or `:vertex_ai`, default: auto-detect)
   - `:project_id` - Required for Vertex AI
   - `:location` - Vertex AI location (default: "us-central1")
+  - `:api_version` - Live API version (default: "v1beta")
   - `:generation_config` - Generation configuration
   - `:system_instruction` - System instruction content
   - `:tools` - Tool declarations
+  - `:proactivity` - Proactivity configuration (v1alpha)
+  - `:enable_affective_dialog` - Enable affective dialog (v1alpha)
   - `:realtime_input_config` - Realtime input configuration
   - `:on_message` - Callback for server messages
   - `:on_error` - Callback for errors
@@ -308,11 +311,14 @@ defmodule Gemini.Live.Session do
         generation_config: Keyword.get(opts, :generation_config),
         system_instruction: Keyword.get(opts, :system_instruction),
         tools: Keyword.get(opts, :tools),
+        proactivity: Keyword.get(opts, :proactivity),
+        enable_affective_dialog: Keyword.get(opts, :enable_affective_dialog),
         realtime_input_config: Keyword.get(opts, :realtime_input_config),
         session_resumption: Keyword.get(opts, :session_resumption),
         context_window_compression: Keyword.get(opts, :context_window_compression),
         input_audio_transcription: Keyword.get(opts, :input_audio_transcription),
-        output_audio_transcription: Keyword.get(opts, :output_audio_transcription)
+        output_audio_transcription: Keyword.get(opts, :output_audio_transcription),
+        api_version: Keyword.get(opts, :api_version, "v1beta")
       },
       callbacks: %{
         on_message: Keyword.get(opts, :on_message, &default_callback/1),
@@ -474,6 +480,13 @@ defmodule Gemini.Live.Session do
       location: state.config.location
     ]
 
+    base_opts =
+      if state.config.api_version do
+        Keyword.put(base_opts, :api_version, state.config.api_version)
+      else
+        base_opts
+      end
+
     ws_opts = Keyword.merge(state.websocket_opts, base_opts)
 
     websocket_module = state.websocket_module
@@ -535,9 +548,10 @@ defmodule Gemini.Live.Session do
 
     # Wait for setup_complete message with a timeout
     case websocket_module.receive(state.websocket, 30_000) do
-      {:ok, %{"setupComplete" => _}} ->
-        Logger.debug("Live API setup complete, session ready")
-        {:ok, %{state | status: :ready}}
+      {:ok, %{"setupComplete" => _} = setup_complete_msg} ->
+        # Use handle_server_message to properly invoke callbacks
+        new_state = handle_server_message(setup_complete_msg, state)
+        {:ok, new_state}
 
       {:ok, other_message} ->
         # Handle other messages while waiting for setup_complete
@@ -564,6 +578,8 @@ defmodule Gemini.Live.Session do
       generation_config: config.generation_config,
       system_instruction: config.system_instruction,
       tools: config.tools,
+      proactivity: config.proactivity,
+      enable_affective_dialog: config.enable_affective_dialog,
       realtime_input_config: config.realtime_input_config,
       session_resumption: session_resumption,
       context_window_compression: config.context_window_compression,

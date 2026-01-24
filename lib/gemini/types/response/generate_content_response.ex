@@ -64,6 +64,7 @@ defmodule Gemini.Types.Response.GenerateContentResponse do
 
   use TypedStruct
 
+  alias Gemini.Types.Blob
   alias Gemini.Types.Response.{Candidate, PromptFeedback, UsageMetadata}
 
   @derive Jason.Encoder
@@ -83,12 +84,8 @@ defmodule Gemini.Types.Response.GenerateContentResponse do
   def extract_text(%__MODULE__{candidates: [first_candidate | _]}) do
     case first_candidate do
       %{content: %{parts: [_ | _] = parts}} ->
-        text =
-          parts
-          |> Enum.filter(&Map.has_key?(&1, :text))
-          |> Enum.map_join("", & &1.text)
-
-        {:ok, text}
+        parts
+        |> extract_text_from_parts()
 
       _ ->
         {:error, "No text content found in response"}
@@ -96,6 +93,45 @@ defmodule Gemini.Types.Response.GenerateContentResponse do
   end
 
   def extract_text(_), do: {:error, "No candidates found in response"}
+
+  defp extract_text_from_parts(parts) do
+    text =
+      parts
+      |> Enum.flat_map(&extract_text_from_part/1)
+      |> Enum.join("")
+
+    if text == "" do
+      {:error, "No text content found in response"}
+    else
+      {:ok, text}
+    end
+  end
+
+  defp extract_text_from_part(%{text: text}) when is_binary(text), do: [text]
+
+  defp extract_text_from_part(%{inline_data: %Blob{mime_type: mime_type, data: data}}) do
+    decode_inline_text(mime_type, data)
+  end
+
+  defp extract_text_from_part(_), do: []
+
+  defp decode_inline_text(mime_type, data)
+       when is_binary(mime_type) and is_binary(data) do
+    if inline_text_mime?(mime_type) do
+      case Base.decode64(data, ignore: :whitespace) do
+        {:ok, decoded} -> [decoded]
+        :error -> [data]
+      end
+    else
+      []
+    end
+  end
+
+  defp decode_inline_text(_, _), do: []
+
+  defp inline_text_mime?(mime_type) do
+    String.starts_with?(mime_type, "text/") or mime_type == "application/json"
+  end
 
   @doc """
   Get the finish reason from the first candidate.

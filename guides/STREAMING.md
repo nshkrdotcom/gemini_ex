@@ -1,6 +1,8 @@
 # Gemini Streaming Architecture
 
-This document provides a comprehensive overview of the streaming architecture, identifies the current concurrency issue, and proposes solutions for true real-time streaming.
+This document provides a comprehensive overview of the SSE (Server-Sent Events) streaming architecture used for the `generateContent` and `streamGenerateContent` APIs.
+
+> **Note:** For bidirectional real-time streaming (voice, video, text), see the [Live API Guide](docs/guides/live_api.md) which uses WebSocket connections via `Gemini.Live.Session`.
 
 ## Current Architecture Overview
 

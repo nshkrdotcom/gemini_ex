@@ -478,49 +478,49 @@ defmodule Gemini do
   """
   @spec extract_text(GenerateContentResponse.t() | map()) ::
           {:ok, String.t()} | {:error, String.t()}
-  def extract_text(%GenerateContentResponse{candidates: [first_candidate | _]}) do
-    case first_candidate do
-      %{content: %{parts: parts}} when is_list(parts) and parts != [] ->
-        # Search through ALL parts for text content (not just the first part)
-        # This handles Gemini 2.5+ models with thinking where thought parts come first
-        text =
-          parts
-          |> Enum.filter(fn part -> Map.has_key?(part, :text) and part.text != nil end)
-          |> Enum.map_join("", & &1.text)
-
-        if text == "" do
-          {:error, "No text content found in response"}
-        else
-          {:ok, text}
-        end
-
-      _ ->
-        {:error, "No text content found in response"}
-    end
-  end
-
-  def extract_text(%GenerateContentResponse{candidates: []}) do
-    {:error, "No candidates in response"}
-  end
-
-  def extract_text(%GenerateContentResponse{}) do
-    {:error, "No text content found in response"}
+  def extract_text(%GenerateContentResponse{} = response) do
+    GenerateContentResponse.extract_text(response)
   end
 
   # Handle raw streaming data format
   def extract_text(%{"candidates" => [%{"content" => %{"parts" => parts}} | _]}) do
     text =
       parts
-      |> Enum.find(&Map.has_key?(&1, "text"))
-      |> case do
-        %{"text" => text} -> text
-        _ -> ""
-      end
+      |> Enum.flat_map(&extract_text_from_raw_part/1)
+      |> Enum.join("")
 
-    {:ok, text}
+    if text == "" do
+      {:error, "No text content found in response"}
+    else
+      {:ok, text}
+    end
   end
 
   def extract_text(_), do: {:error, "Invalid response format"}
+
+  defp extract_text_from_raw_part(%{"text" => text}) when is_binary(text), do: [text]
+
+  defp extract_text_from_raw_part(%{"inlineData" => %{"mimeType" => mime, "data" => data}})
+       when is_binary(mime) and is_binary(data) do
+    decode_inline_text(mime, data)
+  end
+
+  defp extract_text_from_raw_part(_), do: []
+
+  defp decode_inline_text(mime_type, data) do
+    if inline_text_mime?(mime_type) do
+      case Base.decode64(data, ignore: :whitespace) do
+        {:ok, decoded} -> [decoded]
+        :error -> [data]
+      end
+    else
+      []
+    end
+  end
+
+  defp inline_text_mime?(mime_type) do
+    String.starts_with?(mime_type, "text/") or mime_type == "application/json"
+  end
 
   @doc """
   Extract thought signatures from a GenerateContentResponse.

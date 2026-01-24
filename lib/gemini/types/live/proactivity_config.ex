@@ -35,12 +35,20 @@ defmodule Gemini.Types.Live.ProactivityConfig do
   @doc """
   Converts to API format (camelCase).
   """
-  @spec to_api(t() | nil) :: map() | nil
+  @spec to_api(t() | map() | nil) :: map() | nil
   def to_api(nil), do: nil
 
   def to_api(%__MODULE__{} = value) do
     %{}
     |> maybe_put("proactiveAudio", value.proactive_audio)
+  end
+
+  def to_api(%{} = value) when not is_struct(value) do
+    proactive_audio =
+      value[:proactive_audio] || value["proactive_audio"] || value["proactiveAudio"]
+
+    %{}
+    |> maybe_put("proactiveAudio", proactive_audio)
   end
 
   @doc """

@@ -41,6 +41,13 @@ graph LR
         SSE[SSE.Parser]
     end
 
+    subgraph "Live API System"
+        LSESS[Live.Session]
+        LMODELS[Live.Models]
+        WS[Client.WebSocket]
+        LAUDIO[Live.Audio]
+    end
+
     subgraph "Authentication System"
         AUTH[Auth]
         GMAUTH[Gemini API Auth]
@@ -63,6 +70,7 @@ graph LR
     subgraph "External Services"
         GAPI[Gemini API]
         VAI[Vertex AI]
+        WSAPI[WebSocket API]
     end
 
     %% Application Flow
@@ -108,11 +116,20 @@ graph LR
     APPSUP --> SUP
     SUP --> UMAN
 
+    %% Live API Connections
+    MAIN --> LSESS
+    LSESS --> WS
+    LSESS --> LMODELS
+    LSESS --> AUTH
+    LSESS --> TEL
+    LMODELS --> COORD
+
     %% External Connections
     HTTP --> GAPI
     HTTP --> VAI
     STREAM --> GAPI
     STREAM --> VAI
+    WS --> WSAPI
 
     %% Styling
     classDef primary fill:#6B46C1,stroke:#4C1D95,stroke-width:3px,color:#FFFFFF
@@ -134,7 +151,8 @@ graph LR
     class GMAUTH,VAAUTH strategy
     class CONF,ERR,TEL,TYPES,UTILS config
     class APPSUP,SUP primary
-    class GAPI,VAI api
+    class GAPI,VAI,WSAPI api
+    class LSESS,LMODELS,WS,LAUDIO secondary
 
 
 ```
@@ -167,11 +185,17 @@ graph LR
 - **Streaming.ManagerV2**: Enhanced streaming manager
 - **SSE.Parser**: Server-Sent Events parser for streaming responses
 
-### 6. Authentication System
+### 6. Live API System (New in v0.9.0)
+- **Live.Session**: GenServer managing WebSocket connection lifecycle with callback-based message routing
+- **Live.Models**: Runtime model resolution based on API key capabilities and regional rollout status
+- **Client.WebSocket**: WebSocket client using `:gun` for HTTP/2 + TLS connections
+- **Live.Audio**: PCM audio handling utilities for native audio features
+
+### 7. Authentication System
 - **Auth**: Base authentication module
 - **Multi-Authentication Support**: Concurrent support for both Gemini API and Vertex AI authentication
 
-### 7. Infrastructure
+### 8. Infrastructure
 - **Config**: Configuration management
 - **Error**: Error handling and classification
 - **Telemetry**: Instrumentation and monitoring
@@ -200,6 +224,7 @@ Built-in telemetry support provides visibility into system performance and behav
 
 ## Data Flow
 
+### HTTP/Streaming API Flow
 1. **Request Initiation**: Application code calls the main Gemini module
 2. **Coordination**: The Coordinator determines the appropriate authentication strategy and API endpoint
 3. **Authentication**: MultiAuthCoordinator handles authentication for the selected strategy
@@ -208,9 +233,24 @@ Built-in telemetry support provides visibility into system performance and behav
 6. **Streaming Handling**: For streaming requests, UnifiedManager manages the stream lifecycle
 7. **Telemetry**: All operations emit telemetry events for monitoring and observability
 
+### Live API Flow (New in v0.9.0)
+1. **Model Resolution**: `Live.Models.resolve/1` queries available models and selects the best match
+2. **Session Creation**: `Live.Session.start_link/1` initializes a GenServer with configuration
+3. **Connection**: `Session.connect/1` establishes WebSocket connection via `Client.WebSocket`
+4. **Setup Handshake**: BidiGenerateContentSetup message sent, SetupComplete received
+5. **Bidirectional Communication**: Messages sent via `send_client_content/2` or `send_realtime_input/2`
+6. **Callback Routing**: Responses routed to `on_message`, `on_tool_call`, `on_error` callbacks
+7. **Telemetry**: Live API events emitted for session lifecycle, messages, and tool calls
+8. **Graceful Termination**: GoAway handling and session resumption token storage
+
 ## Supervision Strategy
 
-The system uses OTP supervision principles with the Application module starting a supervisor that manages the UnifiedManager for streaming operations, ensuring fault tolerance and automatic recovery.
+The system uses OTP supervision principles with the Application module starting a supervisor that manages:
+
+- **UnifiedManager**: For streaming operations
+- **TaskSupervisor** (New in v0.9.0): Centralized supervision for async tasks in ConcurrencyGate, HTTPStreaming, ToolOrchestrator, and Interactions modules
+
+This ensures fault tolerance, automatic recovery, and prevents resource leaks from unsupervised processes.
 
 ## Configuration Management
 

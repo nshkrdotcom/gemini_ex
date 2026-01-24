@@ -13,7 +13,7 @@ The Gemini library now includes comprehensive telemetry instrumentation that emi
 
 #### Request Events
 - `[:gemini, :request, :start]` - Emitted when an API request begins
-- `[:gemini, :request, :stop]` - Emitted when an API request completes successfully  
+- `[:gemini, :request, :stop]` - Emitted when an API request completes successfully
 - `[:gemini, :request, :exception]` - Emitted when an API request fails
 
 #### Streaming Events
@@ -21,6 +21,16 @@ The Gemini library now includes comprehensive telemetry instrumentation that emi
 - `[:gemini, :stream, :chunk]` - Emitted when a streaming chunk is received
 - `[:gemini, :stream, :stop]` - Emitted when a streaming request completes
 - `[:gemini, :stream, :exception]` - Emitted when a streaming request fails
+
+#### Live API Events (New in v0.9.0)
+- `[:gemini, :live, :session, :init]` - Emitted when a Live session is initialized
+- `[:gemini, :live, :session, :ready]` - Emitted when a Live session is connected and ready
+- `[:gemini, :live, :session, :message, :sent]` - Emitted when a message is sent to the Live API
+- `[:gemini, :live, :session, :message, :received]` - Emitted when a message is received from the Live API
+- `[:gemini, :live, :session, :tool_call]` - Emitted when a tool call is requested by the model
+- `[:gemini, :live, :session, :close]` - Emitted when a Live session is closed
+- `[:gemini, :live, :session, :error]` - Emitted when an error occurs in a Live session
+- `[:gemini, :live, :session, :go_away]` - Emitted when a GoAway notice is received
 
 ### ✅ **Files Modified/Created**
 
@@ -211,6 +221,33 @@ end
 
 # Event emitted:
 # [:gemini, :request, :exception] - with error details
+```
+
+### Live API Telemetry (New in v0.9.0)
+```elixir
+alias Gemini.Live.{Models, Session}
+
+# Attach handlers for Live API events
+:telemetry.attach("live-session", [:gemini, :live, :session, :ready], fn event, measurements, metadata, _ ->
+  IO.puts("Session ready: #{metadata.model}")
+end, nil)
+
+:telemetry.attach("live-messages", [:gemini, :live, :session, :message, :received], fn event, measurements, metadata, _ ->
+  IO.inspect(metadata, label: "Received message")
+end, nil)
+
+# Live sessions emit telemetry automatically
+{:ok, session} = Session.start_link(
+  model: Models.resolve(:text),
+  auth: :gemini,
+  generation_config: %{response_modalities: ["TEXT"]},
+  on_message: fn msg -> IO.inspect(msg) end
+)
+
+:ok = Session.connect(session)  # Emits :init and :ready events
+Session.send_client_content(session, "Hello!")  # Emits :message:sent event
+# Response triggers :message:received events
+Session.close(session)  # Emits :close event
 ```
 
 ## 🔧 Configuration Options

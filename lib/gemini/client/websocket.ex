@@ -23,7 +23,7 @@ defmodule Gemini.Client.WebSocket do
   - `:model` - Required. Model name for the Live API
   - `:project_id` - Required for Vertex AI
   - `:location` - Vertex AI location (default: "us-central1")
-  - `:api_version` - API version (default: "v1alpha")
+  - `:api_version` - API version (default: "v1beta")
   - `:timeout` - Connection timeout in ms (default: 30000)
   - `:retry_attempts` - Number of retry attempts for transient failures (default: 3)
   - `:retry_delay` - Initial delay between retries in ms (default: 1000)
@@ -39,7 +39,7 @@ defmodule Gemini.Client.WebSocket do
 
   ## Endpoints
 
-  - **Gemini API**: `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=API_KEY`
+  - **Gemini API**: `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=API_KEY`
   - **Vertex AI**: `wss://{location}-aiplatform.googleapis.com/ws/google.cloud.aiplatform.v1beta1.LlmBidiService/BidiGenerateContent?project=...&location=...`
 
   ## Telemetry Events
@@ -101,13 +101,13 @@ defmodule Gemini.Client.WebSocket do
     :project_id,
     :location,
     status: :connecting,
-    api_version: "v1alpha",
+    api_version: "v1beta",
     retry_config: %{attempts: 3, delay: 1000, backoff: 2.0}
   ]
 
-  # Gemini API endpoint
+  # Gemini API endpoint - v1beta is the default Live API version.
+  # Use v1alpha for native audio extras (affective dialog, proactivity, thinking).
   @gemini_host "generativelanguage.googleapis.com"
-  @gemini_path "/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent"
 
   # Vertex AI endpoint template
   @vertex_path "/ws/google.cloud.aiplatform.v1beta1.LlmBidiService/BidiGenerateContent"
@@ -123,6 +123,8 @@ defmodule Gemini.Client.WebSocket do
 
   # Retryable error types
   @retryable_errors [:timeout, :closed, :econnrefused, :econnreset, :etimedout]
+
+  @redact_query_params ~w(key access_token token)
 
   # Build gun options at runtime to avoid compile-time function capture issue
   # WebSocket connections require HTTP/1.1 for the upgrade handshake
@@ -152,7 +154,7 @@ defmodule Gemini.Client.WebSocket do
     - `:model` - Required. Model name
     - `:project_id` - Required for Vertex AI
     - `:location` - Vertex AI location (default: "us-central1")
-    - `:api_version` - API version (default: "v1alpha")
+    - `:api_version` - API version (default: "v1beta")
     - `:timeout` - Connection timeout in ms (default: 30000)
     - `:retry_attempts` - Number of retry attempts (default: 3)
     - `:retry_delay` - Initial retry delay in ms (default: 1000)
@@ -187,7 +189,7 @@ defmodule Gemini.Client.WebSocket do
     model = Keyword.fetch!(opts, :model)
     project_id = Keyword.get(opts, :project_id)
     location = Keyword.get(opts, :location, "us-central1")
-    api_version = Keyword.get(opts, :api_version, "v1alpha")
+    api_version = Keyword.get(opts, :api_version, "v1beta")
     timeout = Keyword.get(opts, :timeout, @connect_timeout)
 
     retry_config = %{
@@ -508,7 +510,7 @@ defmodule Gemini.Client.WebSocket do
     path = build_websocket_path(conn)
     headers = build_upgrade_headers(conn)
 
-    Logger.debug("Upgrading to WebSocket: #{path}")
+    Logger.debug("Upgrading to WebSocket: #{redact_websocket_path(path)}")
 
     stream_ref = :gun.ws_upgrade(conn.gun_pid, path, headers, %{})
 
@@ -534,16 +536,39 @@ defmodule Gemini.Client.WebSocket do
   defp build_websocket_path(%__MODULE__{auth_strategy: :gemini} = conn) do
     case get_auth_params(conn) do
       {:ok, %{api_key: api_key}} ->
-        "#{@gemini_path}?key=#{api_key}"
+        "#{gemini_path(conn.api_version)}?key=#{api_key}"
 
       {:error, _} ->
         # Fallback - will fail at server
-        @gemini_path
+        gemini_path(conn.api_version)
     end
   end
 
   defp build_websocket_path(%__MODULE__{auth_strategy: :vertex_ai} = conn) do
     "#{@vertex_path}?project=#{conn.project_id}&location=#{conn.location}"
+  end
+
+  @doc false
+  @spec redact_websocket_path(String.t()) :: String.t()
+  def redact_websocket_path(path) when is_binary(path) do
+    Enum.reduce(@redact_query_params, path, &redact_query_param/2)
+  end
+
+  @doc false
+  @spec redacted_websocket_path(t()) :: String.t()
+  def redacted_websocket_path(%__MODULE__{} = conn) do
+    conn
+    |> build_websocket_path()
+    |> redact_websocket_path()
+  end
+
+  defp redact_query_param(param, path) do
+    regex = Regex.compile!("([?&]#{Regex.escape(param)}=)[^&]+", "i")
+    Regex.replace(regex, path, "\\1[REDACTED]")
+  end
+
+  defp gemini_path(api_version) when is_binary(api_version) do
+    "/ws/google.ai.generativelanguage.#{api_version}.GenerativeService.BidiGenerateContent"
   end
 
   @spec build_upgrade_headers(t()) :: [{String.t(), String.t()}]

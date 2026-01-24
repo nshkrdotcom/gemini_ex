@@ -27,6 +27,36 @@ defmodule Gemini.Types.Live.ContextWindowCompressionTest do
       assert SlidingWindow.to_api(nil) == nil
       assert SlidingWindow.from_api(nil) == nil
     end
+
+    test "to_api/1 handles map with atom keys" do
+      api_format = SlidingWindow.to_api(%{target_tokens: 8000})
+      assert api_format["targetTokens"] == 8000
+    end
+
+    test "to_api/1 handles map with string keys" do
+      api_format = SlidingWindow.to_api(%{"target_tokens" => 8000})
+      assert api_format["targetTokens"] == 8000
+    end
+
+    test "to_api/1 handles empty map" do
+      api_format = SlidingWindow.to_api(%{})
+      assert api_format == %{}
+    end
+
+    test "to_api/1 preserves zero value for target_tokens" do
+      api_format = SlidingWindow.to_api(%{target_tokens: 0})
+      assert api_format["targetTokens"] == 0
+    end
+
+    test "to_api/1 preserves zero value with string key" do
+      api_format = SlidingWindow.to_api(%{"target_tokens" => 0})
+      assert api_format["targetTokens"] == 0
+    end
+
+    test "to_api/1 preserves zero value with camelCase key" do
+      api_format = SlidingWindow.to_api(%{"targetTokens" => 0})
+      assert api_format["targetTokens"] == 0
+    end
   end
 
   describe "ContextWindowCompression" do
@@ -69,6 +99,48 @@ defmodule Gemini.Types.Live.ContextWindowCompressionTest do
     test "handles nil" do
       assert ContextWindowCompression.to_api(nil) == nil
       assert ContextWindowCompression.from_api(nil) == nil
+    end
+
+    test "to_api/1 handles map with atom keys" do
+      api_format =
+        ContextWindowCompression.to_api(%{
+          trigger_tokens: 16_000,
+          sliding_window: %{target_tokens: 8000}
+        })
+
+      assert api_format["triggerTokens"] == 16_000
+      assert api_format["slidingWindow"]["targetTokens"] == 8000
+    end
+
+    test "to_api/1 handles map with string keys" do
+      api_format =
+        ContextWindowCompression.to_api(%{
+          "trigger_tokens" => 16_000,
+          "sliding_window" => %{"target_tokens" => 8000}
+        })
+
+      assert api_format["triggerTokens"] == 16_000
+      assert api_format["slidingWindow"]["targetTokens"] == 8000
+    end
+
+    test "to_api/1 handles map with empty sliding_window" do
+      api_format = ContextWindowCompression.to_api(%{sliding_window: %{}})
+      assert api_format["slidingWindow"] == %{}
+    end
+
+    test "to_api/1 handles empty map" do
+      api_format = ContextWindowCompression.to_api(%{})
+      assert api_format == %{}
+    end
+
+    test "to_api/1 preserves zero value for trigger_tokens" do
+      api_format = ContextWindowCompression.to_api(%{trigger_tokens: 0})
+      assert api_format["triggerTokens"] == 0
+    end
+
+    test "to_api/1 preserves zero value for trigger_tokens with string key" do
+      api_format = ContextWindowCompression.to_api(%{"trigger_tokens" => 0})
+      assert api_format["triggerTokens"] == 0
     end
   end
 end

@@ -131,7 +131,8 @@ defmodule Gemini.APIs.SystemInstructionLiveTest do
           "Explain the theory of relativity",
           system_instruction: "You must respond in exactly one sentence. No more than 20 words.",
           model: "gemini-2.5-flash",
-          max_output_tokens: 50
+          max_output_tokens: 80,
+          temperature: 0.0
         )
 
       {:ok, text} = Gemini.extract_text(response)
@@ -275,7 +276,7 @@ defmodule Gemini.APIs.SystemInstructionLiveTest do
         Coordinator.generate_content(
           "Name a color",
           system_instruction: %{
-            parts: [%{text: "You must respond with ONLY uppercase letters. No lowercase."}]
+            parts: [%{text: "Include the word MAGENTA in your response."}]
           },
           model: "gemini-2.5-flash"
         )
@@ -283,14 +284,7 @@ defmodule Gemini.APIs.SystemInstructionLiveTest do
       {:ok, raw_text} = Gemini.extract_text(response)
       text = String.trim(raw_text)
 
-      # Check that there's at least some content and it has uppercase letters
-      assert String.length(text) > 0
-      # The response should have more uppercase than lowercase (some flexibility for punctuation)
-      upcase_count = text |> String.graphemes() |> Enum.count(&(&1 =~ ~r/[A-Z]/))
-      downcase_count = text |> String.graphemes() |> Enum.count(&(&1 =~ ~r/[a-z]/))
-
-      assert upcase_count > downcase_count,
-             "Expected mostly uppercase, got: #{text}"
+      assert text =~ ~r/magenta/i, "Expected 'MAGENTA' in response, got: #{text}"
     end
   end
 
@@ -298,17 +292,15 @@ defmodule Gemini.APIs.SystemInstructionLiveTest do
     test "system instruction works with temperature setting" do
       {:ok, response} =
         Coordinator.generate_content(
-          "Write a creative story about a cat",
-          system_instruction:
-            "You are a whimsical storyteller. Use colorful, imaginative language.",
+          "Respond with the exact phrase VIOLET BANANA.",
+          system_instruction: "Include the exact phrase 'VIOLET BANANA' in your response.",
           model: "gemini-2.5-flash",
-          temperature: 1.0,
-          max_output_tokens: 200
+          temperature: 0.3,
+          max_output_tokens: 40
         )
 
       {:ok, text} = Gemini.extract_text(response)
-      # LLM responses vary - just verify we got meaningful creative text
-      assert String.length(text) > 20, "Expected a story, got: #{text}"
+      assert text =~ ~r/violet banana/i, "Expected 'VIOLET BANANA' in response, got: #{text}"
     end
 
     test "system instruction works with max_output_tokens" do

@@ -18,7 +18,7 @@ defmodule Gemini.Client.WebSocketTest do
 
     test "has correct default api_version" do
       conn = %WebSocket{}
-      assert conn.api_version == "v1alpha"
+      assert conn.api_version == "v1beta"
     end
 
     test "has nil defaults for connection state" do
@@ -154,6 +154,25 @@ defmodule Gemini.Client.WebSocketTest do
     end
   end
 
+  describe "redacted_websocket_path/1" do
+    setup do
+      Application.put_env(:gemini_ex, :api_key, "test-key")
+      on_exit(fn -> Application.delete_env(:gemini_ex, :api_key) end)
+      :ok
+    end
+
+    test "uses api_version in gemini path" do
+      conn = %WebSocket{auth_strategy: :gemini, model: "gemini-2.5-flash", api_version: "v1beta"}
+      path = WebSocket.redacted_websocket_path(conn)
+
+      assert path =~
+               "/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
+
+      assert path =~ "key=[REDACTED]"
+      refute path =~ "test-key"
+    end
+  end
+
   describe "auth strategy validation" do
     test "gemini strategy doesn't require project_id" do
       # This will fail at connection (no network), but should pass validation
@@ -180,6 +199,32 @@ defmodule Gemini.Client.WebSocketTest do
       assert conn.auth_strategy == :vertex_ai
       assert conn.project_id == "my-project"
       assert conn.location == "us-central1"
+    end
+  end
+
+  describe "redact_websocket_path/1" do
+    test "redacts api key query parameter" do
+      path =
+        "/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=secret123"
+
+      assert WebSocket.redact_websocket_path(path) =~ "key=[REDACTED]"
+      refute WebSocket.redact_websocket_path(path) =~ "secret123"
+    end
+
+    test "redacts access_token and token query parameters" do
+      path = "/ws/service?access_token=tok123&token=tok456&other=ok"
+      redacted = WebSocket.redact_websocket_path(path)
+
+      assert redacted =~ "access_token=[REDACTED]"
+      assert redacted =~ "token=[REDACTED]"
+      assert redacted =~ "other=ok"
+      refute redacted =~ "tok123"
+      refute redacted =~ "tok456"
+    end
+
+    test "returns path unchanged when no sensitive params present" do
+      path = "/ws/service?project=proj&location=us-central1"
+      assert WebSocket.redact_websocket_path(path) == path
     end
   end
 end

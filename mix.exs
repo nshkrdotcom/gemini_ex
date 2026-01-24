@@ -1,7 +1,7 @@
 defmodule Gemini.MixProject do
   use Mix.Project
 
-  @version "0.8.8"
+  @version "0.9.0"
   @source_url "https://github.com/nshkrdotcom/gemini_ex"
 
   def project do
@@ -79,63 +79,95 @@ defmodule Gemini.MixProject do
       assets: %{"assets" => "assets"},
       logo: "assets/logo.svg",
       extras: [
+        # Getting Started
         "README.md",
-        "ALTAR_INTEGRATION.md",
-        "ARCHITECTURE.md",
-        "AUTHENTICATION_SYSTEM.md",
-        "STREAMING.md",
-        "STREAMING_ARCHITECTURE.md",
-        "TELEMETRY_IMPLEMENTATION.md",
-        "AUTOMATIC_TOOL_EXECUTION.md",
-        "examples/EMBEDDINGS.md",
-        "examples/ASYNC_BATCH_EMBEDDINGS.md",
-        "docs/guides/interactions.md",
-        "docs/guides/structured_outputs.md",
-        "docs/guides/rate_limiting.md",
-        "docs/guides/files.md",
-        "docs/guides/batches.md",
-        "docs/guides/operations.md",
-        "docs/guides/function_calling.md",
-        "docs/guides/system_instructions.md",
-        "docs/guides/live_api.md",
-        "docs/guides/tunings.md",
-        "docs/guides/file_search_stores.md",
-        "docs/guides/adc.md",
-        "docs/guides/image_generation.md",
-        "docs/guides/video_generation.md",
-        "CHANGELOG.md"
+
+        # Core Features
+        "guides/live_api.md",
+        "guides/STREAMING.md",
+        "guides/function_calling.md",
+        "guides/structured_outputs.md",
+        "guides/system_instructions.md",
+        "guides/interactions.md",
+
+        # Content Generation
+        "guides/image_generation.md",
+        "guides/video_generation.md",
+        "guides/EMBEDDINGS.md",
+        "guides/ASYNC_BATCH_EMBEDDINGS.md",
+
+        # File & Data Management
+        "guides/files.md",
+        "guides/file_search_stores.md",
+        "guides/batches.md",
+        "guides/operations.md",
+
+        # Authentication & Configuration
+        "guides/AUTHENTICATION_SYSTEM.md",
+        "guides/adc.md",
+
+        # Advanced Topics
+        "guides/rate_limiting.md",
+        "guides/tunings.md",
+        "guides/AUTOMATIC_TOOL_EXECUTION.md",
+
+        # Architecture & Internals
+        "guides/ARCHITECTURE.md",
+        "guides/STREAMING_ARCHITECTURE.md",
+        "guides/TELEMETRY_IMPLEMENTATION.md",
+
+        # Integration
+        "guides/ALTAR_INTEGRATION.md",
+
+        # About
+        "CHANGELOG.md",
+        "LICENSE"
       ],
       groups_for_extras: [
-        Guides: ["README.md", "ALTAR_INTEGRATION.md"],
-        Features: [
-          "AUTOMATIC_TOOL_EXECUTION.md",
-          "examples/EMBEDDINGS.md",
-          "examples/ASYNC_BATCH_EMBEDDINGS.md",
-          "docs/guides/interactions.md",
-          "docs/guides/structured_outputs.md",
-          "docs/guides/rate_limiting.md",
-          "docs/guides/files.md",
-          "docs/guides/batches.md",
-          "docs/guides/operations.md",
-          "docs/guides/function_calling.md",
-          "docs/guides/system_instructions.md",
-          "docs/guides/live_api.md",
-          "docs/guides/tunings.md",
-          "docs/guides/file_search_stores.md",
-          "docs/guides/adc.md",
-          "docs/guides/image_generation.md",
-          "docs/guides/video_generation.md"
+        "Getting Started": [
+          "README.md"
         ],
-        Architecture: [
-          "ARCHITECTURE.md",
-          "AUTHENTICATION_SYSTEM.md",
-          "STREAMING_ARCHITECTURE.md"
+        "Core Features": [
+          "guides/live_api.md",
+          "guides/STREAMING.md",
+          "guides/function_calling.md",
+          "guides/structured_outputs.md",
+          "guides/system_instructions.md",
+          "guides/interactions.md"
         ],
-        Implementation: [
-          "STREAMING.md",
-          "TELEMETRY_IMPLEMENTATION.md"
+        "Content Generation": [
+          "guides/image_generation.md",
+          "guides/video_generation.md",
+          "guides/EMBEDDINGS.md",
+          "guides/ASYNC_BATCH_EMBEDDINGS.md"
         ],
-        "Release Notes": ["CHANGELOG.md"]
+        "File & Data Management": [
+          "guides/files.md",
+          "guides/file_search_stores.md",
+          "guides/batches.md",
+          "guides/operations.md"
+        ],
+        "Authentication & Configuration": [
+          "guides/AUTHENTICATION_SYSTEM.md",
+          "guides/adc.md"
+        ],
+        "Advanced Topics": [
+          "guides/rate_limiting.md",
+          "guides/tunings.md",
+          "guides/AUTOMATIC_TOOL_EXECUTION.md"
+        ],
+        "Architecture & Internals": [
+          "guides/ARCHITECTURE.md",
+          "guides/STREAMING_ARCHITECTURE.md",
+          "guides/TELEMETRY_IMPLEMENTATION.md"
+        ],
+        Integration: [
+          "guides/ALTAR_INTEGRATION.md"
+        ],
+        About: [
+          "CHANGELOG.md",
+          "LICENSE"
+        ]
       ],
       groups_for_modules: [
         "Core API": [Gemini, Gemini.APIs.Coordinator],
@@ -227,8 +259,7 @@ defmodule Gemini.MixProject do
     [
       name: "gemini_ex",
       description: description(),
-      files:
-        ~w(lib mix.exs README.md ALTAR_INTEGRATION.md ARCHITECTURE.md AUTHENTICATION_SYSTEM.md STREAMING.md STREAMING_ARCHITECTURE.md TELEMETRY_IMPLEMENTATION.md CHANGELOG.md LICENSE assets docs/guides),
+      files: ~w(lib mix.exs README.md CHANGELOG.md LICENSE),
       licenses: ["MIT"],
       links: %{
         "GitHub" => @source_url,

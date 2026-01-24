@@ -14,8 +14,8 @@ defmodule Gemini.Client.WebSocketLiveTest do
   use ExUnit.Case, async: false
 
   alias Gemini.Client.WebSocket
-
-  @live_model "gemini-2.5-flash-native-audio-preview-12-2025"
+  alias Gemini.Live.Models
+  alias Gemini.Types.Live.Setup
 
   describe "connect/2 with Gemini API" do
     @tag :live_gemini
@@ -24,9 +24,11 @@ defmodule Gemini.Client.WebSocketLiveTest do
         {:skip, "GEMINI_API_KEY required"}
       end
 
+      live_model = Models.resolve(:text)
+
       {:ok, conn} =
         WebSocket.connect(:gemini,
-          model: @live_model
+          model: live_model
         )
 
       assert WebSocket.connected?(conn)
@@ -40,20 +42,16 @@ defmodule Gemini.Client.WebSocketLiveTest do
         {:skip, "GEMINI_API_KEY required"}
       end
 
+      live_model = Models.resolve(:text)
+
       {:ok, conn} =
         WebSocket.connect(:gemini,
-          model: @live_model
+          model: live_model
         )
 
-      # Send setup message
-      setup_msg = %{
-        "setup" => %{
-          "model" => @live_model,
-          "generationConfig" => %{
-            "responseModalities" => ["TEXT"]
-          }
-        }
-      }
+      # Send setup message using Setup module for proper normalization
+      setup = Setup.new(live_model, generation_config: %{response_modalities: ["TEXT"]})
+      setup_msg = %{"setup" => Setup.to_api(setup)}
 
       assert :ok = WebSocket.send(conn, setup_msg)
 
@@ -75,9 +73,11 @@ defmodule Gemini.Client.WebSocketLiveTest do
         {:skip, "VERTEX_PROJECT_ID and credentials required"}
       end
 
+      live_model = Models.default(:audio)
+
       {:ok, conn} =
         WebSocket.connect(:vertex_ai,
-          model: @live_model,
+          model: live_model,
           project_id: project_id,
           location: "us-central1"
         )
@@ -89,8 +89,10 @@ defmodule Gemini.Client.WebSocketLiveTest do
 
     @tag :live_vertex_ai
     test "returns error without project_id" do
+      live_model = Models.default(:audio)
+
       assert {:error, :project_id_required_for_vertex_ai} =
-               WebSocket.connect(:vertex_ai, model: @live_model)
+               WebSocket.connect(:vertex_ai, model: live_model)
     end
   end
 
@@ -101,9 +103,11 @@ defmodule Gemini.Client.WebSocketLiveTest do
         {:skip, "GEMINI_API_KEY required"}
       end
 
+      live_model = Models.resolve(:text)
+
       {:ok, conn} =
         WebSocket.connect(:gemini,
-          model: @live_model
+          model: live_model
         )
 
       assert WebSocket.connected?(conn)

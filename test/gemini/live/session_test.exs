@@ -16,6 +16,7 @@ defmodule Gemini.Live.SessionTest do
 
     def connect(_auth, opts) do
       test_pid = Keyword.fetch!(opts, :test_pid)
+      Kernel.send(test_pid, {:websocket_connect_opts, opts})
       {:ok, %{test_pid: test_pid}}
     end
 
@@ -223,10 +224,36 @@ defmodule Gemini.Live.SessionTest do
 
       assert :ok = Session.connect(pid)
 
+      assert_receive {:websocket_connect_opts, _opts}, 1_000
       assert_receive {:websocket_send, %{"setup" => setup}}, 1_000
       assert %{"sessionResumption" => session_resumption} = setup
       assert session_resumption["handle"] == "test-handle-12345"
       assert session_resumption["transparent"] == true
+
+      GenServer.stop(pid)
+    end
+
+    test "passes api_version and setup options to websocket" do
+      {:ok, pid} =
+        Session.start_link(
+          model: "gemini-2.5-flash-native-audio-preview-12-2025",
+          auth: :gemini,
+          api_version: "v1alpha",
+          enable_affective_dialog: true,
+          proactivity: %{proactive_audio: true},
+          generation_config: %{response_modalities: ["AUDIO"]},
+          websocket_module: WebSocketStub,
+          websocket_opts: [test_pid: self()]
+        )
+
+      assert :ok = Session.connect(pid)
+
+      assert_receive {:websocket_connect_opts, opts}, 1_000
+      assert opts[:api_version] == "v1alpha"
+
+      assert_receive {:websocket_send, %{"setup" => setup}}, 1_000
+      assert setup["enableAffectiveDialog"] == true
+      assert setup["proactivity"]["proactiveAudio"] == true
 
       GenServer.stop(pid)
     end

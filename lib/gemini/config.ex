@@ -68,8 +68,14 @@ defmodule Gemini.Config do
     flash_2_5: "gemini-2.5-flash",
     flash_2_5_lite: "gemini-2.5-flash-lite",
 
-    # Gemini 2.5 preview/specialized
+    # Gemini 2.5 Live API models (for bidiGenerateContent / WebSocket streaming)
+    # TEXT mode - use response_modalities: ["TEXT"]
     live_2_5_flash_preview: "gemini-live-2.5-flash-preview",
+    # AUDIO mode - use response_modalities: ["AUDIO"] (native audio output)
+    # This is the recommended model for voice/audio applications per canonical docs
+    flash_2_5_native_audio_preview_12_2025: "gemini-2.5-flash-native-audio-preview-12-2025",
+
+    # Gemini 2.5 preview/specialized
     flash_2_5_preview_native_audio_dialog: "gemini-2.5-flash-preview-native-audio-dialog",
     flash_2_5_exp_native_audio_thinking_dialog:
       "gemini-2.5-flash-exp-native-audio-thinking-dialog",
@@ -78,7 +84,6 @@ defmodule Gemini.Config do
     flash_2_5_preview_09_2025: "gemini-2.5-flash-preview-09-2025",
     flash_2_5_lite_preview_09_2025: "gemini-2.5-flash-lite-preview-09-2025",
     flash_2_5_native_audio_preview_09_2025: "gemini-2.5-flash-native-audio-preview-09-2025",
-    flash_2_5_native_audio_preview_12_2025: "gemini-2.5-flash-native-audio-preview-12-2025",
     flash_2_5_image: "gemini-2.5-flash-image",
     flash_2_5_image_preview: "gemini-2.5-flash-image-preview",
 
@@ -110,6 +115,9 @@ defmodule Gemini.Config do
     # Embedding model for AI Studio
     embedding: "gemini-embedding-001",
     embedding_exp: "gemini-embedding-exp-03-07",
+
+    # Live API rollout fallback models (Gemini API only)
+    flash_2_0_exp_image_generation: "gemini-2.0-flash-exp-image-generation",
 
     # Legacy default alias (AI Studio only)
     default: "gemini-flash-lite-latest"

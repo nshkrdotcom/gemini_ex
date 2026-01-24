@@ -782,19 +782,8 @@ defmodule Gemini.APIs.Coordinator do
       {:ok, text} = Coordinator.extract_text(response)
   """
   @spec extract_text(GenerateContentResponse.t()) :: {:ok, String.t()} | {:error, term()}
-  def extract_text(%GenerateContentResponse{candidates: [first_candidate | _]}) do
-    case first_candidate do
-      %{content: %{parts: [_ | _] = parts}} ->
-        text =
-          parts
-          |> Enum.filter(&Map.has_key?(&1, :text))
-          |> Enum.map_join("", & &1.text)
-
-        {:ok, text}
-
-      _ ->
-        {:error, "No text content found in response"}
-    end
+  def extract_text(%GenerateContentResponse{} = response) do
+    GenerateContentResponse.extract_text(response)
   end
 
   def extract_text(_), do: {:error, "No candidates found in response"}

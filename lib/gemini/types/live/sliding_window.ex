@@ -34,13 +34,23 @@ defmodule Gemini.Types.Live.SlidingWindow do
 
   @doc """
   Converts to API format (camelCase).
+
+  Accepts structs, maps with atom keys, or maps with string keys.
+  Uses fetch_value to properly preserve falsey values like 0 or false.
   """
-  @spec to_api(t() | nil) :: map() | nil
+  @spec to_api(t() | map() | nil) :: map() | nil
   def to_api(nil), do: nil
 
   def to_api(%__MODULE__{} = value) do
     %{}
     |> maybe_put("targetTokens", value.target_tokens)
+  end
+
+  def to_api(%{} = value) when not is_struct(value) do
+    target_tokens = fetch_value(value, [:target_tokens, "target_tokens", "targetTokens"])
+
+    %{}
+    |> maybe_put("targetTokens", target_tokens)
   end
 
   @doc """
@@ -53,6 +63,20 @@ defmodule Gemini.Types.Live.SlidingWindow do
     %__MODULE__{
       target_tokens: data["targetTokens"] || data["target_tokens"]
     }
+  end
+
+  # Fetches value from map trying multiple keys, preserving falsey values like 0 or false
+  defp fetch_value(map, keys) do
+    Enum.find_value(keys, fn key ->
+      case Map.fetch(map, key) do
+        {:ok, value} -> {:found, value}
+        :error -> nil
+      end
+    end)
+    |> case do
+      {:found, value} -> value
+      nil -> nil
+    end
   end
 
   defp maybe_put(map, _key, nil), do: map

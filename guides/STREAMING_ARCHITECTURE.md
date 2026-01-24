@@ -2,6 +2,8 @@
 
 **Technical Deep Dive: Server-Sent Events (SSE) Streaming Implementation**
 
+> **Note:** This document covers SSE streaming for `streamGenerateContent`. For bidirectional real-time streaming (voice, video, text), see the [Live API Guide](docs/guides/live_api.md) which uses WebSocket connections via `Gemini.Live.Session`.
+
 ---
 
 ## Table of Contents

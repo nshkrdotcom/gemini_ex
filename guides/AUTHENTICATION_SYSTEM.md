@@ -259,4 +259,62 @@ Configure the library in your project's `config/runtime.exs` file. This is the c
       }
     ```
 
+### 6. Live API Authentication (New in v0.9.0)
+
+The Live API uses WebSocket connections for bidirectional streaming. Authentication works similarly to HTTP requests but with some specific considerations:
+
+#### Server-Side Authentication
+
+When using `Gemini.Live.Session`, authentication is handled automatically using the same credential resolution as HTTP requests:
+
+```elixir
+alias Gemini.Live.{Models, Session}
+
+# Uses environment variable or application config
+{:ok, session} = Session.start_link(
+  model: Models.resolve(:text),
+  auth: :gemini,  # or :vertex_ai
+  generation_config: %{response_modalities: ["TEXT"]}
+)
+```
+
+The WebSocket connection URL includes the API key as a query parameter (which is automatically redacted in logs for security).
+
+#### Client-Side Authentication with Ephemeral Tokens
+
+For client-to-server implementations (browser/mobile apps connecting directly to the Live API), use **ephemeral tokens** instead of exposing your API key:
+
+```elixir
+# Server-side: Create an ephemeral token for the client
+# Token configuration:
+# - expire_time: When messages will be rejected (default: 30 minutes)
+# - new_session_expire_time: When new sessions will be rejected (default: 1 minute)
+# - uses: Number of sessions the token can start (default: 1)
+
+# The client then uses the token as if it were an API key
+# This requires v1alpha API version
+```
+
+Ephemeral tokens provide enhanced security by:
+- Expiring quickly (configurable, default 30 minutes)
+- Limiting the number of sessions they can create
+- Optionally constraining configuration options
+
+#### API Version Considerations
+
+- **v1beta** (default): Standard Live API features
+- **v1alpha**: Required for ephemeral tokens, affective dialog, and proactive audio
+
+```elixir
+# Use v1alpha for advanced features
+{:ok, session} = Session.start_link(
+  model: Models.resolve(:audio),
+  auth: :gemini,
+  api_version: "v1alpha",
+  enable_affective_dialog: true
+)
+```
+
+See the [Live API Guide](docs/guides/live_api.md) for complete documentation on ephemeral tokens and session security.
+
 ---

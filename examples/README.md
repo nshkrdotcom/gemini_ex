@@ -218,12 +218,15 @@ All examples follow a consistent output format:
 ### 11 - Live Text Chat
 Real-time bidirectional text conversations with the Live API:
 - Multi-turn conversations with context retention
+- Automatic model resolution via `Gemini.Live.Models.resolve(:text)`
 - Response timing measurements
 - System instructions for persona customization
 
 ```elixir
+alias Gemini.Live.{Models, Session}
+
 {:ok, session} = Session.start_link(
-  model: "gemini-2.5-flash-native-audio-preview-12-2025",
+  model: Models.resolve(:text),  # Auto-selects available model
   generation_config: %{response_modalities: ["TEXT"]},
   system_instruction: "You are a helpful assistant.",
   on_message: fn msg -> handle_message(msg) end
@@ -257,16 +260,18 @@ Reconnect to sessions while preserving conversation context:
 - Context preserved across reconnections
 
 ```elixir
+alias Gemini.Live.{Models, Session}
+
 # Enable resumption
 {:ok, session} = Session.start_link(
-  model: "gemini-2.5-flash-native-audio-preview-12-2025",
+  model: Models.resolve(:text),
   session_resumption: %{},
   on_session_resumption: fn %{handle: h} -> save_handle(h) end
 )
 
 # Later: resume with saved handle
 {:ok, session2} = Session.start_link(
-  model: "gemini-2.5-flash-native-audio-preview-12-2025",
+  model: Models.resolve(:text),
   resume_handle: saved_handle
 )
 ```
@@ -316,9 +321,12 @@ mix run examples/live_api_demo.exs
 
 **Requirements:** `GEMINI_API_KEY` environment variable
 
-**Supported Models:**
-- `gemini-2.5-flash-native-audio-preview-12-2025` (recommended for audio)
-- `gemini-2.0-flash-live-001`
+**Model Resolution:**
+Use `Gemini.Live.Models.resolve/1` to automatically select an available Live model:
+- `Models.resolve(:text)` - Text-only responses
+- `Models.resolve(:audio)` - Native audio responses
+
+This handles regional rollout differences and API key capabilities automatically.
 
 ### Telemetry Events
 
