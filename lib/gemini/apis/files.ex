@@ -735,10 +735,10 @@ defmodule Gemini.APIs.Files do
       )
 
       # Use the registered files
-      file_uri = hd(response.files).uri
+      file = hd(response.files)
       Gemini.generate([
-        %{text: "Summarize this document"},
-        %{file_data: %{file_uri: file_uri}}
+        "Summarize this document",
+        %{file_uri: file.uri, mime_type: file.mime_type}
       ])
 
   ## GCS URI Format

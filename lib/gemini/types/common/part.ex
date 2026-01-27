@@ -90,6 +90,19 @@ defmodule Gemini.Types.Part do
   end
 
   @doc """
+  Create a part referencing an uploaded file by URI.
+
+  ## Examples
+
+      Part.file_data("https://generativelanguage.googleapis.com/v1beta/files/abc123", "image/png")
+      Part.file_data("gs://my-bucket/doc.pdf", "application/pdf")
+  """
+  @spec file_data(String.t(), String.t()) :: t()
+  def file_data(file_uri, mime_type) when is_binary(file_uri) and is_binary(mime_type) do
+    %__MODULE__{file_data: %FileData{file_uri: file_uri, mime_type: mime_type}}
+  end
+
+  @doc """
   Create a part from a file path.
   """
   @spec file(String.t()) :: t()

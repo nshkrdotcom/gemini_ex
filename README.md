@@ -58,7 +58,7 @@ Add `gemini` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:gemini_ex, "~> 0.9.0"}
+    {:gemini_ex, "~> 0.9.1"}
   ]
 end
 ```
@@ -649,9 +649,10 @@ Enum.each(response.files, fn file ->
   IO.puts("Registered: #{file.name} - #{file.uri}")
 end)
 
+file = hd(response.files)
 {:ok, response} = Gemini.generate([
   "Summarize this document",
-  %{file_data: %{file_uri: hd(response.files).uri}}
+  %{file_uri: file.uri, mime_type: file.mime_type}
 ])
 ```
 

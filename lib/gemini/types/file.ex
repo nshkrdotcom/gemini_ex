@@ -35,8 +35,8 @@ defmodule Gemini.Types.File do
 
       # Use in content generation
       {:ok, response} = Gemini.generate([
-        %{type: "text", text: "What's in this image?"},
-        %{type: "file", uri: file.uri, mime_type: file.mime_type}
+        "What's in this image?",
+        %{file_uri: file.uri, mime_type: file.mime_type}
       ])
   """
 

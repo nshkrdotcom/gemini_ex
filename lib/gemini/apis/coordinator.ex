@@ -38,6 +38,7 @@ defmodule Gemini.APIs.Coordinator do
   alias Gemini.Tools.AutomaticFunctionCalling
 
   alias Gemini.Types.Content
+  alias Gemini.Types.File, as: GeminiFile
 
   alias Gemini.Types.{
     Blob,
@@ -1038,6 +1039,51 @@ defmodule Gemini.APIs.Coordinator do
     }
   end
 
+  # File struct - extract URI and mime_type (Python SDK parity)
+  defp normalize_single_content(%GeminiFile{uri: uri, mime_type: mime_type})
+       when is_binary(uri) and is_binary(mime_type) do
+    %Content{
+      role: "user",
+      parts: [%Part{file_data: %FileData{file_uri: uri, mime_type: mime_type}}]
+    }
+  end
+
+  # Map with file_uri + mime_type - uploaded file reference (Issue #18)
+  defp normalize_single_content(%{file_uri: file_uri, mime_type: mime_type})
+       when is_binary(file_uri) and is_binary(mime_type) and file_uri != "" do
+    %Content{
+      role: "user",
+      parts: [%Part{file_data: %FileData{file_uri: file_uri, mime_type: mime_type}}]
+    }
+  end
+
+  # Map with file_uri only - fallback mime_type
+  defp normalize_single_content(%{file_uri: file_uri} = map)
+       when is_binary(file_uri) and file_uri != "" do
+    mime_type = Map.get(map, :mime_type, "application/octet-stream")
+
+    %Content{
+      role: "user",
+      parts: [%Part{file_data: %FileData{file_uri: file_uri, mime_type: mime_type}}]
+    }
+  end
+
+  # Map with file_data wrapper - nested file reference
+  defp normalize_single_content(%{file_data: %{file_uri: file_uri} = fd})
+       when is_binary(file_uri) do
+    mime_type = Map.get(fd, :mime_type, "application/octet-stream")
+
+    %Content{
+      role: "user",
+      parts: [%Part{file_data: %FileData{file_uri: file_uri, mime_type: mime_type}}]
+    }
+  end
+
+  # Map with bare text key (no :type wrapper)
+  defp normalize_single_content(%{text: text}) when is_binary(text) do
+    %Content{role: "user", parts: [Part.text(text)]}
+  end
+
   # Simple string - convert to text content
   defp normalize_single_content(text) when is_binary(text) do
     %Content{role: "user", parts: [Part.text(text)]}
@@ -1054,6 +1100,9 @@ defmodule Gemini.APIs.Coordinator do
     - Map with role and parts: %{role: "user", parts: [...]}
     - Map with type: %{type: "text", text: "..."}
     - Map with image: %{type: "image", source: %{type: "base64", data: "..."}}
+    - Map with file_uri: %{file_uri: "...", mime_type: "..."}
+    - Map with file_data: %{file_data: %{file_uri: "...", mime_type: "..."}}
+    - File struct: %Gemini.Types.File{uri: "...", mime_type: "..."}
     """
   end
 
@@ -1066,6 +1115,24 @@ defmodule Gemini.APIs.Coordinator do
     # (consistent with Anthropic-style format fix for Issue #11)
     blob = %Blob{data: data, mime_type: mime_type}
     %Part{inline_data: blob}
+  end
+
+  # File struct in parts list
+  defp normalize_part(%GeminiFile{uri: uri, mime_type: mime_type})
+       when is_binary(uri) and is_binary(mime_type) do
+    %Part{file_data: %FileData{file_uri: uri, mime_type: mime_type}}
+  end
+
+  # Map with file_data containing file_uri
+  defp normalize_part(%{file_data: %{file_uri: file_uri} = fd}) when is_binary(file_uri) do
+    mime_type = Map.get(fd, :mime_type, "application/octet-stream")
+    %Part{file_data: %FileData{file_uri: file_uri, mime_type: mime_type}}
+  end
+
+  # Flat map with file_uri
+  defp normalize_part(%{file_uri: file_uri} = map) when is_binary(file_uri) do
+    mime_type = Map.get(map, :mime_type, "application/octet-stream")
+    %Part{file_data: %FileData{file_uri: file_uri, mime_type: mime_type}}
   end
 
   defp normalize_part(text) when is_binary(text), do: Part.text(text)

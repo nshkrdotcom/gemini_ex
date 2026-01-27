@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.9.1] - 2026-01-27
+
+### Added
+
+#### Content Normalization for Files API (Python SDK Parity)
+- **`Part.file_data/2` convenience constructor**: Create file reference parts with `Part.file_data(uri, mime_type)`, matching the ergonomics of `Part.text/1`
+- **File struct as content item**: Pass `%Gemini.Types.File{}` structs directly in content lists, matching Python SDK's `contents=[myfile, "describe this"]` pattern
+- **`%{file_uri:, mime_type:}` map support**: Flat map shorthand accepted as top-level content items and inside `parts:` lists (Issue #18)
+- **`%{file_data: %{file_uri:}}` map support**: Nested file_data wrapper maps accepted as content items and parts
+- **`%{text:}` bare map support**: Plain `%{text: "..."}` maps (without `:type` wrapper) accepted as content items
+- **`normalize_part/1` file clauses**: File struct, `%{file_data:}`, and `%{file_uri:}` maps now handled inside explicit `%{role:, parts: [...]}` structures
+
+### Fixed
+- **Files API doc examples**: Updated `register_files` and `File` moduledoc examples to use the new `%{file_uri:, mime_type:}` shorthand instead of broken `%{file_data: %{file_uri:}}` patterns missing `mime_type`
+- **README file usage example**: Corrected to use `%{file_uri: file.uri, mime_type: file.mime_type}` pattern
+- **Error message**: `ArgumentError` raised for unrecognized content formats now mentions `file_uri` and `file_data` as accepted shapes
+
 ## [0.9.0] - 2026-01-23
 
 ### Added
@@ -1900,37 +1919,39 @@ config :gemini_ex,
 - Minimal latency overhead
 - Concurrent request processing
 
-[0.9.0]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.9.0
-[0.8.8]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.8.8
-[0.8.7]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.8.7
-[0.8.6]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.8.6
-[0.8.5]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.8.5
-[0.8.4]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.8.4
-[0.8.3]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.8.3
-[0.8.2]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.8.2
-[0.8.1]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.8.1
-[0.8.0]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.8.0
-[0.7.3]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.7.3
-[0.7.2]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.7.2
-[0.7.1]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.7.1
-[0.7.0]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.7.0
-[0.6.4]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.6.4
-[0.6.3]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.6.3
-[0.6.2]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.6.2
-[0.6.1]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.6.1
-[0.6.0]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.6.0
-[0.5.2]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.5.2
-[0.5.1]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.5.1
-[0.5.0]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.5.0
-[0.4.0]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.4.0
-[0.3.1]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.3.1
-[0.3.0]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.3.0
-[0.2.3]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.2.3
-[0.2.2]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.2.2
-[0.2.1]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.2.1
-[0.2.0]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.2.0
-[0.1.1]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.1.1
-[0.1.0]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.1.0
-[0.0.3]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.0.3
-[0.0.2]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.0.2
+[Unreleased]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.9.1...HEAD
+[0.9.1]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.9.0...v0.9.1
+[0.9.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.8.8...v0.9.0
+[0.8.8]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.8.7...v0.8.8
+[0.8.7]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.8.6...v0.8.7
+[0.8.6]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.8.5...v0.8.6
+[0.8.5]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.8.4...v0.8.5
+[0.8.4]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.8.3...v0.8.4
+[0.8.3]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.8.2...v0.8.3
+[0.8.2]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.8.1...v0.8.2
+[0.8.1]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.8.0...v0.8.1
+[0.8.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.7.3...v0.8.0
+[0.7.3]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.7.2...v0.7.3
+[0.7.2]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.7.1...v0.7.2
+[0.7.1]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.7.0...v0.7.1
+[0.7.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.6.4...v0.7.0
+[0.6.4]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.6.3...v0.6.4
+[0.6.3]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.6.2...v0.6.3
+[0.6.2]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.6.1...v0.6.2
+[0.6.1]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.6.0...v0.6.1
+[0.6.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.5.2...v0.6.0
+[0.5.2]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.5.1...v0.5.2
+[0.5.1]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.5.0...v0.5.1
+[0.5.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.3.1...v0.4.0
+[0.3.1]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.3.0...v0.3.1
+[0.3.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.2.3...v0.3.0
+[0.2.3]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.2.2...v0.2.3
+[0.2.2]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.2.1...v0.2.2
+[0.2.1]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.1.1...v0.2.0
+[0.1.1]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.1.0...v0.1.1
+[0.1.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.0.3...v0.1.0
+[0.0.3]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.0.2...v0.0.3
+[0.0.2]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/nshkrdotcom/gemini_ex/releases/tag/v0.0.1
