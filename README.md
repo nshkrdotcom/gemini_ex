@@ -49,7 +49,7 @@ A comprehensive Elixir client for Google's Gemini AI API with dual authenticatio
 
 We've adopted ALTAR's `LATER` protocol to provide a best-in-class local tool-calling experience. This is the first step in a long-term vision to offer a seamless "promotion path" for your AI tools, from local testing to a secure, scalable, and governed production environment via ALTAR's `GRID` protocol.
 
-**[Learn the full story behind our integration in `ALTAR_INTEGRATION.md`](ALTAR_INTEGRATION.md)**
+**[Learn the full story behind our integration in `ALTAR_INTEGRATION.md`](guides/ALTAR_INTEGRATION.md)**
 
 ## Installation
 
