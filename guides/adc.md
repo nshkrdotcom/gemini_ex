@@ -10,9 +10,10 @@ Application Default Credentials (ADC) is a strategy used by Google Cloud client 
 
 ADC searches for credentials in the following order:
 
-1. **Environment Variable**: `GOOGLE_APPLICATION_CREDENTIALS` pointing to a service account JSON file
-2. **User Credentials**: `~/.config/gcloud/application_default_credentials.json` (created via `gcloud auth application-default login`)
-3. **GCP Metadata Server**: Automatic credentials for code running on Google Cloud Platform infrastructure
+1. **Environment Variable (JSON)**: `GOOGLE_APPLICATION_CREDENTIALS_JSON` containing the service account JSON content directly (useful for containerized environments)
+2. **Environment Variable (Path)**: `GOOGLE_APPLICATION_CREDENTIALS` pointing to a service account JSON file
+3. **User Credentials**: `~/.config/gcloud/application_default_credentials.json` (created via `gcloud auth application-default login`)
+4. **GCP Metadata Server**: Automatic credentials for code running on Google Cloud Platform infrastructure
 
 ## Benefits
 
@@ -25,7 +26,37 @@ ADC searches for credentials in the following order:
 
 ## Setting Up ADC
 
-### Option 1: Service Account Key File (Development & CI/CD)
+### Option 1: Service Account JSON Content (Containerized Environments)
+
+Best for: Heroku, Fly.io, Railway, Docker, and other containerized environments where mounting credential files is impractical.
+
+1. Create a service account in Google Cloud Console
+2. Download the JSON key file
+3. Set the environment variable with the JSON content:
+
+```bash
+export GOOGLE_APPLICATION_CREDENTIALS_JSON='{"type":"service_account","project_id":"my-project",...}'
+```
+
+**Example usage:**
+
+```elixir
+# ADC will automatically parse and use the JSON credentials
+{:ok, creds} = Gemini.Auth.ADC.load_credentials()
+{:ok, token} = Gemini.Auth.ADC.get_access_token(creds)
+
+# Use with Vertex AI
+{:ok, project_id} = Gemini.Auth.ADC.get_project_id(creds)
+{:ok, response} = Gemini.generate("Hello!", auth: :vertex_ai)
+```
+
+**Tip**: In Heroku, set the config var:
+
+```bash
+heroku config:set GOOGLE_APPLICATION_CREDENTIALS_JSON='{"type":"service_account",...}'
+```
+
+### Option 2: Service Account Key File (Development & CI/CD)
 
 Best for: Local development, testing, CI/CD pipelines
 
@@ -57,7 +88,7 @@ config = %{
 
 **Security Note**: Never commit service account keys to version control. Use environment variables or secret management systems.
 
-### Option 2: User Credentials (Development)
+### Option 3: User Credentials (Development)
 
 Best for: Local development with personal Google account
 
@@ -93,7 +124,7 @@ end
 gcloud auth application-default revoke
 ```
 
-### Option 3: GCP Metadata Server (Production)
+### Option 4: GCP Metadata Server (Production)
 
 Best for: Production deployments on Google Cloud Platform
 
@@ -254,17 +285,25 @@ token1 == token2  # => true
 
 **Solutions**:
 
-1. **Set GOOGLE_APPLICATION_CREDENTIALS**:
+1. **Set GOOGLE_APPLICATION_CREDENTIALS_JSON** (for containerized environments):
+
+   ```bash
+   export GOOGLE_APPLICATION_CREDENTIALS_JSON='{"type":"service_account",...}'
+   ```
+
+2. **Set GOOGLE_APPLICATION_CREDENTIALS** (file path):
+
    ```bash
    export GOOGLE_APPLICATION_CREDENTIALS="/path/to/key.json"
    ```
 
-2. **Run gcloud auth**:
+3. **Run gcloud auth**:
+
    ```bash
    gcloud auth application-default login
    ```
 
-3. **Check if on GCP**:
+4. **Check if on GCP**:
    ```elixir
    Gemini.Auth.MetadataServer.available?()
    ```
@@ -442,6 +481,9 @@ Use environment variables or secret management:
 
 ```bash
 # .env.example (commit this)
+# Option A: JSON content directly (for containerized environments)
+GOOGLE_APPLICATION_CREDENTIALS_JSON=
+# Option B: File path (for local development)
 GOOGLE_APPLICATION_CREDENTIALS=/path/to/your/service-account-key.json
 VERTEX_PROJECT_ID=your-project-id
 VERTEX_LOCATION=us-central1
