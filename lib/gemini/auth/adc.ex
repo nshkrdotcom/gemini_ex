@@ -10,11 +10,13 @@ defmodule Gemini.Auth.ADC do
 
   ADC searches for credentials in the following order:
 
-  1. **Environment Variable**: `GOOGLE_APPLICATION_CREDENTIALS` pointing to a
+  1. **Environment Variable (JSON)**: `GOOGLE_APPLICATION_CREDENTIALS_JSON` containing
+     the service account JSON content directly (useful for containerized environments)
+  2. **Environment Variable (Path)**: `GOOGLE_APPLICATION_CREDENTIALS` pointing to a
      service account JSON file
-  2. **User Credentials**: `~/.config/gcloud/application_default_credentials.json`
+  3. **User Credentials**: `~/.config/gcloud/application_default_credentials.json`
      (created via `gcloud auth application-default login`)
-  3. **GCP Metadata Server**: Automatic credentials for code running on GCP
+  4. **GCP Metadata Server**: Automatic credentials for code running on GCP
      infrastructure (Compute Engine, GKE, Cloud Run, Cloud Functions, App Engine)
 
   ## Features
@@ -46,15 +48,19 @@ defmodule Gemini.Auth.ADC do
 
   ## Setting Up ADC
 
-  ### Option 1: Service Account Key (Development)
+  ### Option 1: Service Account JSON Content (Containerized Environments)
+
+      export GOOGLE_APPLICATION_CREDENTIALS_JSON='{"type":"service_account",...}'
+
+  ### Option 2: Service Account Key File (Development)
 
       export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account-key.json"
 
-  ### Option 2: User Credentials (Development)
+  ### Option 3: User Credentials (Development)
 
       gcloud auth application-default login
 
-  ### Option 3: Metadata Server (Production on GCP)
+  ### Option 4: Metadata Server (Production on GCP)
 
       # No setup required - automatically works on GCP infrastructure
 
@@ -113,9 +119,10 @@ defmodule Gemini.Auth.ADC do
   Load credentials following the ADC chain.
 
   Searches for credentials in the standard ADC order:
-  1. GOOGLE_APPLICATION_CREDENTIALS environment variable
-  2. User credentials file (~/.config/gcloud/application_default_credentials.json)
-  3. GCP metadata server
+  1. GOOGLE_APPLICATION_CREDENTIALS_JSON environment variable (JSON content)
+  2. GOOGLE_APPLICATION_CREDENTIALS environment variable (file path)
+  3. User credentials file (~/.config/gcloud/application_default_credentials.json)
+  4. GCP metadata server
 
   ## Returns
 
@@ -142,7 +149,24 @@ defmodule Gemini.Auth.ADC do
   def load_credentials do
     Logger.debug("[ADC] Starting credential discovery")
 
-    # 1. Check GOOGLE_APPLICATION_CREDENTIALS environment variable
+    # 1. Check GOOGLE_APPLICATION_CREDENTIALS_JSON environment variable (JSON content)
+    case System.get_env("GOOGLE_APPLICATION_CREDENTIALS_JSON") do
+      nil ->
+        Logger.debug("[ADC] GOOGLE_APPLICATION_CREDENTIALS_JSON not set")
+        load_credentials_from_file_or_fallback()
+
+      "" ->
+        Logger.debug("[ADC] GOOGLE_APPLICATION_CREDENTIALS_JSON is empty")
+        load_credentials_from_file_or_fallback()
+
+      json_content ->
+        Logger.debug("[ADC] Found GOOGLE_APPLICATION_CREDENTIALS_JSON")
+        parse_service_account_json(json_content)
+    end
+  end
+
+  defp load_credentials_from_file_or_fallback do
+    # 2. Check GOOGLE_APPLICATION_CREDENTIALS environment variable (file path)
     case System.get_env("GOOGLE_APPLICATION_CREDENTIALS") do
       nil ->
         Logger.debug("[ADC] GOOGLE_APPLICATION_CREDENTIALS not set")
@@ -356,6 +380,31 @@ defmodule Gemini.Auth.ADC do
       Logger.debug("[ADC] User credentials file not found")
       # 3. Try metadata server
       load_metadata_server_credentials()
+    end
+  end
+
+  defp parse_service_account_json(json_content) do
+    case Jason.decode(json_content) do
+      {:ok, %{"type" => "service_account"} = data} ->
+        creds =
+          for {key, val} <- data, into: %{} do
+            {String.to_atom(key), val}
+          end
+
+        Logger.info(
+          "[ADC] Loaded service account credentials from GOOGLE_APPLICATION_CREDENTIALS_JSON"
+        )
+
+        {:ok, {:service_account, creds}}
+
+      {:ok, %{"type" => type}} ->
+        {:error, "Unsupported credential type: #{type}"}
+
+      {:ok, _} ->
+        {:error, "Invalid service account JSON format"}
+
+      {:error, reason} ->
+        {:error, "Failed to parse GOOGLE_APPLICATION_CREDENTIALS_JSON: #{inspect(reason)}"}
     end
   end
 
