@@ -80,8 +80,11 @@ defmodule Gemini.Types.Live.Setup do
   """
   @spec new(String.t(), keyword()) :: t()
   def new(model, opts \\ []) when is_binary(model) do
+    model_prefix = Keyword.get(opts, :model_prefix, "")
+    model = model_prefix <> normalize_model_name(model)
+
     %__MODULE__{
-      model: normalize_model_name(model),
+      model: model,
       generation_config: Keyword.get(opts, :generation_config),
       system_instruction: Keyword.get(opts, :system_instruction),
       tools: Keyword.get(opts, :tools),

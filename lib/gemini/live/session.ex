@@ -575,6 +575,7 @@ defmodule Gemini.Live.Session do
 
     Setup.new(
       config.model,
+      model_prefix: model_prefix(config.auth, config.project_id, config.location),
       generation_config: config.generation_config,
       system_instruction: config.system_instruction,
       tools: config.tools,
@@ -587,6 +588,11 @@ defmodule Gemini.Live.Session do
       output_audio_transcription: config.output_audio_transcription
     )
   end
+
+  defp model_prefix(:vertex_ai, project_id, location),
+    do: "projects/#{project_id}/locations/#{location}/publishers/google/"
+
+  defp model_prefix(_auth, _project_id, _location), do: ""
 
   # Build session resumption config, merging the resume handle if provided
   @spec build_session_resumption_config(map() | nil, String.t() | nil) :: map() | nil

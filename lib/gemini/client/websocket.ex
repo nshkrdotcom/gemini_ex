@@ -544,8 +544,8 @@ defmodule Gemini.Client.WebSocket do
     end
   end
 
-  defp build_websocket_path(%__MODULE__{auth_strategy: :vertex_ai} = conn) do
-    "#{@vertex_path}?project=#{conn.project_id}&location=#{conn.location}"
+  defp build_websocket_path(%__MODULE__{auth_strategy: :vertex_ai}) do
+    @vertex_path
   end
 
   @doc false
