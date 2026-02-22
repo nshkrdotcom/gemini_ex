@@ -81,7 +81,7 @@ defmodule Gemini.Types.Live.Setup do
   @spec new(String.t(), keyword()) :: t()
   def new(model, opts \\ []) when is_binary(model) do
     model_prefix = Keyword.get(opts, :model_prefix, "")
-    model = model_prefix <> normalize_model_name(model)
+    model = model |> normalize_model_name() |> apply_model_prefix(model_prefix)
 
     %__MODULE__{
       model: model,
@@ -423,10 +423,24 @@ defmodule Gemini.Types.Live.Setup do
 
   # Normalize model name to include "models/" prefix if not already present
   defp normalize_model_name(model) when is_binary(model) do
-    if String.starts_with?(model, "models/") do
+    cond do
+      String.starts_with?(model, "projects/") -> model
+      String.starts_with?(model, "models/") -> model
+      true -> "models/#{model}"
+    end
+  end
+
+  defp apply_model_prefix(model, ""), do: model
+
+  defp apply_model_prefix(model, model_prefix)
+       when is_binary(model) and is_binary(model_prefix) do
+    if String.starts_with?(model, "projects/") do
       model
     else
-      "models/#{model}"
+      normalized_prefix =
+        if String.ends_with?(model_prefix, "/"), do: model_prefix, else: model_prefix <> "/"
+
+      normalized_prefix <> model
     end
   end
 

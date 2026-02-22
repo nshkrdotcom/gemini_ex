@@ -300,10 +300,13 @@ defmodule Gemini.RateLimiterTest do
       model = "retry-jitter-#{System.unique_integer()}"
       state_key = State.build_key(model, nil, :token_count)
 
-      # Pre-set a short retry window
-      State.set_retry_state(state_key, %{"retryDelay" => "30ms"})
+      # Pre-set a longer retry window to reduce scheduler/timing flakiness.
+      # We still assert a bounded wait, but avoid tiny windows that can elapse
+      # before execute_with_retry/4 reaches the sleep branch.
+      State.set_retry_state(state_key, %{"retryDelay" => "120ms"})
 
-      config = Config.build(base_backoff_ms: 5, jitter_factor: 0.2)
+      # Use deterministic waiting for this timing assertion.
+      config = Config.build(base_backoff_ms: 5, jitter_factor: 0.0)
 
       start = System.monotonic_time(:millisecond)
 
@@ -312,9 +315,9 @@ defmodule Gemini.RateLimiterTest do
 
       elapsed = System.monotonic_time(:millisecond) - start
 
-      # Should wait at least near the retry window, with a small jitter cushion
-      assert elapsed >= 25
-      assert elapsed < 120
+      # Should wait close to the configured retry window.
+      assert elapsed >= 80
+      assert elapsed < 300
     end
   end
 

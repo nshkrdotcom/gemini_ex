@@ -21,9 +21,9 @@ defmodule Gemini.APIs.CoordinatorContentNormalizationTest do
 
   alias Gemini.APIs.Coordinator
   alias Gemini.Types.Content
-  alias Gemini.Types.Part
-  alias Gemini.Types.FileData
   alias Gemini.Types.File, as: GeminiFile
+  alias Gemini.Types.FileData
+  alias Gemini.Types.Part
 
   # ===========================================================================
   # Helper: exercise the normalization path through the public API

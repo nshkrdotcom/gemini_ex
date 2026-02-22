@@ -8,12 +8,14 @@ Application Default Credentials (ADC) is a strategy used by Google Cloud client 
 
 ## How ADC Works
 
-ADC searches for credentials in the following order:
+`gemini_ex` credential discovery searches in the following order:
 
-1. **Environment Variable (JSON)**: `GOOGLE_APPLICATION_CREDENTIALS_JSON` containing the service account JSON content directly (useful for containerized environments)
-2. **Environment Variable (Path)**: `GOOGLE_APPLICATION_CREDENTIALS` pointing to a service account JSON file
-3. **User Credentials**: `~/.config/gcloud/application_default_credentials.json` (created via `gcloud auth application-default login`)
-4. **GCP Metadata Server**: Automatic credentials for code running on Google Cloud Platform infrastructure
+1. **Environment Variable (JSON, gemini_ex extension)**: `GOOGLE_APPLICATION_CREDENTIALS_JSON` containing the service account JSON content directly (useful for containerized environments)
+2. **Environment Variable (Path, standard ADC)**: `GOOGLE_APPLICATION_CREDENTIALS` pointing to a service account JSON file
+3. **User Credentials (standard ADC)**: `~/.config/gcloud/application_default_credentials.json` (created via `gcloud auth application-default login`)
+4. **GCP Metadata Server (standard ADC)**: Automatic credentials for code running on Google Cloud Platform infrastructure
+
+> Note: Official Google ADC search order starts with `GOOGLE_APPLICATION_CREDENTIALS` (file path). `GOOGLE_APPLICATION_CREDENTIALS_JSON` is a `gemini_ex` convenience for container platforms.
 
 ## Benefits
 
@@ -591,15 +593,10 @@ defmodule MyApp.VertexAITest do
   alias MyApp.VertexAI
 
   @moduletag :live_api
+  @adc_available Gemini.Auth.ADC.available?()
 
-  setup do
-    # Ensure ADC is available for tests
-    case Gemini.Auth.ADC.available?() do
-      true ->
-        :ok
-      false ->
-        {:skip, "ADC credentials not available"}
-    end
+  if not @adc_available do
+    @moduletag skip: "ADC credentials not available"
   end
 
   test "generates content using ADC" do
@@ -611,7 +608,7 @@ end
 
 ## Related Documentation
 
-- [Authentication System](../../AUTHENTICATION_SYSTEM.md)
+- [Authentication System](AUTHENTICATION_SYSTEM.md)
 - [Rate Limiting Guide](rate_limiting.md)
 - [Tuning Guide](tunings.md)
 

@@ -171,6 +171,22 @@ defmodule Gemini.Client.WebSocketTest do
       assert path =~ "key=[REDACTED]"
       refute path =~ "test-key"
     end
+
+    test "uses Vertex v1 websocket endpoint without query params" do
+      conn = %WebSocket{
+        auth_strategy: :vertex_ai,
+        model: "gemini-2.5-flash",
+        project_id: "my-project",
+        location: "us-central1"
+      }
+
+      path = WebSocket.redacted_websocket_path(conn)
+
+      assert path == "/ws/google.cloud.aiplatform.v1.LlmBidiService/BidiGenerateContent"
+      refute path =~ "project="
+      refute path =~ "location="
+      refute path =~ "?"
+    end
   end
 
   describe "auth strategy validation" do

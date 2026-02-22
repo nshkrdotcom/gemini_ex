@@ -103,7 +103,7 @@ graph TD
 
 *   **Purpose**: To detect and load the *default* authentication credentials for the application.
 *   **Mechanism**: The `Gemini.Config.auth_config/0` function establishes a strict priority order for finding credentials:
-    1.  **Environment Variables**: Checks for `GEMINI_API_KEY`, `VERTEX_SERVICE_ACCOUNT`, etc. This is the highest priority.
+    1.  **Environment Variables**: Checks for `GEMINI_API_KEY`, `VERTEX_SERVICE_ACCOUNT`/`VERTEX_JSON_FILE`, and ADC vars such as `GOOGLE_APPLICATION_CREDENTIALS_JSON` and `GOOGLE_APPLICATION_CREDENTIALS`. This is the highest priority.
     2.  **Application Config**: If no environment variables are found, it checks for `:gemini, :auth` or `:gemini, :api_key` in the Elixir application environment (e.g., `config/runtime.exs`).
 *   **Code Example (`gemini/config.ex`):**
     ```elixir
@@ -218,11 +218,16 @@ This is the most secure and standard way to provide credentials in production, s
     export GEMINI_API_KEY="your-google-ai-api-key"
     ```
 
-*   **For Vertex AI (Service Account):**
+*   **For Vertex AI (Service Account / ADC):**
     ```bash
-    export VERTEX_SERVICE_ACCOUNT="/path/to/your/service-account.json"
     export VERTEX_PROJECT_ID="your-gcp-project-id"
     export VERTEX_LOCATION="us-central1"
+    # Option A: explicit Vertex service account path
+    export VERTEX_SERVICE_ACCOUNT="/path/to/your/service-account.json"
+    # Option B: standard ADC file path
+    export GOOGLE_APPLICATION_CREDENTIALS="/path/to/your/service-account.json"
+    # Option C: JSON content directly (gemini_ex extension)
+    export GOOGLE_APPLICATION_CREDENTIALS_JSON='{"type":"service_account",...}'
     # Optional: sets x-goog-user-project for quota/billing attribution
     # (also supports GOOGLE_CLOUD_QUOTA_PROJECT)
     export VERTEX_QUOTA_PROJECT_ID="your-quota-project-id"
@@ -252,8 +257,8 @@ Configure the library in your project's `config/runtime.exs` file. This is the c
     config :gemini_ex, :auth,
       type: :vertex_ai,
       credentials: %{
-        service_account_key: System.fetch_env!("VERTEX_SERVICE_ACCOUNT_PATH"),
-        project_id: System.fetch_env!("GCP_PROJECT_ID"),
+        service_account_key: System.fetch_env!("VERTEX_SERVICE_ACCOUNT"),
+        project_id: System.fetch_env!("VERTEX_PROJECT_ID"),
         location: "us-central1",
         quota_project_id: System.get_env("VERTEX_QUOTA_PROJECT_ID")
       }
@@ -302,8 +307,9 @@ Ephemeral tokens provide enhanced security by:
 
 #### API Version Considerations
 
-- **v1beta** (default): Standard Live API features
-- **v1alpha**: Required for ephemeral tokens, affective dialog, and proactive audio
+- **Gemini Live `v1beta`** (default): Standard Live API features
+- **Gemini Live `v1alpha`**: Required for ephemeral tokens, affective dialog, and proactive audio
+- **Vertex Live**: Uses the Vertex `v1` WebSocket endpoint in `gemini_ex`
 
 ```elixir
 # Use v1alpha for advanced features

@@ -73,12 +73,14 @@ wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.G
 
 **Vertex AI:**
 ```
-wss://{location}-aiplatform.googleapis.com/ws/google.cloud.aiplatform.v1beta1.LlmBidiService/BidiGenerateContent
+wss://{location}-aiplatform.googleapis.com/ws/google.cloud.aiplatform.v1.LlmBidiService/BidiGenerateContent
 ```
+
+> Vertex Live API requires billing enabled on the target GCP project. Without billing, the server closes setup with policy error `1008`.
 
 ### API Version
 
-The standard API version is `v1beta`. Some features require `v1alpha`:
+For Gemini API (`auth: :gemini`) connections, the standard API version is `v1beta`. Some features require `v1alpha`:
 - Affective dialog
 - Proactive audio
 - Ephemeral tokens
@@ -95,6 +97,8 @@ alias Gemini.Live.Models
   generation_config: %{response_modalities: ["AUDIO"]}
 )
 ```
+
+For Vertex AI (`auth: :vertex_ai`) connections, `gemini_ex` uses the Vertex Live `v1` endpoint.
 
 This library abstracts the WebSocket connection details. You interact through the `Gemini.Live.Session` module.
 

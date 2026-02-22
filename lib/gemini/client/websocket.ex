@@ -109,8 +109,8 @@ defmodule Gemini.Client.WebSocket do
   # Use v1alpha for native audio extras (affective dialog, proactivity, thinking).
   @gemini_host "generativelanguage.googleapis.com"
 
-  # Vertex AI endpoint template
-  @vertex_path "/ws/google.cloud.aiplatform.v1beta1.LlmBidiService/BidiGenerateContent"
+  # Vertex AI Live endpoint (v1)
+  @vertex_path "/ws/google.cloud.aiplatform.v1.LlmBidiService/BidiGenerateContent"
 
   # Connection timeouts
   @connect_timeout 30_000
@@ -154,7 +154,7 @@ defmodule Gemini.Client.WebSocket do
     - `:model` - Required. Model name
     - `:project_id` - Required for Vertex AI
     - `:location` - Vertex AI location (default: "us-central1")
-    - `:api_version` - API version (default: "v1beta")
+    - `:api_version` - Gemini API version for `:gemini` connections (default: "v1beta")
     - `:timeout` - Connection timeout in ms (default: 30000)
     - `:retry_attempts` - Number of retry attempts (default: 3)
     - `:retry_delay` - Initial retry delay in ms (default: 1000)

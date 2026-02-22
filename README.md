@@ -205,7 +205,7 @@ See `docs/guides/interactions.md` for CRUD, resumption (`last_event_id`), and ba
 
 ### Live API (WebSocket)
 
-Real-time bidirectional streaming for voice, video, and text interactions. The v0.9.0 release upgrades to v1beta as the default API version while supporting v1alpha for advanced native audio features.
+Real-time bidirectional streaming for voice, video, and text interactions. For Gemini Live connections, `v1beta` is the default API version, while `v1alpha` is available for advanced native-audio features. Vertex Live connections use the Vertex `v1` WebSocket endpoint.
 
 #### Model Resolution
 
@@ -1360,6 +1360,8 @@ export GEMINI_API_KEY="your_gemini_api_key"
 
 # For Vertex AI (optional, for multi-auth demos)
 export VERTEX_JSON_FILE="/path/to/service-account.json"
+# Alternative (standard ADC path)
+export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account.json"
 export VERTEX_PROJECT_ID="your-gcp-project-id"
 ```
 
@@ -1408,16 +1410,21 @@ config :gemini_ex, :auth,
 
 Zero-config GCP authentication with automatic credential discovery and token refresh.
 
+```bash
+# Configure ADC explicitly (optional)
+export GOOGLE_APPLICATION_CREDENTIALS_JSON='{"type":"service_account",...}'  # gemini_ex extension
+export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service_account.json"
+```
+
 ```elixir
 # Works on GCE/Cloud Run/GKE with no extra setup
 {:ok, response} = Gemini.generate("Hello from Vertex AI", auth: :vertex_ai)
 
-# Or point to a service account key
-export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service_account.json"
+# Also works with either env var above
 {:ok, response} = Gemini.generate("Hello", auth: :vertex_ai)
 ```
 
-The client checks `GOOGLE_APPLICATION_CREDENTIALS`, gcloud user credentials, and metadata server endpoints, caching access tokens for you via ETS.
+The client checks `GOOGLE_APPLICATION_CREDENTIALS_JSON` (gemini_ex extension), `GOOGLE_APPLICATION_CREDENTIALS` (standard ADC), gcloud user credentials, and metadata server endpoints, caching access tokens for you via ETS. Official Google ADC order starts with `GOOGLE_APPLICATION_CREDENTIALS`; JSON-content env support is a gemini_ex convenience.
 
 ## Model Configuration System
 

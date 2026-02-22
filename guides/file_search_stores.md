@@ -50,7 +50,10 @@ File Search Stores enable semantic search over your documents using vector embed
 
 ```bash
 export GOOGLE_CLOUD_PROJECT="your-project-id"
+# Option A: standard ADC file path
 export GOOGLE_APPLICATION_CREDENTIALS="/path/to/service-account-key.json"
+# Option B: JSON content directly (gemini_ex extension)
+export GOOGLE_APPLICATION_CREDENTIALS_JSON='{"type":"service_account",...}'
 ```
 
 ### Elixir Configuration

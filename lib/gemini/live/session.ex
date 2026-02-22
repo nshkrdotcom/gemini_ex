@@ -95,7 +95,7 @@ defmodule Gemini.Live.Session do
   - `:auth` - Auth strategy (`:gemini` or `:vertex_ai`, default: auto-detect)
   - `:project_id` - Required for Vertex AI
   - `:location` - Vertex AI location (default: "us-central1")
-  - `:api_version` - Live API version (default: "v1beta")
+  - `:api_version` - Gemini Live API version for `:gemini` auth (default: "v1beta")
   - `:generation_config` - Generation configuration
   - `:system_instruction` - System instruction content
   - `:tools` - Tool declarations
