@@ -16,33 +16,55 @@ defmodule Gemini.Live.Models do
   @type modality :: :text | :audio | :image
 
   @legacy_default_models %{
-    text: :flash_2_5_native_audio_preview_12_2025,
-    audio: :flash_2_5_native_audio_preview_12_2025,
-    image: :flash_2_0_exp_image_generation
+    gemini: %{
+      text: :flash_2_0_exp_image_generation,
+      audio: :flash_2_5_native_audio_preview_12_2025,
+      image: :flash_2_0_exp_image_generation
+    },
+    vertex_ai: %{
+      text: :flash_2_5_native_audio_preview_12_2025,
+      audio: :flash_2_5_native_audio_preview_12_2025,
+      image: :flash_2_0_preview_image_generation
+    }
   }
 
   @legacy_fallback_candidates %{
-    text: [
-      :flash_2_5_native_audio_latest,
-      :flash_2_5_native_audio_preview_12_2025,
-      :flash_2_5_native_audio_preview_09_2025,
-      :live_2_5_flash,
-      :live_2_5_flash_preview
-    ],
-    audio: [
-      :flash_2_5_native_audio_latest,
-      :flash_2_5_native_audio_preview_12_2025,
-      :flash_2_5_native_audio_preview_09_2025,
-      :live_2_5_flash_native_audio,
-      :live_2_5_flash_preview_native_audio_09_2025,
-      :live_2_5_flash_preview_native_audio,
-      :flash_2_5_preview_native_audio_dialog
-    ],
-    image: [
-      :flash_2_0_exp_image_generation,
-      :flash_2_0_preview_image_generation,
-      :flash_2_5_image
-    ]
+    gemini: %{
+      text: [
+        :live_2_5_flash_preview,
+        :live_2_5_flash,
+        :flash_2_0_exp_image_generation
+      ],
+      audio: [
+        :flash_2_5_native_audio_latest,
+        :flash_2_5_native_audio_preview_12_2025,
+        :flash_2_5_native_audio_preview_09_2025,
+        :live_2_5_flash_native_audio,
+        :live_2_5_flash_preview_native_audio_09_2025,
+        :live_2_5_flash_preview_native_audio,
+        :flash_2_5_preview_native_audio_dialog
+      ],
+      image: [
+        :flash_2_0_exp_image_generation,
+        :flash_2_0_preview_image_generation,
+        :flash_2_5_image
+      ]
+    },
+    vertex_ai: %{
+      text: [
+        :flash_2_5_native_audio_latest,
+        :flash_2_5_native_audio_preview_12_2025,
+        :flash_2_5_native_audio_preview_09_2025
+      ],
+      audio: [
+        :flash_2_5_native_audio_latest,
+        :flash_2_5_native_audio_preview_12_2025,
+        :flash_2_5_native_audio_preview_09_2025
+      ],
+      image: [
+        :flash_2_0_preview_image_generation
+      ]
+    }
   }
 
   @doc """
@@ -53,12 +75,14 @@ defmodule Gemini.Live.Models do
 
   @spec default(modality(), keyword()) :: String.t()
   def default(modality, opts) do
+    auth = normalized_auth(Keyword.get(opts, :auth, :gemini))
+
     case candidates(modality, opts) do
       [model | _] ->
         model
 
       [] ->
-        fallback_key = Map.fetch!(@legacy_default_models, modality)
+        fallback_key = default_fallback_key(modality, auth)
 
         safe_get_model(fallback_key) ||
           raise ArgumentError,
@@ -74,7 +98,7 @@ defmodule Gemini.Live.Models do
 
   @spec candidates(modality(), keyword()) :: [String.t()]
   def candidates(modality, opts) do
-    auth = Keyword.get(opts, :auth, :gemini)
+    auth = normalized_auth(Keyword.get(opts, :auth, :gemini))
 
     registry_candidates =
       case modality do
@@ -111,8 +135,9 @@ defmodule Gemini.Live.Models do
     selection =
       if is_list(available_models) do
         pick_from_available(candidate_models, available_models)
+        |> maybe_fallback_from_available(modality, available_models, opts)
       else
-        fetch_and_pick_model(candidate_models, require_method, opts)
+        fetch_and_pick_model(modality, candidate_models, require_method, opts)
       end
 
     case selection do
@@ -120,34 +145,23 @@ defmodule Gemini.Live.Models do
         model
 
       :none ->
-        fallback =
-          if is_list(available_models) do
-            fallback_from_available(modality, available_models)
-          else
-            :none
-          end
+        default_model = default(modality, opts)
 
-        case fallback do
-          {:ok, model} ->
-            model
+        Logger.warning(
+          "[Gemini.Live.Models] No candidate models matched availability; using #{default_model}."
+        )
 
-          :none ->
-            default_model = default(modality, opts)
-
-            Logger.warning(
-              "[Gemini.Live.Models] No candidate models matched availability; using #{default_model}."
-            )
-
-            default_model
-        end
+        default_model
     end
   end
 
-  defp fetch_and_pick_model(candidate_models, require_method, opts) do
+  defp fetch_and_pick_model(modality, candidate_models, require_method, opts) do
     case Coordinator.list_models(auth: Keyword.get(opts, :auth, :gemini)) do
       {:ok, response} ->
         available = filter_models_by_method(response.models, require_method)
+
         pick_from_available(candidate_models, available)
+        |> maybe_fallback_from_available(modality, available, opts)
 
       {:error, reason} ->
         Logger.warning(
@@ -158,10 +172,25 @@ defmodule Gemini.Live.Models do
     end
   end
 
-  defp fallback_from_available(modality, available_models) do
+  defp maybe_fallback_from_available({:ok, _} = selected, _modality, _available_models, _opts),
+    do: selected
+
+  defp maybe_fallback_from_available(
+         :none,
+         modality,
+         available_models,
+         opts
+       )
+       when is_list(available_models) do
+    fallback_from_available(modality, available_models, opts)
+  end
+
+  defp fallback_from_available(modality, available_models, opts) do
+    auth = normalized_auth(Keyword.get(opts, :auth, :gemini))
+
     available_models
     |> Enum.map(&normalize_model_name/1)
-    |> Enum.filter(&live_candidate_for_modality?(&1, modality))
+    |> Enum.filter(&live_candidate_for_modality?(&1, modality, auth))
     |> prioritize_models(modality)
     |> List.first()
     |> case do
@@ -170,15 +199,20 @@ defmodule Gemini.Live.Models do
     end
   end
 
-  defp live_candidate_for_modality?(model_name, :text) do
+  defp live_candidate_for_modality?(model_name, :text, :gemini) do
+    not String.contains?(model_name, "tts") and
+      not String.contains?(model_name, "native-audio")
+  end
+
+  defp live_candidate_for_modality?(model_name, :text, :vertex_ai) do
     live_like_model_name?(model_name) and not String.contains?(model_name, "tts")
   end
 
-  defp live_candidate_for_modality?(model_name, :audio) do
+  defp live_candidate_for_modality?(model_name, :audio, _auth) do
     live_like_model_name?(model_name) and not String.contains?(model_name, "tts")
   end
 
-  defp live_candidate_for_modality?(model_name, :image) do
+  defp live_candidate_for_modality?(model_name, :image, _auth) do
     String.contains?(model_name, "image")
   end
 
@@ -251,11 +285,25 @@ defmodule Gemini.Live.Models do
   end
 
   defp legacy_candidates(modality, auth) do
-    @legacy_fallback_candidates
-    |> Map.fetch!(modality)
+    auth_candidates =
+      @legacy_fallback_candidates
+      |> Map.get(auth, %{})
+      |> Map.fetch!(modality)
+
+    auth_candidates
     |> Enum.filter(&auth_compatible?(&1, auth))
     |> Enum.map(&safe_get_model/1)
   end
+
+  defp default_fallback_key(modality, auth) do
+    @legacy_default_models
+    |> Map.get(auth, %{})
+    |> Map.fetch!(modality)
+  end
+
+  defp normalized_auth(:vertex), do: :vertex_ai
+  defp normalized_auth(:vertex_ai), do: :vertex_ai
+  defp normalized_auth(_), do: :gemini
 
   defp auth_compatible?(model_key, :vertex_ai), do: Config.model_available?(model_key, :vertex_ai)
   defp auth_compatible?(_model_key, _auth), do: true

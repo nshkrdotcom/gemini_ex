@@ -38,9 +38,8 @@ defmodule Gemini.ModelRegistryTest do
       text_candidates = ModelRegistry.live_candidates(:text)
       audio_candidates = ModelRegistry.live_candidates(:audio)
 
-      assert hd(text_candidates) == "gemini-2.5-flash-native-audio-preview-12-2025"
       assert hd(audio_candidates) == "gemini-2.5-flash-native-audio-preview-12-2025"
-      assert "gemini-2.5-flash-native-audio-preview-09-2025" in text_candidates
+      assert text_candidates == []
       assert "gemini-2.5-flash-native-audio-latest" in audio_candidates
     end
   end

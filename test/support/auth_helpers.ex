@@ -29,6 +29,28 @@ defmodule Gemini.Test.AuthHelpers do
     end
   end
 
+  @doc """
+  Detect configured auth for a specific strategy, independent of default priority.
+
+  Useful in live tests when both Gemini and Vertex credentials are present and
+  tests need to validate each strategy explicitly.
+  """
+  @spec detect_auth(:gemini | :vertex_ai) :: auth_state()
+  def detect_auth(:gemini) do
+    case Config.get_auth_config(:gemini) do
+      %{api_key: key} when is_binary(key) and key != "" ->
+        {:ok, :gemini, %{api_key: key}}
+
+      _ ->
+        :missing
+    end
+  end
+
+  def detect_auth(:vertex_ai) do
+    Config.get_auth_config(:vertex_ai)
+    |> vertex_auth_state()
+  end
+
   defp vertex_auth_state(creds) do
     if valid_vertex_creds?(creds) do
       {:ok, :vertex_ai, creds}

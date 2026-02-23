@@ -15,7 +15,7 @@ defmodule Gemini.Auth.MultiAuthCoordinatorTest do
   describe "coordinate_auth/2" do
     @tag :live_api
     test "coordinates gemini auth strategy successfully" do
-      case AuthHelpers.detect_auth() do
+      case AuthHelpers.detect_auth(:gemini) do
         {:ok, :gemini, _} ->
           opts = [auth: :gemini]
 
@@ -25,14 +25,13 @@ defmodule Gemini.Auth.MultiAuthCoordinatorTest do
           assert Enum.any?(headers, fn {key, _value} -> key == "x-goog-api-key" end)
 
         _ ->
-          IO.puts("Skipping Gemini live test: missing auth")
           assert true
       end
     end
 
     @tag :live_api
     test "coordinates vertex_ai auth strategy successfully" do
-      case AuthHelpers.detect_auth() do
+      case AuthHelpers.detect_auth(:vertex_ai) do
         {:ok, :vertex_ai, _} ->
           opts = [auth: :vertex_ai]
 
@@ -44,7 +43,6 @@ defmodule Gemini.Auth.MultiAuthCoordinatorTest do
           assert Enum.any?(headers, fn {key, _value} -> key == "Authorization" end)
 
         _ ->
-          IO.puts("Skipping Vertex live test: missing project/location/token")
           :ok
       end
     end
@@ -68,26 +66,24 @@ defmodule Gemini.Auth.MultiAuthCoordinatorTest do
   describe "get_credentials/1" do
     @tag :live_api
     test "retrieves gemini credentials from config" do
-      case AuthHelpers.detect_auth() do
+      case AuthHelpers.detect_auth(:gemini) do
         {:ok, :gemini, _} ->
           assert {:ok, credentials} = MultiAuthCoordinator.get_credentials(:gemini)
           assert is_map(credentials)
 
         _ ->
-          IO.puts("Skipping Gemini live test: missing auth")
           assert true
       end
     end
 
     @tag :live_api
     test "retrieves vertex_ai credentials from config" do
-      case AuthHelpers.detect_auth() do
+      case AuthHelpers.detect_auth(:vertex_ai) do
         {:ok, :vertex_ai, _} ->
           assert {:ok, credentials} = MultiAuthCoordinator.get_credentials(:vertex_ai)
           assert is_map(credentials)
 
         _ ->
-          IO.puts("Skipping Vertex live test: missing project/location/token")
           :ok
       end
     end
@@ -118,13 +114,12 @@ defmodule Gemini.Auth.MultiAuthCoordinatorTest do
   describe "refresh_credentials/1" do
     @tag :live_api
     test "refreshes gemini credentials (no-op)" do
-      case AuthHelpers.detect_auth() do
+      case AuthHelpers.detect_auth(:gemini) do
         {:ok, :gemini, _} ->
           assert {:ok, credentials} = MultiAuthCoordinator.refresh_credentials(:gemini)
           assert is_map(credentials)
 
         _ ->
-          IO.puts("Skipping Gemini live test: missing auth")
           assert true
       end
     end

@@ -7,6 +7,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-02-22
+
+### Added
+
+#### Model Registry (`Gemini.ModelRegistry`)
+- **Canonical model registry** with capability metadata sourced from Gemini model catalog pages
+- Model lookup by code, resource-style names (`models/`, `publishers/google/models/`), and aliases
+- Capability checks for `:live_api`, `:thinking`, `:function_calling`, `:structured_outputs`, `:audio_generation`, `:image_generation`, `:batch_api`, and `:caching`
+- Support state tracking: `:supported`, `:not_supported`, `:experimental`, `:unknown`
+- Modality tracking (input/output): `:text`, `:image`, `:video`, `:audio`, `:pdf`, `:embeddings`, `:music`
+- Live-model candidate selection by modality (`:text` / `:audio`)
+
+#### Config API Additions
+- **`Gemini.Config.model_info/1`**: Return model metadata from the registry by key atom or model string
+- **`Gemini.Config.model_supports?/2,3`**: Check whether a model supports a given capability
+- **`Gemini.Config.models_with_capability/1,2`**: List model codes matching a capability and support state
+- **`Gemini.Config.live_registry_candidates/1`**: Registry-backed Live API candidate model codes for a modality
+
+#### New Model Entries
+- `gemini-3.1-pro-preview` and `gemini-3.1-pro-preview-customtools` (Gemini 3.1 preview)
+- `gemini-2.5-flash-native-audio-latest` (latest native audio)
+- Legacy Live aliases: `gemini-live-2.5-flash`, `gemini-live-2.5-flash-preview`, `gemini-live-2.5-flash-native-audio`, etc.
+- Specialized model families: `gemini-2.5-computer-use-preview-10-2025`, `gemini-robotics-er-1.5-preview`, `lyria-realtime-exp`, `veo-3.1-generate-preview`, `veo-3.1-fast-generate-preview`, `imagen-4.0-generate-001`, `imagen-4.0-ultra-generate-001`, `imagen-4.0-fast-generate-001`
+
+#### ADC: `GOOGLE_APPLICATION_CREDENTIALS_JSON` Support
+- New ADC credential source for containerized environments (Heroku, Fly.io, Railway, Docker) where mounting credential files is impractical
+- Set `GOOGLE_APPLICATION_CREDENTIALS_JSON='{"type":"service_account",...}'` with full JSON content
+- Parsed before the standard file-path `GOOGLE_APPLICATION_CREDENTIALS` in the credential discovery chain
+- Service account JSON parsing now uses an explicit key allowlist instead of `String.to_atom/1`
+
+#### Vertex AI Model Endpoints
+- **`list_models/1`** uses the correct Vertex publisher models endpoint (`/v1beta1/publishers/google/models`) with `pageSize`/`pageToken` query params
+- **`get_model/2`** uses `publishers/google/models/{model}` path for Vertex AI
+- **`publisherModels` response normalization**: Vertex AI `list_models` responses are transparently normalized to the same `%ListModelsResponse{}` shape as Gemini API responses
+
+#### HTTP Client Per-Request Auth Override
+- `Gemini.Client.HTTP` verb functions (`get`, `post`, `patch`, `delete`) now respect `:auth`, `:api_key`, `:project_id`, `:location`, `:access_token`, and `:service_account` options passed per-request
+- Absolute paths (`/v1beta1/...`) and full URLs are passed through without re-prefixing
+
+#### Vertex Live Session Model Prefix
+- Live sessions with `auth: :vertex_ai` now build correct `projects/{p}/locations/{l}/publishers/google/models/{m}` resource names in the setup message
+
+#### Live API ADC Integration Test
+- New `test/live_api/adc_live_test.exs` for end-to-end ADC-authenticated Live API sessions
+
+### Changed
+- **Vertex Live API upgraded to v1**: WebSocket endpoint changed from `v1beta1.LlmBidiService/BidiGenerateContent` to `v1.LlmBidiService/BidiGenerateContent`
+- **Live model resolution uses registry**: `Gemini.Live.Models.resolve/1` now consults `ModelRegistry` plus runtime `list_models` results instead of hardcoded candidate lists
+- **Default text live model**: changed from `gemini-2.0-flash-exp` to `gemini-2.5-flash-native-audio-preview-12-2025`
+- **`latest` model alias**: updated from `gemini-3-pro-preview` to `gemini-3.1-pro-preview`
+- **ADC credential discovery order**: now `GOOGLE_APPLICATION_CREDENTIALS_JSON` → `GOOGLE_APPLICATION_CREDENTIALS` → gcloud user creds → metadata server
+- **`Live.Models.candidates/1`** and **`Live.Models.default/1`** now accept an optional `opts` keyword list for auth-aware candidate selection
+- **`Live.Setup.normalize_model_name/1`**: now recognizes `projects/`, `publishers/`, and `models/` prefixes
+
+### Fixed
+- **Vertex AI model path handling**: `list_models` and `get_model` use correct Vertex AI resource paths instead of Gemini API paths
+- **WebSocket model name normalization**: handles `models/`, `publishers/google/models/`, and full `projects/.../models/` prefixes, plus endpoint suffixes (`:generateContent`)
+- **Live Setup model prefix**: Vertex AI sessions correctly prefix model names with `projects/{p}/locations/{l}/publishers/google/`
+- **HTTP client URL building**: absolute paths and full URLs are no longer double-prefixed with the base URL
+
+### Removed
+- Bulk cleanup of ~50,000 lines of internal planning documents, gap analyses, implementation specs, and development notes not intended for distribution
+- Removed `test.sh`, `repro_concurrency_gate.exs`, and `CLAUDE.md` development artifacts
+- Removed `.kiro/` spec directory
+
 ## [0.9.1] - 2026-01-27
 
 ### Added
@@ -1919,7 +1984,8 @@ config :gemini_ex,
 - Minimal latency overhead
 - Concurrent request processing
 
-[Unreleased]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.9.1...HEAD
+[Unreleased]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.9.1...v0.10.0
 [0.9.1]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.8.8...v0.9.0
 [0.8.8]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.8.7...v0.8.8

@@ -759,10 +759,12 @@ defmodule Gemini do
   @spec stream_generate(String.t() | [Content.t()], options()) ::
           {:ok, [map()]} | {:error, Error.t()}
   def stream_generate(contents, opts \\ []) do
+    stream_timeout = Keyword.get(opts, :stream_timeout, 60_000)
+
     case start_stream(contents, opts) do
       {:ok, stream_id} ->
         :ok = subscribe_stream(stream_id)
-        collect_stream_responses(stream_id, [])
+        collect_stream_responses(stream_id, [], stream_timeout)
 
       {:error, error} ->
         {:error, error}
@@ -783,10 +785,10 @@ defmodule Gemini do
   end
 
   # Helper function to collect streaming responses
-  defp collect_stream_responses(stream_id, acc) do
+  defp collect_stream_responses(stream_id, acc, stream_timeout) do
     receive do
       {:stream_event, ^stream_id, %{type: :data, data: data}} ->
-        collect_stream_responses(stream_id, [data | acc])
+        collect_stream_responses(stream_id, [data | acc], stream_timeout)
 
       {:stream_complete, ^stream_id} ->
         {:ok, Enum.reverse(acc)}
@@ -794,7 +796,8 @@ defmodule Gemini do
       {:stream_error, ^stream_id, error} ->
         {:error, error}
     after
-      30_000 ->
+      stream_timeout ->
+        _ = Coordinator.stop_stream(stream_id)
         {:error, "Stream timeout"}
     end
   end

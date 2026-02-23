@@ -219,7 +219,7 @@ defmodule Gemini.ModelRegistry do
         "gemini-2.5-flash-native-audio-preview-09-2025",
         "gemini-2.5-flash-native-audio-latest"
       ],
-      live_modalities: [:text, :audio],
+      live_modalities: [:audio],
       notes: "Primary Live API entry from the model catalog"
     },
     %{
@@ -632,8 +632,10 @@ defmodule Gemini.ModelRegistry do
   @spec live_candidates(:text | :audio, keyword()) :: [String.t()]
   def live_candidates(modality, _opts \\ []) when modality in [:text, :audio] do
     @entries
-    |> Enum.filter(&(Map.get(&1.capabilities, :live_api, :unknown) == :supported))
-    |> Enum.filter(&(modality in effective_live_modalities(&1)))
+    |> Enum.filter(fn entry ->
+      Map.get(entry.capabilities, :live_api, :unknown) == :supported and
+        modality in effective_live_modalities(entry)
+    end)
     |> Enum.flat_map(fn entry -> [entry.code | entry.aliases] end)
     |> Enum.uniq()
   end
