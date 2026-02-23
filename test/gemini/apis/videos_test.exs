@@ -38,7 +38,7 @@ defmodule Gemini.APIs.VideosTest do
       assert config.fps == 24
       assert config.compression_format == :h264
       assert config.safety_filter_level == :block_some
-      assert config.person_generation == :allow_none
+      assert config.person_generation == :dont_allow
     end
 
     test "accepts custom config values" do
@@ -269,11 +269,12 @@ defmodule Gemini.APIs.VideosTest do
 
     test "format_person_generation converts atoms to API format" do
       assert Video.format_person_generation(:allow_adult) ==
-               "allowAdult"
+               "allow_adult"
 
-      assert Video.format_person_generation(:allow_all) == "allowAll"
+      assert Video.format_person_generation(:allow_all) == "allow_all"
 
-      assert Video.format_person_generation(:allow_none) == "allowNone"
+      assert Video.format_person_generation(:allow_none) == "dont_allow"
+      assert Video.format_person_generation(:dont_allow) == "dont_allow"
     end
   end
 
@@ -291,27 +292,24 @@ defmodule Gemini.APIs.VideosTest do
       params = Video.build_generation_params("A cat", config)
 
       assert params["prompt"] == "A cat"
-      assert params["videoConfig"]["sampleCount"] == 2
-      assert params["videoConfig"]["durationSeconds"] == 8
-      assert params["videoConfig"]["aspectRatio"] == "16:9"
-      assert params["videoConfig"]["fps"] == 30
-      assert params["videoConfig"]["compressionFormat"] == "h265"
-      assert params["videoConfig"]["resolution"] == "1080p"
+      assert params["numberOfVideos"] == 2
+      assert params["durationSeconds"] == 8
+      assert params["aspectRatio"] == "16:9"
+      assert params["resolution"] == "1080p"
+      assert params["personGeneration"] == "dont_allow"
     end
 
     test "build_generation_params includes optional fields" do
       config = %VideoGenerationConfig{
         number_of_videos: 1,
         negative_prompt: "low quality",
-        seed: 12_345,
-        guidance_scale: 10.0
+        seed: 12_345
       }
 
       params = Video.build_generation_params("A cat", config)
 
       assert params["negativePrompt"] == "low quality"
       assert params["seed"] == 12_345
-      assert params["guidanceScale"] == 10.0
     end
 
     test "build_generation_params omits nil optional fields" do
@@ -323,7 +321,8 @@ defmodule Gemini.APIs.VideosTest do
 
       refute Map.has_key?(params, "negativePrompt")
       refute Map.has_key?(params, "seed")
-      refute Map.has_key?(params, "guidanceScale")
+      refute Map.has_key?(params, "safetyFilterLevel")
+      refute Map.has_key?(params, "videoConfig")
     end
   end
 

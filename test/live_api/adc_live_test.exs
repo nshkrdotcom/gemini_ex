@@ -172,6 +172,79 @@ defmodule Gemini.LiveAPI.ADCLiveTest do
     end
   end
 
+  describe "ADC with service account JSON env var" do
+    @tag :adc_json
+    test "loads service account from GOOGLE_APPLICATION_CREDENTIALS_JSON" do
+      case System.get_env("GOOGLE_APPLICATION_CREDENTIALS_JSON") do
+        json when is_binary(json) and json != "" ->
+          original_file_path = System.get_env("GOOGLE_APPLICATION_CREDENTIALS")
+
+          try do
+            # Ensure this test specifically validates JSON-content flow.
+            System.delete_env("GOOGLE_APPLICATION_CREDENTIALS")
+
+            case ADC.load_credentials() do
+              {:ok, {:service_account, creds}} ->
+                assert is_map(creds)
+                assert creds.type == "service_account"
+                IO.puts("✓ Loaded service account from GOOGLE_APPLICATION_CREDENTIALS_JSON")
+
+              {:ok, {type, _}} ->
+                flunk("Expected :service_account from JSON env var, got #{inspect(type)}")
+
+              {:error, reason} ->
+                flunk("Failed to load service account JSON credentials: #{reason}")
+            end
+          after
+            if original_file_path do
+              System.put_env("GOOGLE_APPLICATION_CREDENTIALS", original_file_path)
+            end
+          end
+
+        _ ->
+          IO.puts("⊘ Skipping: GOOGLE_APPLICATION_CREDENTIALS_JSON not set")
+      end
+    end
+
+    @tag :adc_json
+    test "generates access token from GOOGLE_APPLICATION_CREDENTIALS_JSON credentials" do
+      case System.get_env("GOOGLE_APPLICATION_CREDENTIALS_JSON") do
+        json when is_binary(json) and json != "" ->
+          original_file_path = System.get_env("GOOGLE_APPLICATION_CREDENTIALS")
+
+          try do
+            System.delete_env("GOOGLE_APPLICATION_CREDENTIALS")
+
+            case ADC.load_credentials() do
+              {:ok, {:service_account, _} = creds} ->
+                case ADC.get_access_token(creds) do
+                  {:ok, token} ->
+                    assert is_binary(token)
+                    assert String.length(token) > 0
+                    IO.puts("✓ Generated access token from GOOGLE_APPLICATION_CREDENTIALS_JSON")
+
+                  {:error, reason} ->
+                    flunk("Failed to generate token from JSON env credentials: #{reason}")
+                end
+
+              {:ok, {type, _}} ->
+                flunk("Expected :service_account from JSON env var, got #{inspect(type)}")
+
+              {:error, reason} ->
+                flunk("Failed to load JSON env credentials: #{reason}")
+            end
+          after
+            if original_file_path do
+              System.put_env("GOOGLE_APPLICATION_CREDENTIALS", original_file_path)
+            end
+          end
+
+        _ ->
+          IO.puts("⊘ Skipping: GOOGLE_APPLICATION_CREDENTIALS_JSON not set")
+      end
+    end
+  end
+
   describe "ADC with user credentials" do
     test "loads user credentials from gcloud default path" do
       default_path = Path.expand("~/.config/gcloud/application_default_credentials.json")

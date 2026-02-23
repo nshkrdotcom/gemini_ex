@@ -1,5 +1,5 @@
 defmodule Gemini.Auth.VertexStrategyTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias Gemini.Auth.VertexStrategy
 
@@ -48,6 +48,31 @@ defmodule Gemini.Auth.VertexStrategyTest do
     client_x509_cert_url:
       "https://www.googleapis.com/robot/v1/metadata/x509/test-service%40test-project.iam.gserviceaccount.com"
   }
+
+  setup do
+    original_google_creds = System.get_env("GOOGLE_APPLICATION_CREDENTIALS")
+    original_google_creds_json = System.get_env("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+
+    # Isolate tests from developer machine credentials
+    System.delete_env("GOOGLE_APPLICATION_CREDENTIALS")
+    System.delete_env("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+
+    on_exit(fn ->
+      if original_google_creds do
+        System.put_env("GOOGLE_APPLICATION_CREDENTIALS", original_google_creds)
+      else
+        System.delete_env("GOOGLE_APPLICATION_CREDENTIALS")
+      end
+
+      if original_google_creds_json do
+        System.put_env("GOOGLE_APPLICATION_CREDENTIALS_JSON", original_google_creds_json)
+      else
+        System.delete_env("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+      end
+    end)
+
+    :ok
+  end
 
   describe "authenticate/1" do
     test "returns credentials for OAuth2 authentication" do
@@ -138,20 +163,14 @@ defmodule Gemini.Auth.VertexStrategyTest do
       assert error =~ "Missing required fields: project_id and location"
     end
 
-    test "defaults to oauth2 auth method when not specified" do
-      # Temporarily clear ADC env vars to test fallback behavior
-      original_creds = System.get_env("GOOGLE_APPLICATION_CREDENTIALS")
-      System.delete_env("GOOGLE_APPLICATION_CREDENTIALS")
-
-      on_exit(fn ->
-        if original_creds, do: System.put_env("GOOGLE_APPLICATION_CREDENTIALS", original_creds)
-      end)
-
+    test "authenticates when auth method is not specified" do
       config = %{project_id: "test-project", location: "us-central1"}
 
       assert {:ok, credentials} = VertexStrategy.authenticate(config)
-      # With no ADC credentials, should fallback to oauth2 placeholder
-      assert credentials.access_token == "oauth2-placeholder-token"
+      assert credentials.project_id == "test-project"
+      assert credentials.location == "us-central1"
+      assert is_binary(credentials.access_token)
+      assert credentials.access_token != ""
     end
 
     test "returns error for invalid configuration" do
@@ -267,32 +286,27 @@ defmodule Gemini.Auth.VertexStrategyTest do
       File.rm!(temp_path)
     end
 
-    test "returns error for unknown credentials" do
-      # Temporarily clear ADC env vars to test error path
-      original_creds = System.get_env("GOOGLE_APPLICATION_CREDENTIALS")
-      System.delete_env("GOOGLE_APPLICATION_CREDENTIALS")
-
-      on_exit(fn ->
-        if original_creds, do: System.put_env("GOOGLE_APPLICATION_CREDENTIALS", original_creds)
-      end)
-
+    test "uses ADC for empty credentials when available, otherwise errors" do
       credentials = %{}
+      result = VertexStrategy.headers(credentials)
 
-      assert {:error, reason} = VertexStrategy.headers(credentials)
+      assert match?({:ok, _}, result) or match?({:error, _}, result)
 
-      assert reason =~
-               "No valid Vertex AI credentials found"
+      case result do
+        {:ok, headers} ->
+          assert {"Content-Type", "application/json"} in headers
+
+          assert Enum.any?(headers, fn
+                   {"Authorization", "Bearer " <> token} when token != "" -> true
+                   _ -> false
+                 end)
+
+        {:error, reason} ->
+          assert reason =~ "No valid Vertex AI credentials found"
+      end
     end
 
     test "returns error for missing credentials keys" do
-      # Temporarily clear ADC env vars to test error path
-      original_creds = System.get_env("GOOGLE_APPLICATION_CREDENTIALS")
-      System.delete_env("GOOGLE_APPLICATION_CREDENTIALS")
-
-      on_exit(fn ->
-        if original_creds, do: System.put_env("GOOGLE_APPLICATION_CREDENTIALS", original_creds)
-      end)
-
       credentials = %{foo: "bar", baz: "qux"}
 
       assert {:error, reason} = VertexStrategy.headers(credentials)

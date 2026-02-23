@@ -57,7 +57,6 @@ defmodule Gemini.APIs.Images do
   """
 
   alias Gemini.Client.HTTP
-  alias Gemini.Config
   alias Gemini.Error
 
   alias Gemini.Types.Generation.Image, as: Image
@@ -130,12 +129,12 @@ defmodule Gemini.APIs.Images do
   @spec generate(String.t(), ImageGenerationConfig.t(), generation_opts()) ::
           api_result([GeneratedImage.t()])
   def generate(prompt, config \\ %ImageGenerationConfig{}, opts \\ []) do
+    opts = ensure_vertex_auth(opts)
     model = Keyword.get(opts, :model, @default_model)
-    location = Keyword.get(opts, :location, @default_location)
-
+    location = Keyword.get(opts, :location) || get_location(opts) || @default_location
     project_id = get_project_id(opts)
 
-    with :ok <- validate_vertex_ai_config(),
+    with :ok <- validate_vertex_ai_config(opts),
          {:ok, path} <- build_predict_path(project_id, location, model),
          {:ok, request_body} <- build_generation_request(prompt, config) do
       case HTTP.post(path, request_body, opts) do
@@ -184,11 +183,12 @@ defmodule Gemini.APIs.Images do
   @spec edit(String.t(), String.t(), String.t() | nil, EditImageConfig.t(), generation_opts()) ::
           api_result([GeneratedImage.t()])
   def edit(prompt, image_data, mask_data \\ nil, config \\ %EditImageConfig{}, opts \\ []) do
+    opts = ensure_vertex_auth(opts)
     model = Keyword.get(opts, :model, @default_model)
-    location = Keyword.get(opts, :location, @default_location)
+    location = Keyword.get(opts, :location) || get_location(opts) || @default_location
     project_id = get_project_id(opts)
 
-    with :ok <- validate_vertex_ai_config(),
+    with :ok <- validate_vertex_ai_config(opts),
          {:ok, path} <- build_predict_path(project_id, location, model),
          {:ok, request_body} <- build_edit_request(prompt, image_data, mask_data, config) do
       case HTTP.post(path, request_body, opts) do
@@ -233,11 +233,12 @@ defmodule Gemini.APIs.Images do
   @spec upscale(String.t(), UpscaleImageConfig.t(), generation_opts()) ::
           api_result([GeneratedImage.t()])
   def upscale(image_data, config \\ %UpscaleImageConfig{}, opts \\ []) do
+    opts = ensure_vertex_auth(opts)
     model = Keyword.get(opts, :model, @default_model)
-    location = Keyword.get(opts, :location, @default_location)
+    location = Keyword.get(opts, :location) || get_location(opts) || @default_location
     project_id = get_project_id(opts)
 
-    with :ok <- validate_vertex_ai_config(),
+    with :ok <- validate_vertex_ai_config(opts),
          {:ok, path} <- build_predict_path(project_id, location, model),
          {:ok, request_body} <- build_upscale_request(image_data, config) do
       case HTTP.post(path, request_body, opts) do
@@ -340,24 +341,18 @@ defmodule Gemini.APIs.Images do
   # Helpers
   # ===========================================================================
 
-  @spec validate_vertex_ai_config() :: :ok | {:error, term()}
-  defp validate_vertex_ai_config do
-    case Config.auth_config() do
-      %{type: :vertex_ai} ->
-        :ok
+  @spec validate_vertex_ai_config(keyword()) :: :ok | {:error, term()}
+  defp validate_vertex_ai_config(opts) do
+    case HTTP.auth_config_for_request(opts) do
+      %{type: :vertex_ai, credentials: creds} ->
+        if valid_vertex_credentials?(creds) do
+          :ok
+        else
+          {:error, vertex_auth_error()}
+        end
 
       %{type: :gemini} ->
-        {:error,
-         Error.config_error(
-           "Image generation requires Vertex AI authentication. " <>
-             "Please configure VERTEX_PROJECT_ID and either VERTEX_LOCATION or service account credentials."
-         )}
-
-      nil ->
-        {:error,
-         Error.config_error(
-           "No authentication configured. Image generation requires Vertex AI credentials."
-         )}
+        {:error, vertex_auth_error()}
     end
   end
 
@@ -365,7 +360,7 @@ defmodule Gemini.APIs.Images do
   defp get_project_id(opts) do
     case Keyword.get(opts, :project_id) do
       nil ->
-        case Config.auth_config() do
+        case HTTP.auth_config_for_request(opts) do
           %{credentials: %{project_id: project_id}} -> project_id
           _ -> nil
         end
@@ -373,5 +368,39 @@ defmodule Gemini.APIs.Images do
       project_id ->
         project_id
     end
+  end
+
+  @spec get_location(keyword()) :: String.t() | nil
+  defp get_location(opts) do
+    case HTTP.auth_config_for_request(opts) do
+      %{credentials: %{location: location}} -> location
+      _ -> nil
+    end
+  end
+
+  defp ensure_vertex_auth(opts) do
+    Keyword.put_new(opts, :auth, :vertex_ai)
+  end
+
+  @spec valid_vertex_credentials?(map()) :: boolean()
+  defp valid_vertex_credentials?(creds) do
+    project_id = Map.get(creds, :project_id)
+    location = Map.get(creds, :location)
+
+    has_auth_method =
+      not is_nil(Map.get(creds, :access_token)) or
+        not is_nil(Map.get(creds, :service_account_key)) or
+        not is_nil(Map.get(creds, :service_account_data))
+
+    is_binary(project_id) and project_id != "" and
+      is_binary(location) and location != "" and
+      has_auth_method
+  end
+
+  defp vertex_auth_error do
+    Error.config_error(
+      "Image generation requires Vertex AI authentication. " <>
+        "Please configure VERTEX_PROJECT_ID and either VERTEX_LOCATION or service account credentials."
+    )
   end
 end

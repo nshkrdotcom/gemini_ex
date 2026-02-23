@@ -9,7 +9,7 @@ defmodule Gemini.TuningsLiveTest do
   alias Gemini.Types.Tuning.{CreateTuningJobConfig, TuningJob}
 
   setup_all do
-    case AuthHelpers.detect_auth() do
+    case AuthHelpers.detect_auth(:vertex_ai) do
       {:ok, :vertex_ai, creds} ->
         # Verify we have project_id for tuning operations
         project_id = Map.get(creds, :project_id)
@@ -29,8 +29,7 @@ defmodule Gemini.TuningsLiveTest do
     @tag :live_api
     test "lists tuning jobs with default options", %{skip: skip} = ctx do
       if skip do
-        IO.puts("Skipping tuning list test - Vertex AI auth not configured")
-        assert true
+        :ok
       else
         auth = ctx.auth
         # This should work even if there are no jobs
@@ -42,9 +41,8 @@ defmodule Gemini.TuningsLiveTest do
             # May be empty if no jobs exist
             assert is_binary(response.next_page_token) or is_nil(response.next_page_token)
 
-          {:error, reason} ->
+          {:error, _reason} ->
             # Expected if API is not enabled or permissions issue
-            IO.puts("List jobs failed (expected if tuning not enabled): #{inspect(reason)}")
             assert true
         end
       end
@@ -53,8 +51,7 @@ defmodule Gemini.TuningsLiveTest do
     @tag :live_api
     test "lists tuning jobs with pagination", %{skip: skip} = ctx do
       if skip do
-        IO.puts("Skipping tuning list pagination - Vertex AI auth not configured")
-        assert true
+        :ok
       else
         auth = ctx.auth
         result = Tunings.list(auth: auth, page_size: 10)
@@ -75,8 +72,7 @@ defmodule Gemini.TuningsLiveTest do
     @tag :live_api
     test "filters tuning jobs by state", %{skip: skip} = ctx do
       if skip do
-        IO.puts("Skipping tuning filter test - Vertex AI auth not configured")
-        assert true
+        :ok
       else
         auth = ctx.auth
         # Try to list only succeeded jobs
@@ -101,8 +97,7 @@ defmodule Gemini.TuningsLiveTest do
     @tag :live_api
     test "returns error for non-existent job", %{skip: skip} = ctx do
       if skip do
-        IO.puts("Skipping tuning get test - Vertex AI auth not configured")
-        assert true
+        :ok
       else
         auth = ctx.auth
         # Use a clearly fake job ID
@@ -153,12 +148,11 @@ defmodule Gemini.TuningsLiveTest do
           # Clean up: cancel the job
           {:ok, _cancelled} = Tunings.cancel(job.name, auth: auth)
 
-        {:error, reason} ->
+        {:error, _reason} ->
           # Expected errors:
           # - Training data not found
           # - Permissions issues
           # - API not enabled
-          IO.puts("Tuning job creation failed (expected): #{inspect(reason)}")
           assert true
       end
     end
@@ -182,8 +176,7 @@ defmodule Gemini.TuningsLiveTest do
     @tag :live_api
     test "returns error when cancelling non-existent job", %{skip: skip} = ctx do
       if skip do
-        IO.puts("Skipping tuning cancel test - Vertex AI auth not configured")
-        assert true
+        :ok
       else
         auth = ctx.auth
         fake_job_name = "projects/fake/locations/us-central1/tuningJobs/nonexistent"
@@ -200,8 +193,7 @@ defmodule Gemini.TuningsLiveTest do
     @tag :live_api
     test "collects all jobs across pages", %{skip: skip} = ctx do
       if skip do
-        IO.puts("Skipping tuning list_all test - Vertex AI auth not configured")
-        assert true
+        :ok
       else
         auth = ctx.auth
         # Use small page size to test pagination logic

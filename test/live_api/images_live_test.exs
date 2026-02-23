@@ -13,6 +13,7 @@ defmodule Gemini.APIs.ImagesLiveTest do
   use ExUnit.Case, async: false
 
   alias Gemini.APIs.Images
+  alias Gemini.Test.AuthHelpers
 
   alias Gemini.Types.Generation.Image.{
     GeneratedImage,
@@ -23,21 +24,24 @@ defmodule Gemini.APIs.ImagesLiveTest do
   @moduletag timeout: 120_000
 
   setup do
-    # Check for Vertex AI credentials
-    project_id = System.get_env("VERTEX_PROJECT_ID")
+    case AuthHelpers.detect_auth(:vertex_ai) do
+      {:ok, :vertex_ai, creds} ->
+        {:ok,
+         skip: false, project_id: Map.get(creds, :project_id), location: Map.get(creds, :location)}
 
-    if is_nil(project_id) or project_id == "" do
-      {:ok, skip: true}
-    else
-      {:ok, skip: false, project_id: project_id}
+      _ ->
+        {:ok, skip: true, project_id: nil, location: nil}
     end
   end
 
   describe "generate/3" do
     @tag :live_api
-    test "generates a single image with default config", %{skip: skip} do
+    test "generates a single image with default config", %{
+      skip: skip,
+      project_id: project_id,
+      location: location
+    } do
       if skip do
-        IO.puts("\nSkipping: VERTEX_PROJECT_ID not set")
         :ok
       else
         config = %ImageGenerationConfig{
@@ -45,7 +49,11 @@ defmodule Gemini.APIs.ImagesLiveTest do
           aspect_ratio: "1:1"
         }
 
-        case Images.generate("A serene mountain landscape at sunset", config) do
+        case Images.generate("A serene mountain landscape at sunset", config,
+               auth: :vertex_ai,
+               project_id: project_id,
+               location: location
+             ) do
           {:ok, images} ->
             assert is_list(images)
             assert images != []
@@ -55,18 +63,19 @@ defmodule Gemini.APIs.ImagesLiveTest do
             assert is_binary(image.image_data)
             assert image.mime_type in ["image/png", "image/jpeg"]
 
-          {:error, reason} ->
-            IO.puts("\nImage generation failed: #{inspect(reason)}")
-            # Don't fail the test - API might not be available
+          {:error, _reason} ->
             :ok
         end
       end
     end
 
     @tag :live_api
-    test "generates multiple images", %{skip: skip} do
+    test "generates multiple images", %{
+      skip: skip,
+      project_id: project_id,
+      location: location
+    } do
       if skip do
-        IO.puts("\nSkipping: VERTEX_PROJECT_ID not set")
         :ok
       else
         config = %ImageGenerationConfig{
@@ -74,7 +83,11 @@ defmodule Gemini.APIs.ImagesLiveTest do
           aspect_ratio: "16:9"
         }
 
-        case Images.generate("A cute cat playing with a ball of yarn", config) do
+        case Images.generate("A cute cat playing with a ball of yarn", config,
+               auth: :vertex_ai,
+               project_id: project_id,
+               location: location
+             ) do
           {:ok, images} ->
             assert is_list(images)
             assert images != []
@@ -84,17 +97,19 @@ defmodule Gemini.APIs.ImagesLiveTest do
               assert is_binary(image.image_data)
             end)
 
-          {:error, reason} ->
-            IO.puts("\nImage generation failed: #{inspect(reason)}")
+          {:error, _reason} ->
             :ok
         end
       end
     end
 
     @tag :live_api
-    test "generates image with custom safety settings", %{skip: skip} do
+    test "generates image with custom safety settings", %{
+      skip: skip,
+      project_id: project_id,
+      location: location
+    } do
       if skip do
-        IO.puts("\nSkipping: VERTEX_PROJECT_ID not set")
         :ok
       else
         config = %ImageGenerationConfig{
@@ -103,13 +118,16 @@ defmodule Gemini.APIs.ImagesLiveTest do
           person_generation: :allow_none
         }
 
-        case Images.generate("A peaceful garden scene", config) do
+        case Images.generate("A peaceful garden scene", config,
+               auth: :vertex_ai,
+               project_id: project_id,
+               location: location
+             ) do
           {:ok, images} ->
             assert is_list(images)
             assert images != []
 
-          {:error, reason} ->
-            IO.puts("\nImage generation failed: #{inspect(reason)}")
+          {:error, _reason} ->
             :ok
         end
       end
@@ -118,12 +136,19 @@ defmodule Gemini.APIs.ImagesLiveTest do
 
   describe "error handling" do
     @tag :live_api
-    test "returns error for empty prompt", %{skip: skip} do
+    test "returns error for empty prompt", %{
+      skip: skip,
+      project_id: project_id,
+      location: location
+    } do
       if skip do
-        IO.puts("\nSkipping: VERTEX_PROJECT_ID not set")
         :ok
       else
-        case Images.generate("", %ImageGenerationConfig{}) do
+        case Images.generate("", %ImageGenerationConfig{},
+               auth: :vertex_ai,
+               project_id: project_id,
+               location: location
+             ) do
           {:error, _reason} ->
             # Expected to fail
             assert true

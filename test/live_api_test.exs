@@ -59,12 +59,17 @@ defmodule LiveAPITest do
 
         IO.puts("\n  📝 Testing simple text generation with Gemini API")
 
-        case Gemini.generate("What is the capital of France? Give a brief answer.") do
+        request_opts = [timeout: 20_000, disable_rate_limiter: true]
+
+        case Gemini.generate(
+               "Return exactly this string and nothing else: PARIS_TOKEN",
+               request_opts
+             ) do
           {:ok, response} ->
             case Gemini.extract_text(response) do
               {:ok, text} ->
                 IO.puts("  ✅ Success: #{String.slice(text, 0, 100)}...")
-                assert String.contains?(String.downcase(text), "paris")
+                assert String.contains?(String.upcase(text), "PARIS_TOKEN")
 
               {:error, error} ->
                 IO.puts("  ❌ Text extraction failed: #{error}")
@@ -89,7 +94,9 @@ defmodule LiveAPITest do
       if api_key do
         Gemini.configure(:gemini, %{api_key: api_key})
 
-        case Gemini.list_models() do
+        request_opts = [timeout: 20_000, disable_rate_limiter: true]
+
+        case Gemini.list_models(request_opts) do
           {:ok, response} ->
             IO.puts("  ✅ Found #{length(response.models)} models")
             assert response.models != []

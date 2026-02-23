@@ -65,6 +65,38 @@ defmodule Gemini.Types.Live.SetupTest do
       assert setup.proactivity.proactive_audio == true
       assert setup.enable_affective_dialog == true
     end
+
+    test "applies model prefix for Vertex model resource names" do
+      setup =
+        Setup.new("gemini-live-2.5-flash-preview",
+          model_prefix: "projects/test-project/locations/us-central1/publishers/google/"
+        )
+
+      assert setup.model ==
+               "projects/test-project/locations/us-central1/publishers/google/models/gemini-live-2.5-flash-preview"
+    end
+
+    test "does not duplicate prefix for already fully qualified Vertex model names" do
+      full_model =
+        "projects/test-project/locations/us-central1/publishers/google/models/gemini-live-2.5-flash-preview"
+
+      setup =
+        Setup.new(full_model,
+          model_prefix: "projects/test-project/locations/us-central1/publishers/google/"
+        )
+
+      assert setup.model == full_model
+    end
+
+    test "adds project/location prefix for publisher-scoped Vertex model names" do
+      setup =
+        Setup.new("publishers/google/models/gemini-live-2.5-flash",
+          model_prefix: "projects/test-project/locations/us-central1/publishers/google/"
+        )
+
+      assert setup.model ==
+               "projects/test-project/locations/us-central1/publishers/google/models/gemini-live-2.5-flash"
+    end
   end
 
   describe "to_api/1" do

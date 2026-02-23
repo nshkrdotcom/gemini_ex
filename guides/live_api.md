@@ -73,12 +73,14 @@ wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.G
 
 **Vertex AI:**
 ```
-wss://{location}-aiplatform.googleapis.com/ws/google.cloud.aiplatform.v1beta1.LlmBidiService/BidiGenerateContent
+wss://{location}-aiplatform.googleapis.com/ws/google.cloud.aiplatform.v1.LlmBidiService/BidiGenerateContent
 ```
+
+> Vertex Live API requires billing enabled on the target GCP project. Without billing, the server closes setup with policy error `1008`.
 
 ### API Version
 
-The standard API version is `v1beta`. Some features require `v1alpha`:
+For Gemini API (`auth: :gemini`) connections, the standard API version is `v1beta`. Some features require `v1alpha`:
 - Affective dialog
 - Proactive audio
 - Ephemeral tokens
@@ -95,6 +97,8 @@ alias Gemini.Live.Models
   generation_config: %{response_modalities: ["AUDIO"]}
 )
 ```
+
+For Vertex AI (`auth: :vertex_ai`) connections, `gemini_ex` uses the Vertex Live `v1` endpoint.
 
 This library abstracts the WebSocket connection details. You interact through the `Gemini.Live.Session` module.
 
@@ -177,7 +181,7 @@ Live docs may list newer models that are not yet enabled for your API key.
 When that happens, the Live API returns a `1008` close error like:
 
 ```
-models/gemini-live-2.5-flash-preview is not found for API version v1beta,
+Publisher Model `projects/.../publishers/google/models/<model>` was not found
 or is not supported for bidiGenerateContent
 ```
 
@@ -193,10 +197,10 @@ text_model = Models.resolve(:text)
 audio_model = Models.resolve(:audio)
 ```
 
-The resolver prefers newer Live models when available, and falls back to the
-older rollout-safe models:
+The resolver uses the model registry plus runtime `list_models` results for your
+credentials. If no direct match is found, it falls back to rollout-safe models:
 
-- Text fallback: `gemini-2.0-flash-exp`
+- Text fallback: `gemini-2.5-flash-native-audio-preview-12-2025`
 - Image fallback: `gemini-2.0-flash-exp-image-generation`
 - Audio fallback: `gemini-2.5-flash-native-audio-preview-12-2025`
 

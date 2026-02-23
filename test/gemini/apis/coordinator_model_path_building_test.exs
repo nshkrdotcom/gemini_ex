@@ -95,4 +95,87 @@ defmodule Gemini.APIs.CoordinatorModelPathBuildingTest do
         disable_rate_limiter: true
       )
   end
+
+  test "Vertex AI list_models uses publisher models endpoint", %{bypass: bypass} do
+    :meck.expect(Gemini.Auth, :get_base_url, fn _type, _creds ->
+      "http://localhost:#{bypass.port}/v1"
+    end)
+
+    System.delete_env("GEMINI_API_KEY")
+    System.put_env("VERTEX_PROJECT_ID", "proj")
+    System.put_env("VERTEX_LOCATION", "loc")
+    System.put_env("VERTEX_ACCESS_TOKEN", "token")
+
+    Application.put_env(:gemini_ex, :auth, %{
+      type: :vertex_ai,
+      credentials: %{project_id: "proj", location: "loc", access_token: "token"}
+    })
+
+    Bypass.expect_once(
+      bypass,
+      "GET",
+      "/v1beta1/publishers/google/models",
+      fn conn ->
+        query = URI.decode_query(conn.query_string)
+        assert query["pageSize"] == "5"
+        assert query["pageToken"] == "cursor-1"
+
+        Conn.resp(
+          conn,
+          200,
+          ~s({"publisherModels":[{"name":"publishers/google/models/gemini-2.5-flash-native-audio-latest","displayName":"Live Model"}]})
+        )
+      end
+    )
+
+    assert {:ok, response} =
+             Coordinator.list_models(
+               auth: :vertex_ai,
+               page_size: 5,
+               page_token: "cursor-1",
+               disable_rate_limiter: true
+             )
+
+    assert Enum.any?(response.models, fn model ->
+             model.name == "models/gemini-2.5-flash-native-audio-latest"
+           end)
+  end
+
+  test "Vertex AI get_model normalizes full resource model names", %{bypass: bypass} do
+    :meck.expect(Gemini.Auth, :get_base_url, fn _type, _creds ->
+      "http://localhost:#{bypass.port}/v1"
+    end)
+
+    System.delete_env("GEMINI_API_KEY")
+    System.put_env("VERTEX_PROJECT_ID", "proj")
+    System.put_env("VERTEX_LOCATION", "loc")
+    System.put_env("VERTEX_ACCESS_TOKEN", "token")
+
+    Application.put_env(:gemini_ex, :auth, %{
+      type: :vertex_ai,
+      credentials: %{project_id: "proj", location: "loc", access_token: "token"}
+    })
+
+    Bypass.expect_once(
+      bypass,
+      "GET",
+      "/v1/publishers/google/models/gemini-2.5-flash",
+      fn conn ->
+        Conn.resp(
+          conn,
+          200,
+          ~s({"name":"publishers/google/models/gemini-2.5-flash","displayName":"Gemini 2.5 Flash"})
+        )
+      end
+    )
+
+    assert {:ok, model} =
+             Coordinator.get_model(
+               "projects/proj/locations/loc/publishers/google/models/gemini-2.5-flash",
+               auth: :vertex_ai,
+               disable_rate_limiter: true
+             )
+
+    assert model[:name] == "publishers/google/models/gemini-2.5-flash"
+  end
 end

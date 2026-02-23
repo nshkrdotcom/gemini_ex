@@ -4,7 +4,9 @@ defmodule Gemini.APIs.VideosLiveTest do
 
   Run with: mix test --include live_api test/live_api/videos_live_test.exs
 
-  Requires Vertex AI credentials (VERTEX_PROJECT_ID environment variable).
+  Requires either:
+  - Gemini API credentials (`GEMINI_API_KEY` or `GOOGLE_API_KEY`)
+  - Vertex AI credentials (`VERTEX_PROJECT_ID`, location, and token/ADC)
 
   **Note:** Video generation is very slow (2-5 minutes) and may incur significant API costs.
   These tests are excluded by default and have extended timeouts.
@@ -13,6 +15,8 @@ defmodule Gemini.APIs.VideosLiveTest do
   use ExUnit.Case, async: false
 
   alias Gemini.APIs.Videos
+  alias Gemini.Error
+  alias Gemini.Test.AuthHelpers
   alias Gemini.Types.Generation.Video, as: Video
   alias Gemini.Types.Generation.Video.{GeneratedVideo, VideoGenerationConfig}
   alias Gemini.Types.Operation
@@ -21,22 +25,32 @@ defmodule Gemini.APIs.VideosLiveTest do
   @moduletag timeout: 300_000
 
   setup do
-    # Check for Vertex AI credentials
-    project_id = System.get_env("VERTEX_PROJECT_ID")
+    case AuthHelpers.detect_auth(:gemini) do
+      {:ok, :gemini, _} ->
+        {:ok, skip: false, request_opts: [auth: :gemini]}
 
-    if is_nil(project_id) or project_id == "" do
-      {:ok, skip: true}
-    else
-      {:ok, skip: false, project_id: project_id}
+      _ ->
+        case AuthHelpers.detect_auth(:vertex_ai) do
+          {:ok, :vertex_ai, creds} ->
+            {:ok,
+             skip: false,
+             request_opts: [
+               auth: :vertex_ai,
+               project_id: Map.get(creds, :project_id),
+               location: Map.get(creds, :location)
+             ]}
+
+          _ ->
+            {:ok, skip: true, request_opts: []}
+        end
     end
   end
 
   describe "generate/3" do
     @tag :live_api
     @tag timeout: 300_000
-    test "starts video generation operation", %{skip: skip} do
+    test "starts video generation operation", %{skip: skip, request_opts: request_opts} do
       if skip do
-        IO.puts("\nSkipping: VERTEX_PROJECT_ID not set")
         :ok
       else
         config = %VideoGenerationConfig{
@@ -45,7 +59,7 @@ defmodule Gemini.APIs.VideosLiveTest do
           aspect_ratio: "16:9"
         }
 
-        case Videos.generate("A cat playing piano in a cozy living room", config) do
+        case Videos.generate("A cat playing piano in a cozy living room", config, request_opts) do
           {:ok, operation} ->
             assert %Operation{} = operation
             assert is_binary(operation.name)
@@ -55,11 +69,8 @@ defmodule Gemini.APIs.VideosLiveTest do
             # (or might already be done if API is very fast)
             assert is_boolean(operation.done)
 
-            IO.puts("\nVideo generation started: #{operation.name}")
-            IO.puts("This may take 2-5 minutes. Skipping wait to avoid timeout.")
-
           {:error, reason} ->
-            IO.puts("\nVideo generation failed to start: #{inspect(reason)}")
+            assert_not_schema_error!(reason)
             :ok
         end
       end
@@ -68,9 +79,8 @@ defmodule Gemini.APIs.VideosLiveTest do
 
   describe "get_operation/2" do
     @tag :live_api
-    test "retrieves operation status", %{skip: skip} do
+    test "retrieves operation status", %{skip: skip, request_opts: request_opts} do
       if skip do
-        IO.puts("\nSkipping: VERTEX_PROJECT_ID not set")
         :ok
       else
         config = %VideoGenerationConfig{
@@ -78,21 +88,21 @@ defmodule Gemini.APIs.VideosLiveTest do
           duration_seconds: 4
         }
 
-        case Videos.generate("A simple test video", config) do
+        case Videos.generate("A simple test video", config, request_opts) do
           {:ok, operation} ->
             # Try to get the operation status
-            case Videos.get_operation(operation.name) do
+            case Videos.get_operation(operation.name, request_opts) do
               {:ok, retrieved_op} ->
                 assert %Operation{} = retrieved_op
                 assert retrieved_op.name == operation.name
 
               {:error, reason} ->
-                IO.puts("\nFailed to retrieve operation: #{inspect(reason)}")
+                assert_not_schema_error!(reason)
                 :ok
             end
 
           {:error, reason} ->
-            IO.puts("\nVideo generation failed to start: #{inspect(reason)}")
+            assert_not_schema_error!(reason)
             :ok
         end
       end
@@ -149,4 +159,32 @@ defmodule Gemini.APIs.VideosLiveTest do
       assert error == "Operation not yet complete"
     end
   end
+
+  defp assert_not_schema_error!(reason) do
+    message = error_message(reason)
+
+    if String.contains?(message, "`videoConfig` isn't supported") or
+         String.contains?(message, "`safetyFilterLevel` isn't supported") do
+      flunk("Video request schema is incompatible with current API: #{message}")
+    end
+  end
+
+  defp error_message(%Error{} = error) do
+    cond do
+      is_binary(error.message) and error.message != "" ->
+        error.message
+
+      is_map(error.message) and is_binary(error.message["message"]) ->
+        error.message["message"]
+
+      is_map(error.details) and is_map(error.details["error"]) and
+          is_binary(error.details["error"]["message"]) ->
+        error.details["error"]["message"]
+
+      true ->
+        inspect(error)
+    end
+  end
+
+  defp error_message(reason), do: inspect(reason)
 end

@@ -2,7 +2,7 @@
 
 This document provides a comprehensive overview of the SSE (Server-Sent Events) streaming architecture used for the `generateContent` and `streamGenerateContent` APIs.
 
-> **Note:** For bidirectional real-time streaming (voice, video, text), see the [Live API Guide](docs/guides/live_api.md) which uses WebSocket connections via `Gemini.Live.Session`.
+> **Note:** For bidirectional real-time streaming (voice, video, text), see the [Live API Guide](live_api.md) which uses WebSocket connections via `Gemini.Live.Session`.
 
 ## Current Architecture Overview
 

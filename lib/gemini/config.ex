@@ -43,6 +43,7 @@ defmodule Gemini.Config do
 
   require Logger
   import Gemini.Utils.MapHelpers, only: [maybe_put: 3]
+  alias Gemini.ModelRegistry
 
   @type auth_config :: %{
           type: :gemini | :vertex_ai,
@@ -59,6 +60,8 @@ defmodule Gemini.Config do
   # Universal models - work identically in both Gemini API and Vertex AI
   @universal_models %{
     # Gemini 3 models (preview)
+    pro_3_1_preview: "gemini-3.1-pro-preview",
+    pro_3_1_preview_customtools: "gemini-3.1-pro-preview-customtools",
     pro_3_preview: "gemini-3-pro-preview",
     pro_3_image_preview: "gemini-3-pro-image-preview",
     flash_3_preview: "gemini-3-flash-preview",
@@ -68,12 +71,10 @@ defmodule Gemini.Config do
     flash_2_5: "gemini-2.5-flash",
     flash_2_5_lite: "gemini-2.5-flash-lite",
 
-    # Gemini 2.5 Live API models (for bidiGenerateContent / WebSocket streaming)
-    # TEXT mode - use response_modalities: ["TEXT"]
-    live_2_5_flash_preview: "gemini-live-2.5-flash-preview",
-    # AUDIO mode - use response_modalities: ["AUDIO"] (native audio output)
-    # This is the recommended model for voice/audio applications per canonical docs
+    # Gemini 2.5 Live API models in current model catalog
+    flash_2_5_native_audio_latest: "gemini-2.5-flash-native-audio-latest",
     flash_2_5_native_audio_preview_12_2025: "gemini-2.5-flash-native-audio-preview-12-2025",
+    flash_2_5_native_audio_preview_09_2025: "gemini-2.5-flash-native-audio-preview-09-2025",
 
     # Gemini 2.5 preview/specialized
     flash_2_5_preview_native_audio_dialog: "gemini-2.5-flash-preview-native-audio-dialog",
@@ -83,7 +84,6 @@ defmodule Gemini.Config do
     pro_2_5_preview_tts: "gemini-2.5-pro-preview-tts",
     flash_2_5_preview_09_2025: "gemini-2.5-flash-preview-09-2025",
     flash_2_5_lite_preview_09_2025: "gemini-2.5-flash-lite-preview-09-2025",
-    flash_2_5_native_audio_preview_09_2025: "gemini-2.5-flash-native-audio-preview-09-2025",
     flash_2_5_image: "gemini-2.5-flash-image",
     flash_2_5_image_preview: "gemini-2.5-flash-image-preview",
 
@@ -96,12 +96,9 @@ defmodule Gemini.Config do
     flash_2_0_lite_001: "gemini-2.0-flash-lite-001",
     flash_2_0_live_001: "gemini-2.0-flash-live-001",
 
-    # Deep Research (agent model)
-    deep_research_pro_preview_12_2025: "deep-research-pro-preview-12-2025",
-
     # Universal aliases (use these for cross-platform compatibility)
     default_universal: "gemini-2.5-flash-lite",
-    latest: "gemini-3-pro-preview",
+    latest: "gemini-3.1-pro-preview",
     stable: "gemini-2.5-pro"
   }
 
@@ -116,7 +113,26 @@ defmodule Gemini.Config do
     embedding: "gemini-embedding-001",
     embedding_exp: "gemini-embedding-exp-03-07",
 
-    # Live API rollout fallback models (Gemini API only)
+    # Legacy Gemini Live aliases (not listed in current model catalog pages)
+    live_2_5_flash: "gemini-live-2.5-flash",
+    live_2_5_flash_preview: "gemini-live-2.5-flash-preview",
+    live_2_5_flash_native_audio: "gemini-live-2.5-flash-native-audio",
+    live_2_5_flash_preview_native_audio: "gemini-live-2.5-flash-preview-native-audio",
+    live_2_5_flash_preview_native_audio_09_2025:
+      "gemini-live-2.5-flash-preview-native-audio-09-2025",
+
+    # Specialized model family pages
+    deep_research_pro_preview_12_2025: "deep-research-pro-preview-12-2025",
+    computer_use_2_5_preview_10_2025: "gemini-2.5-computer-use-preview-10-2025",
+    robotics_er_1_5_preview: "gemini-robotics-er-1.5-preview",
+    lyria_realtime_exp: "lyria-realtime-exp",
+    veo_3_1_generate_preview: "veo-3.1-generate-preview",
+    veo_3_1_fast_generate_preview: "veo-3.1-fast-generate-preview",
+    imagen_4_generate_001: "imagen-4.0-generate-001",
+    imagen_4_ultra_generate_001: "imagen-4.0-ultra-generate-001",
+    imagen_4_fast_generate_001: "imagen-4.0-fast-generate-001",
+
+    # Legacy image rollout fallback (Gemini API only)
     flash_2_0_exp_image_generation: "gemini-2.0-flash-exp-image-generation",
 
     # Legacy default alias (AI Studio only)
@@ -644,6 +660,59 @@ defmodule Gemini.Config do
     end
   end
 
+  @doc """
+  Return model metadata from `Gemini.ModelRegistry`.
+
+  Accepts either a registry key atom (resolved through `get_model/1`) or a
+  concrete model string.
+  """
+  @spec model_info(atom() | String.t()) :: Gemini.ModelRegistry.entry() | nil
+  def model_info(model_or_key) when is_atom(model_or_key) or is_binary(model_or_key) do
+    case resolve_model_name(model_or_key) do
+      nil -> nil
+      model_name -> ModelRegistry.get(model_name)
+    end
+  end
+
+  @doc """
+  Check model capability support state from `Gemini.ModelRegistry`.
+
+  Defaults to checking for `:supported`.
+  """
+  @spec model_supports?(
+          atom() | String.t(),
+          Gemini.ModelRegistry.capability(),
+          Gemini.ModelRegistry.support_state()
+        ) :: boolean()
+  def model_supports?(model_or_key, capability, expected \\ :supported)
+      when (is_atom(model_or_key) or is_binary(model_or_key)) and is_atom(capability) and
+             is_atom(expected) do
+    case resolve_model_name(model_or_key) do
+      nil -> false
+      model_name -> ModelRegistry.supports?(model_name, capability, expected)
+    end
+  end
+
+  @doc """
+  List model codes that match a capability support state.
+  """
+  @spec models_with_capability(
+          Gemini.ModelRegistry.capability(),
+          Gemini.ModelRegistry.support_state()
+        ) :: [String.t()]
+  def models_with_capability(capability, expected \\ :supported)
+      when is_atom(capability) and is_atom(expected) do
+    ModelRegistry.with_capability(capability, expected)
+  end
+
+  @doc """
+  Return registry-backed Live API candidate model codes for a modality.
+  """
+  @spec live_registry_candidates(:text | :audio) :: [String.t()]
+  def live_registry_candidates(modality) when modality in [:text, :audio] do
+    ModelRegistry.live_candidates(modality)
+  end
+
   # ===========================================================================
   # Use-Case Model Aliases
   # ===========================================================================
@@ -895,6 +964,15 @@ defmodule Gemini.Config do
       %{requires_normalization_below: nil} -> false
       %{requires_normalization_below: threshold} -> dimensions < threshold
       _ -> false
+    end
+  end
+
+  defp resolve_model_name(model_name) when is_binary(model_name), do: model_name
+
+  defp resolve_model_name(model_key) when is_atom(model_key) do
+    case lookup_model(model_key) do
+      {model_name, _api_compat} -> model_name
+      :not_found -> nil
     end
   end
 

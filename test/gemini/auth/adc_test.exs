@@ -1,5 +1,5 @@
 defmodule Gemini.Auth.ADCTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias Gemini.Auth.{ADC, TokenCache}
 
@@ -41,6 +41,11 @@ defmodule Gemini.Auth.ADCTest do
 
     # Save original env vars
     original_google_creds = System.get_env("GOOGLE_APPLICATION_CREDENTIALS")
+    original_google_creds_json = System.get_env("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+
+    # Isolate tests from developer machine credentials
+    System.delete_env("GOOGLE_APPLICATION_CREDENTIALS")
+    System.delete_env("GOOGLE_APPLICATION_CREDENTIALS_JSON")
 
     on_exit(fn ->
       # Restore original env vars
@@ -50,13 +55,54 @@ defmodule Gemini.Auth.ADCTest do
         System.delete_env("GOOGLE_APPLICATION_CREDENTIALS")
       end
 
+      if original_google_creds_json do
+        System.put_env("GOOGLE_APPLICATION_CREDENTIALS_JSON", original_google_creds_json)
+      else
+        System.delete_env("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+      end
+
       # DO NOT call TokenCache.clear() - it races with other async tests
     end)
 
-    {:ok, original_google_creds: original_google_creds, test_id: test_id}
+    {:ok,
+     original_google_creds: original_google_creds,
+     original_google_creds_json: original_google_creds_json,
+     test_id: test_id}
   end
 
   describe "load_credentials/0" do
+    test "loads service account from GOOGLE_APPLICATION_CREDENTIALS_JSON" do
+      System.put_env("GOOGLE_APPLICATION_CREDENTIALS_JSON", Jason.encode!(@service_account_creds))
+      System.delete_env("GOOGLE_APPLICATION_CREDENTIALS")
+
+      assert {:ok, {:service_account, creds}} = ADC.load_credentials()
+      assert creds.type == "service_account"
+      assert creds.project_id == "test-project-123"
+      assert creds.client_email == "test@test-project.iam.gserviceaccount.com"
+    end
+
+    test "returns error for invalid GOOGLE_APPLICATION_CREDENTIALS_JSON" do
+      System.put_env("GOOGLE_APPLICATION_CREDENTIALS_JSON", "{not-valid-json")
+      System.delete_env("GOOGLE_APPLICATION_CREDENTIALS")
+
+      assert {:error, reason} = ADC.load_credentials()
+      assert reason =~ "GOOGLE_APPLICATION_CREDENTIALS_JSON"
+    end
+
+    test "falls back to file path when GOOGLE_APPLICATION_CREDENTIALS_JSON is empty" do
+      temp_file = create_temp_service_account_file()
+
+      try do
+        System.put_env("GOOGLE_APPLICATION_CREDENTIALS_JSON", "")
+        System.put_env("GOOGLE_APPLICATION_CREDENTIALS", temp_file)
+
+        assert {:ok, {:service_account, creds}} = ADC.load_credentials()
+        assert creds.project_id == "test-project-123"
+      after
+        File.rm(temp_file)
+      end
+    end
+
     test "loads service account from GOOGLE_APPLICATION_CREDENTIALS" do
       # Create temporary service account file
       temp_file = create_temp_service_account_file()
@@ -260,6 +306,13 @@ defmodule Gemini.Auth.ADCTest do
         System.delete_env("GOOGLE_APPLICATION_CREDENTIALS")
       end
     end
+
+    test "returns true when GOOGLE_APPLICATION_CREDENTIALS_JSON is set" do
+      System.delete_env("GOOGLE_APPLICATION_CREDENTIALS")
+      System.put_env("GOOGLE_APPLICATION_CREDENTIALS_JSON", Jason.encode!(@service_account_creds))
+
+      assert ADC.available?() == true
+    end
   end
 
   describe "token caching integration" do
@@ -337,11 +390,13 @@ defmodule Gemini.Auth.ADCTest do
 
     test "provides helpful error messages" do
       System.delete_env("GOOGLE_APPLICATION_CREDENTIALS")
+      System.delete_env("GOOGLE_APPLICATION_CREDENTIALS_JSON")
 
       case ADC.load_credentials() do
         {:error, reason} ->
           # Should mention ADC and provide guidance
           assert is_binary(reason)
+          assert reason =~ "GOOGLE_APPLICATION_CREDENTIALS_JSON"
 
         {:ok, _} ->
           # Found credentials via other means (user creds or metadata server)

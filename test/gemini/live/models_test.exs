@@ -24,6 +24,26 @@ defmodule Gemini.Live.ModelsTest do
 
       assert :none = Models.pick_from_available(candidates, available)
     end
+
+    test "matches candidate against Vertex full resource names" do
+      candidates = ["gemini-live-2.5-flash", "gemini-live-2.5-flash-preview"]
+
+      available = [
+        "projects/test-proj/locations/us-central1/publishers/google/models/gemini-live-2.5-flash"
+      ]
+
+      assert {:ok, "gemini-live-2.5-flash"} = Models.pick_from_available(candidates, available)
+    end
+
+    test "matches candidate when available names include endpoint suffixes" do
+      candidates = ["gemini-live-2.5-flash"]
+
+      available = [
+        "publishers/google/models/gemini-live-2.5-flash:bidiGenerateContent"
+      ]
+
+      assert {:ok, "gemini-live-2.5-flash"} = Models.pick_from_available(candidates, available)
+    end
   end
 
   describe "resolve/2 with available_models option" do
@@ -45,6 +65,48 @@ defmodule Gemini.Live.ModelsTest do
         )
 
       assert model == Models.default(:text)
+    end
+
+    test "falls back to text-compatible model from available list when candidates miss" do
+      model =
+        Models.resolve(:text,
+          candidates: ["definitely-not-a-model"],
+          available_models: [
+            "models/gemini-2.5-flash-preview-tts",
+            "models/gemini-2.5-flash-native-audio-preview-12-2025",
+            "models/gemini-2.0-flash-exp-image-generation"
+          ]
+        )
+
+      assert model == "gemini-2.0-flash-exp-image-generation"
+    end
+
+    test "does not pick native-audio model for text fallback" do
+      model =
+        Models.resolve(:text,
+          candidates: ["definitely-not-a-model"],
+          available_models: ["models/gemini-2.5-flash-native-audio-preview-12-2025"]
+        )
+
+      refute model == "gemini-2.5-flash-native-audio-preview-12-2025"
+    end
+
+    test "uses text fallback when no candidates are available" do
+      model =
+        Models.resolve(:text,
+          auth: :vertex_ai,
+          candidates: ["definitely-not-a-model"],
+          available_models: []
+        )
+
+      assert model == Models.default(:text, auth: :vertex_ai)
+    end
+
+    test "filters gemini-only legacy aliases for vertex candidates" do
+      candidates = Models.candidates(:text, auth: :vertex_ai)
+
+      refute "gemini-live-2.5-flash" in candidates
+      assert "gemini-2.5-flash-native-audio-preview-12-2025" in candidates
     end
   end
 end

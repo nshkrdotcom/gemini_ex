@@ -656,13 +656,17 @@ defmodule Gemini.Streaming.UnifiedManager do
       {:ok, auth_strategy, headers} ->
         case get_streaming_url_and_headers(stream_state, auth_strategy, headers) do
           {:ok, url, final_headers} ->
-            HTTPStreaming.stream_to_process(
-              url,
-              final_headers,
-              stream_state.request_body,
-              stream_state.stream_id,
-              self()
-            )
+            streaming_opts =
+              Keyword.take(stream_state.config, [
+                :timeout,
+                :max_retries,
+                :max_backoff_ms,
+                :connect_timeout,
+                :method,
+                :add_sse_params
+              ])
+
+            start_stream_to_process(url, final_headers, stream_state, streaming_opts)
 
           {:error, reason} ->
             {:error, reason}
@@ -671,6 +675,27 @@ defmodule Gemini.Streaming.UnifiedManager do
       {:error, reason} ->
         {:error, "Auth failed: #{reason}"}
     end
+  end
+
+  defp start_stream_to_process(url, final_headers, stream_state, []) do
+    HTTPStreaming.stream_to_process(
+      url,
+      final_headers,
+      stream_state.request_body,
+      stream_state.stream_id,
+      self()
+    )
+  end
+
+  defp start_stream_to_process(url, final_headers, stream_state, streaming_opts) do
+    HTTPStreaming.stream_to_process(
+      url,
+      final_headers,
+      stream_state.request_body,
+      stream_state.stream_id,
+      self(),
+      streaming_opts
+    )
   end
 
   defp handle_stream_start_result({:ok, stream_pid}, release_fn),
