@@ -18,10 +18,10 @@ A comprehensive Elixir client for Google's Gemini AI API with dual authenticatio
 - **Automatic Tool Calling**: A seamless, Python-SDK-like experience that automates the entire multi-turn tool-calling loop
 - **Built-in Tools (Gemini 3)**: Google Search, URL Context, and Code Execution via `tools:`
 - **Dual Authentication**: Seamless support for both Gemini API keys and Vertex AI OAuth/Service Accounts
-- **Application Default Credentials (ADC)**: Zero-config GCP auth with automatic discovery and token refresh (NEW in v0.8.x!)
+- **Application Default Credentials (ADC)**: Zero-config GCP auth with automatic discovery, token refresh, and `GOOGLE_APPLICATION_CREDENTIALS_JSON` for containers
 - **Advanced Streaming**: Production-grade Server-Sent Events streaming with real-time processing
 - **Interactions API**: Stateful interactions (CRUD), background execution, SSE streaming, and resumption
-- **Live API (WebSocket)**: Bidirectional, low-latency sessions with real-time input/output, native audio with affective dialog and proactivity (Enhanced in v0.9.0!)
+- **Live API (WebSocket)**: Bidirectional, low-latency sessions with real-time input/output, native audio with affective dialog and proactivity (Enhanced in v0.10.0!)
 - **Automatic Rate Limiting**: Built-in rate limit handling with retries, concurrency gating, and adaptive backoff
 - **Files API**: Upload, manage, and use files with Gemini models for multimodal content (NEW in v0.7.0!)
 - **File Search Stores**: RAG store creation, ingestion, and semantic search (NEW in v0.8.x!)
@@ -29,7 +29,8 @@ A comprehensive Elixir client for Google's Gemini AI API with dual authenticatio
 - **Batches API**: Submit large numbers of requests with 50% cost savings (NEW in v0.7.0!)
 - **Operations API**: Track long-running operations like video generation (NEW in v0.7.0!)
 - **Tunings (Fine-Tuning)**: Create, monitor, and manage tuned models (NEW in v0.8.x!)
-- **Image & Video Generation**: Imagen/Veo APIs for text-to-image, editing, upscaling, and video generation (NEW in v0.8.x!)
+- **Model Registry**: Centralized model capabilities, modality tracking, and registry-backed Live API model resolution (NEW in v0.10.0!)
+- **Image & Video Generation**: Imagen/Veo APIs for text-to-image, editing, upscaling, and video generation with Veo 3.1 support
 - **Embeddings with MRL**: Text embeddings with Matryoshka Representation Learning, normalization, and distance metrics
 - **Async Batch Embeddings**: Production-scale embedding generation with 50% cost savings
 - **Type Safety**: Complete type definitions with runtime validation
@@ -175,7 +176,7 @@ Gemini.Streaming.resume_stream(stream_id)
 Gemini.Streaming.stop_stream(stream_id)
 ```
 
-Streaming knobs: pass `timeout:` (per attempt, default `config :gemini_ex, :timeout` = 120_000), `max_retries:` (default 3), `max_backoff_ms:` (default 10_000), and `connect_timeout:` (default 5_000). Manager cleanup delay can be tuned via `config :gemini_ex, :streaming, cleanup_delay_ms: ...`.
+Streaming knobs: pass `timeout:` (per attempt, default `config :gemini_ex, :timeout` = 120_000), `stream_timeout:` (collect timeout, default 60_000; orphaned streams are cleaned up on timeout), `max_retries:` (default 3), `max_backoff_ms:` (default 10_000), and `connect_timeout:` (default 5_000). Manager cleanup delay can be tuned via `config :gemini_ex, :streaming, cleanup_delay_ms: ...`.
 
 ### Interactions Quick Start
 
@@ -201,7 +202,7 @@ for event <- stream do
 end
 ```
 
-See `docs/guides/interactions.md` for CRUD, resumption (`last_event_id`), and background/cancel/delete examples.
+See `guides/interactions.md` for CRUD, resumption (`last_event_id`), and background/cancel/delete examples.
 
 ### Live API (WebSocket)
 
@@ -284,7 +285,7 @@ tools = [
 )
 ```
 
-See the [Live API Guide](docs/guides/live_api.md) for complete documentation including voice activity detection, session resumption, thinking budgets, and context window compression.
+See the [Live API Guide](guides/live_api.md) for complete documentation including voice activity detection, session resumption, thinking budgets, and context window compression.
 
 ### Rate Limiting & Concurrency (built-in)
 
@@ -393,7 +394,7 @@ config =
   |> GenerationConfig.property_ordering(["answer", "confidence"])
 ```
 
-See [Structured Outputs Guide](docs/guides/structured_outputs.md) for details.
+See [Structured Outputs Guide](guides/structured_outputs.md) for details.
 
 ## Context Caching (New in v0.6.0!)
 
@@ -468,7 +469,7 @@ alias Gemini.Types.File
 - Automatic MIME type detection
 - 48-hour file expiration
 
-See [Files API Guide](docs/guides/files.md) for complete documentation.
+See [Files API Guide](guides/files.md) for complete documentation.
 
 ## File Search Stores (New in v0.8.x!)
 
@@ -559,7 +560,7 @@ end
 - GCS and BigQuery integration (Vertex AI)
 - Comprehensive job management
 
-See [Batches API Guide](docs/guides/batches.md) for complete documentation.
+See [Batches API Guide](guides/batches.md) for complete documentation.
 
 ## Operations API (New in v0.7.0!)
 
@@ -596,7 +597,7 @@ end
 - Cancel and delete operations
 - Comprehensive state helpers
 
-See [Operations API Guide](docs/guides/operations.md) for complete documentation.
+See [Operations API Guide](guides/operations.md) for complete documentation.
 
 ## Tunings API (New in v0.8.x!)
 
@@ -1519,7 +1520,7 @@ Gemini.embed_content("Text", model: "gemini-embedding-001")
 - **[Architecture Guide](https://hexdocs.pm/gemini_ex/architecture.html)** - System design and components
 - **[Authentication System](https://hexdocs.pm/gemini_ex/authentication_system.html)** - Detailed auth configuration
 - **[Examples](https://github.com/nshkrdotcom/gemini_ex/tree/main/examples)** - Working code examples
-- **Guides (docs/guides/...)**:
+- **Guides (guides/...)**:
   - `adc.md` - Application Default Credentials
   - `batches.md` - Batches API
   - `file_search_stores.md` - RAG stores and document ingestion
@@ -1664,9 +1665,9 @@ content = [
 
 **Supported image formats:** PNG, JPEG, GIF, WebP (auto-detected from magic bytes)
 
-### Image Generation API (Imagen, New in v0.8.x!)
+### Image Generation API (Imagen)
 
-Use the dedicated Imagen endpoints for text-to-image, editing, and upscaling (Vertex AI).
+Use the dedicated Imagen endpoints for text-to-image, editing, and upscaling. As of v0.10.0, `auth: :vertex_ai` is set automatically on all Images API calls.
 
 ```elixir
 alias Gemini.APIs.Images
@@ -1716,7 +1717,7 @@ alias Gemini.Types.Generation.Video.VideoGenerationConfig
 {:ok, op} =
   Videos.generate(
     "A cinematic drone shot over misty mountains at sunrise",
-    %VideoGenerationConfig{duration_seconds: 6, aspect_ratio: "16:9"},
+    %VideoGenerationConfig{duration_seconds: 8, aspect_ratio: "16:9"},
     auth: :vertex_ai
   )
 

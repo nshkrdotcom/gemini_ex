@@ -11,6 +11,9 @@ The Image Generation API (Imagen) allows you to:
 
 **Important Notes:**
 - Image generation requires Vertex AI authentication (not available on Gemini API)
+- As of v0.10.0, `auth: :vertex_ai` is set automatically on all Images API calls — you no longer need to pass it explicitly
+- Per-request auth overrides are supported: pass `:project_id`, `:location`, `:service_account`, or `:access_token` in opts
+- Location is resolved from per-request credentials if not passed explicitly (default: `us-central1`)
 - Each request can generate 1-8 images
 - Generated images are returned as base64-encoded data
 - Subject to Google's safety filters and Responsible AI policies

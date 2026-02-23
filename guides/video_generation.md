@@ -6,7 +6,7 @@ Generate high-quality videos from text descriptions using Google's Veo models th
 
 The Video Generation API (Veo) allows you to:
 - Generate high-quality videos from text prompts
-- Create videos with customizable duration, aspect ratio, and frame rate
+- Create videos with customizable duration and aspect ratio
 - Monitor generation progress with long-running operations
 
 **Important Notes:**
@@ -43,7 +43,7 @@ IO.puts("Video ready: #{video_uri}")
 ### Basic Generation
 
 ```elixir
-# Default configuration (8 seconds, 16:9, 24fps)
+# Default configuration (8 seconds, 16:9)
 {:ok, operation} = Videos.generate(
   "A serene mountain landscape with flowing river"
 )
@@ -55,9 +55,7 @@ IO.puts("Video ready: #{video_uri}")
 config = %VideoGenerationConfig{
   number_of_videos: 2,
   duration_seconds: 4,
-  aspect_ratio: "9:16",  # Vertical for mobile
-  fps: 30,
-  compression_format: :h265
+  aspect_ratio: "9:16"  # Vertical for mobile
 }
 
 {:ok, operation} = Videos.generate(
@@ -98,22 +96,6 @@ config = %VideoGenerationConfig{
   "A person dancing in a vibrant street",
   config
 )
-```
-
-### Frame Rates
-
-Supported frame rates:
-- `24` fps - Cinematic (default)
-- `25` fps - PAL standard
-- `30` fps - Smoother motion
-
-```elixir
-config = %VideoGenerationConfig{
-  fps: 30,
-  duration_seconds: 8
-}
-
-{:ok, operation} = Videos.generate("Fast-paced sports action", config)
 ```
 
 ## Waiting for Completion
@@ -239,47 +221,16 @@ IO.inspect(video.rai_info)           # Responsible AI info
 
 ## Advanced Configuration
 
-### Compression Formats
-
-```elixir
-# H.264 (widely compatible, default)
-config = %VideoGenerationConfig{
-  compression_format: :h264
-}
-
-# H.265 (better quality, smaller file size)
-config = %VideoGenerationConfig{
-  compression_format: :h265
-}
-```
-
 ### Negative Prompts
 
 Specify what to avoid in the video:
 
 ```elixir
 config = %VideoGenerationConfig{
-  negative_prompt: "blurry, low quality, distorted, shaky camera",
-  guidance_scale: 10.0
+  negative_prompt: "blurry, low quality, distorted, shaky camera"
 }
 
 {:ok, operation} = Videos.generate("High quality cinematic shot", config)
-```
-
-### Guidance Scale
-
-Control how closely the model follows your prompt:
-
-```elixir
-# Lower values = more creative/varied
-config = %VideoGenerationConfig{
-  guidance_scale: 5.0
-}
-
-# Higher values = stricter adherence to prompt
-config = %VideoGenerationConfig{
-  guidance_scale: 15.0
-}
 ```
 
 ### Reproducible Generation
@@ -361,30 +312,16 @@ config = %VideoGenerationConfig{
 }
 ```
 
-## Safety and Content Filtering
+## Person Generation Policy
 
-### Safety Filter Levels
-
-```elixir
-# Strict filtering (recommended for public applications)
-config = %VideoGenerationConfig{
-  safety_filter_level: :block_most
-}
-
-# Moderate filtering (default)
-config = %VideoGenerationConfig{
-  safety_filter_level: :block_some
-}
-
-# Permissive filtering
-config = %VideoGenerationConfig{
-  safety_filter_level: :block_few
-}
-```
-
-### Person Generation Policy
+Control generation of people in videos:
 
 ```elixir
+# Don't generate recognizable people (default)
+config = %VideoGenerationConfig{
+  person_generation: :dont_allow
+}
+
 # Allow adult humans (18+)
 config = %VideoGenerationConfig{
   person_generation: :allow_adult
@@ -394,12 +331,9 @@ config = %VideoGenerationConfig{
 config = %VideoGenerationConfig{
   person_generation: :allow_all
 }
-
-# Don't generate recognizable people (default)
-config = %VideoGenerationConfig{
-  person_generation: :allow_none
-}
 ```
+
+> **Note:** In v0.10.0, the default changed from `:allow_none` to `:dont_allow`. The `:allow_none` atom is still accepted but maps to the same behavior as `:dont_allow`.
 
 ## Operation Management
 
@@ -561,7 +495,7 @@ Typical generation times:
 Factors affecting speed:
 - Video duration (longer = slower)
 - Complexity of the prompt
-- Resolution and frame rate
+- Resolution
 - System load
 
 ### Resource Management
@@ -591,13 +525,16 @@ prompts
 | `number_of_videos` | `1..4` | `1` | Number of videos to generate |
 | `duration_seconds` | `4` or `8` | `8` | Video duration |
 | `aspect_ratio` | `String.t()` | `"16:9"` | Video aspect ratio |
-| `fps` | `24`, `25`, or `30` | `24` | Frames per second |
-| `compression_format` | `:h264` or `:h265` | `:h264` | Video compression |
-| `safety_filter_level` | `atom()` | `:block_some` | Content filtering level |
 | `negative_prompt` | `String.t()` | `nil` | What to avoid |
 | `seed` | `integer()` | `nil` | Random seed for reproducibility |
-| `guidance_scale` | `float()` | `nil` | Prompt adherence (1.0-20.0) |
-| `person_generation` | `atom()` | `:allow_none` | Person generation policy |
+| `person_generation` | `atom()` | `:dont_allow` | Person generation policy |
+| `resolution` | `String.t()` | `nil` | Resolution (e.g., `"1080p"`) for Veo 3.1 |
+| `image` | `Blob.t()` | `nil` | Input image for image-to-video |
+| `last_frame` | `Blob.t()` | `nil` | Last frame for interpolation (Veo 3.1) |
+| `reference_images` | `list()` | `nil` | Reference images (Veo 3.1) |
+| `video` | `map()` | `nil` | Input video for extension |
+
+> **Legacy fields:** `fps`, `compression_format`, `safety_filter_level`, and `guidance_scale` are still accepted in the struct for backwards compatibility but are **not sent** in the current API request format.
 
 ## Troubleshooting
 

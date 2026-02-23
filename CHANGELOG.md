@@ -39,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Vertex AI Model Endpoints
 - **`list_models/1`** uses the correct Vertex publisher models endpoint (`/v1beta1/publishers/google/models`) with `pageSize`/`pageToken` query params
+- **`list_models/1` pagination**: accepts `:page_size` and `:page_token` options passed as query parameters
 - **`get_model/2`** uses `publishers/google/models/{model}` path for Vertex AI
 - **`publisherModels` response normalization**: Vertex AI `list_models` responses are transparently normalized to the same `%ListModelsResponse{}` shape as Gemini API responses
 
@@ -49,17 +50,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Vertex Live Session Model Prefix
 - Live sessions with `auth: :vertex_ai` now build correct `projects/{p}/locations/{l}/publishers/google/models/{m}` resource names in the setup message
 
+#### `stream_generate/2` Configurable Timeout
+- New `:stream_timeout` option (default: 60,000ms, up from hardcoded 30,000ms) for `Gemini.stream_generate/2`
+- Stream cleanup on timeout: `Coordinator.stop_stream/1` is called before returning the error, preventing orphaned streams
+
 #### Live API ADC Integration Test
 - New `test/live_api/adc_live_test.exs` for end-to-end ADC-authenticated Live API sessions
 
 ### Changed
-- **Vertex Live API upgraded to v1**: WebSocket endpoint changed from `v1beta1.LlmBidiService/BidiGenerateContent` to `v1.LlmBidiService/BidiGenerateContent`
+- **Vertex Live API upgraded to v1**: WebSocket endpoint changed from `v1beta1.LlmBidiService/BidiGenerateContent` to `v1.LlmBidiService/BidiGenerateContent`; Vertex WebSocket path no longer appends `?project=...&location=...` query parameters
 - **Live model resolution uses registry**: `Gemini.Live.Models.resolve/1` now consults `ModelRegistry` plus runtime `list_models` results instead of hardcoded candidate lists
+- **Live model auth-aware candidate selection**: separate candidate and default lists for `:gemini` vs `:vertex_ai` auth strategies; Vertex AI candidates exclude Gemini-only `gemini-live-*` aliases; smart modality-based fallback scans available models when no candidate matches
 - **Default text live model**: changed from `gemini-2.0-flash-exp` to `gemini-2.5-flash-native-audio-preview-12-2025`
 - **`latest` model alias**: updated from `gemini-3-pro-preview` to `gemini-3.1-pro-preview`
 - **ADC credential discovery order**: now `GOOGLE_APPLICATION_CREDENTIALS_JSON` → `GOOGLE_APPLICATION_CREDENTIALS` → gcloud user creds → metadata server
 - **`Live.Models.candidates/1`** and **`Live.Models.default/1`** now accept an optional `opts` keyword list for auth-aware candidate selection
 - **`Live.Setup.normalize_model_name/1`**: now recognizes `projects/`, `publishers/`, and `models/` prefixes
+- **Video generation request format**: flattened request params — `numberOfVideos`, `durationSeconds`, `aspectRatio`, `personGeneration` are now top-level keys instead of nested under `videoConfig`; compatible with Veo 3.1 API requirements
+- **Video `person_generation` default**: changed from `:allow_none` to `:dont_allow`; format changed from camelCase (`allowAdult`) to snake_case (`allow_adult`); `:allow_none` now maps to `"dont_allow"`
+- **Video binary encoding**: `image_to_api/1` and `video_to_api/1` now use `%{"inlineData" => %{"data" => ..., "mimeType" => ...}}` format instead of `%{"bytesBase64Encoded" => ...}`; response parsing handles both legacy and new formats
+- **Video generation legacy fields**: `fps`, `compression_format`, `safety_filter_level`, and `guidance_scale` are no longer sent in API requests (struct fields retained for backwards compatibility)
+- **Images API implicit Vertex AI auth**: `generate/3`, `edit/5`, and `upscale/3` now auto-set `auth: :vertex_ai` on opts; validation uses per-request auth credentials via `HTTP.auth_config_for_request/1` with actual credential completeness checking; location resolved from per-request auth config
+- **Streaming options pass-through**: `UnifiedManager` now extracts `:timeout`, `:max_retries`, `:max_backoff_ms`, `:connect_timeout`, `:method`, and `:add_sse_params` from stream config and passes them to `HTTPStreaming.stream_to_process/6`
+- **Model reclassifications**: `deep_research_pro_preview_12_2025` moved from universal to Gemini-only models; `live_2_5_flash_preview` moved to Gemini-only legacy aliases; `flash_2_5_native_audio_latest` added as a universal model
+- **`RUN_BILLED_VERTEX_LIVE_TESTS` gate**: Vertex Live tests now require explicit opt-in via environment variable to prevent accidental GCP billing
 
 ### Fixed
 - **Vertex AI model path handling**: `list_models` and `get_model` use correct Vertex AI resource paths instead of Gemini API paths

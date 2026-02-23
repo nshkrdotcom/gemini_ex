@@ -321,6 +321,6 @@ Ephemeral tokens provide enhanced security by:
 )
 ```
 
-See the [Live API Guide](docs/guides/live_api.md) for complete documentation on ephemeral tokens and session security.
+See the [Live API Guide](live_api.md) for complete documentation on ephemeral tokens and session security.
 
 ---
