@@ -10,7 +10,7 @@ defmodule Gemini.Types.Live.Setup do
 
   ## Fields
 
-  - `model` - Required. The model's resource name (e.g., "models/gemini-live-2.5-flash-preview")
+  - `model` - Required. The model's resource name (e.g., "models/gemini-2.5-flash-native-audio-preview-12-2025")
   - `generation_config` - Generation configuration for the session
   - `system_instruction` - System instructions for the model
   - `tools` - List of tools the model may use
@@ -25,7 +25,7 @@ defmodule Gemini.Types.Live.Setup do
   ## Example
 
       %Setup{
-        model: "models/gemini-live-2.5-flash-preview",
+        model: "models/gemini-2.5-flash-native-audio-preview-12-2025",
         generation_config: %{
           response_modalities: [:audio],
           speech_config: %{voice_config: %{prebuilt_voice_config: %{voice_name: "Puck"}}}
@@ -425,6 +425,7 @@ defmodule Gemini.Types.Live.Setup do
   defp normalize_model_name(model) when is_binary(model) do
     cond do
       String.starts_with?(model, "projects/") -> model
+      String.starts_with?(model, "publishers/") -> model
       String.starts_with?(model, "models/") -> model
       true -> "models/#{model}"
     end
@@ -434,13 +435,20 @@ defmodule Gemini.Types.Live.Setup do
 
   defp apply_model_prefix(model, model_prefix)
        when is_binary(model) and is_binary(model_prefix) do
-    if String.starts_with?(model, "projects/") do
-      model
-    else
-      normalized_prefix =
-        if String.ends_with?(model_prefix, "/"), do: model_prefix, else: model_prefix <> "/"
+    normalized_prefix =
+      if String.ends_with?(model_prefix, "/"), do: model_prefix, else: model_prefix <> "/"
 
-      normalized_prefix <> model
+    cond do
+      String.starts_with?(model, "projects/") ->
+        model
+
+      String.starts_with?(model, "publishers/") and
+          String.ends_with?(normalized_prefix, "publishers/google/") ->
+        location_prefix = String.replace_suffix(normalized_prefix, "publishers/google/", "")
+        location_prefix <> model
+
+      true ->
+        normalized_prefix <> model
     end
   end
 

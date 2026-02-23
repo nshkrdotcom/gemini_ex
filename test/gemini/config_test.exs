@@ -160,4 +160,23 @@ defmodule Gemini.ConfigTest do
       assert Config.detect_auth_type(config) == :gemini
     end
   end
+
+  describe "model registry integration" do
+    test "model_info/1 resolves metadata for key and raw model name" do
+      assert %{code: "gemini-3.1-pro-preview"} = Config.model_info(:pro_3_1_preview)
+      assert %{code: "gemini-3.1-pro-preview"} = Config.model_info("gemini-3.1-pro-preview")
+    end
+
+    test "model_supports?/3 checks capability support state" do
+      assert Config.model_supports?(:pro_3_1_preview, :thinking)
+      refute Config.model_supports?(:pro_3_1_preview, :live_api)
+      assert Config.model_supports?(:flash_2_0, :thinking, :experimental)
+    end
+
+    test "models_with_capability/2 lists supported live_api models" do
+      live_models = Config.models_with_capability(:live_api)
+
+      assert "gemini-2.5-flash-native-audio-preview-12-2025" in live_models
+    end
+  end
 end

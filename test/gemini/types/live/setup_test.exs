@@ -87,6 +87,16 @@ defmodule Gemini.Types.Live.SetupTest do
 
       assert setup.model == full_model
     end
+
+    test "adds project/location prefix for publisher-scoped Vertex model names" do
+      setup =
+        Setup.new("publishers/google/models/gemini-live-2.5-flash",
+          model_prefix: "projects/test-project/locations/us-central1/publishers/google/"
+        )
+
+      assert setup.model ==
+               "projects/test-project/locations/us-central1/publishers/google/models/gemini-live-2.5-flash"
+    end
   end
 
   describe "to_api/1" do

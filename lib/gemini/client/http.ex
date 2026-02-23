@@ -28,7 +28,7 @@ defmodule Gemini.Client.HTTP do
   Make a GET request using the configured authentication.
   """
   def get(path, opts \\ []) do
-    auth_config = Config.auth_config()
+    auth_config = resolve_auth_config(opts)
     request(:get, path, nil, auth_config, opts)
   end
 
@@ -36,7 +36,7 @@ defmodule Gemini.Client.HTTP do
   Make a POST request using the configured authentication.
   """
   def post(path, body, opts \\ []) do
-    auth_config = Config.auth_config()
+    auth_config = resolve_auth_config(opts)
     request(:post, path, body, auth_config, opts)
   end
 
@@ -44,7 +44,7 @@ defmodule Gemini.Client.HTTP do
   Make a PATCH request using the configured authentication.
   """
   def patch(path, body, opts \\ []) do
-    auth_config = Config.auth_config()
+    auth_config = resolve_auth_config(opts)
     request(:patch, path, body, auth_config, opts)
   end
 
@@ -52,8 +52,14 @@ defmodule Gemini.Client.HTTP do
   Make a DELETE request using the configured authentication.
   """
   def delete(path, opts \\ []) do
-    auth_config = Config.auth_config()
+    auth_config = resolve_auth_config(opts)
     request(:delete, path, nil, auth_config, opts)
+  end
+
+  @doc false
+  @spec auth_config_for_request(keyword()) :: %{type: :gemini | :vertex_ai, credentials: map()}
+  def auth_config_for_request(opts \\ []) do
+    resolve_auth_config(opts)
   end
 
   @doc """
@@ -134,6 +140,46 @@ defmodule Gemini.Client.HTTP do
 
   # Private functions
 
+  @spec resolve_auth_config(keyword()) :: %{type: :gemini | :vertex_ai, credentials: map()}
+  defp resolve_auth_config(opts) when is_list(opts) do
+    case normalize_auth_strategy(Keyword.get(opts, :auth)) do
+      nil ->
+        Config.auth_config()
+
+      strategy ->
+        credentials =
+          Config.get_auth_config(strategy)
+          |> apply_auth_overrides(strategy, opts)
+
+        %{type: strategy, credentials: credentials}
+    end
+  end
+
+  defp normalize_auth_strategy(:vertex), do: :vertex_ai
+  defp normalize_auth_strategy(:gemini), do: :gemini
+  defp normalize_auth_strategy(:vertex_ai), do: :vertex_ai
+  defp normalize_auth_strategy(_), do: nil
+
+  defp apply_auth_overrides(credentials, :gemini, opts) do
+    credentials
+    |> maybe_put_cred(:api_key, Keyword.get(opts, :api_key))
+  end
+
+  defp apply_auth_overrides(credentials, :vertex_ai, opts) do
+    credentials
+    |> maybe_put_cred(:project_id, Keyword.get(opts, :project_id))
+    |> maybe_put_cred(:location, Keyword.get(opts, :location))
+    |> maybe_put_cred(:access_token, Keyword.get(opts, :access_token))
+    |> maybe_put_cred(:service_account_key, Keyword.get(opts, :service_account_key))
+    |> maybe_put_cred(:service_account_key, Keyword.get(opts, :service_account))
+    |> maybe_put_cred(:service_account_data, Keyword.get(opts, :service_account_data))
+    |> maybe_put_cred(:quota_project_id, Keyword.get(opts, :quota_project_id))
+  end
+
+  defp maybe_put_cred(credentials, _key, nil), do: credentials
+  defp maybe_put_cred(credentials, _key, ""), do: credentials
+  defp maybe_put_cred(credentials, key, value), do: Map.put(credentials, key, value)
+
   defp execute_authenticated_request(method, path, body, auth_type, credentials, opts) do
     url = build_authenticated_url(auth_type, path, credentials)
 
@@ -163,23 +209,41 @@ defmodule Gemini.Client.HTTP do
   defp build_authenticated_url(auth_type, path, credentials) do
     base_url = Auth.get_base_url(auth_type, credentials)
 
-    # Check if this is a model-specific endpoint (contains ":" separator)
-    # or a general endpoint like "models" for listing
-    if String.contains?(path, ":") do
-      # Model-specific endpoint, use the auth strategy to build the path
-      full_path =
-        Auth.build_path(
-          auth_type,
-          extract_model_from_path(path),
-          extract_endpoint_from_path(path),
-          credentials
-        )
+    cond do
+      String.starts_with?(path, "https://") or String.starts_with?(path, "http://") ->
+        path
 
-      "#{base_url}/#{full_path}"
-    else
-      # General endpoint (like "models"), use path directly
-      "#{base_url}/#{path}"
+      String.starts_with?(path, "/") ->
+        build_absolute_url(base_url, path)
+
+      String.contains?(path, ":") ->
+        full_path =
+          Auth.build_path(
+            auth_type,
+            extract_model_from_path(path),
+            extract_endpoint_from_path(path),
+            credentials
+          )
+
+        "#{base_url}/#{full_path}"
+
+      true ->
+        "#{base_url}/#{path}"
     end
+  end
+
+  defp build_absolute_url(base_url, absolute_path) do
+    uri = URI.parse(base_url)
+
+    port_segment =
+      cond do
+        is_nil(uri.port) -> ""
+        uri.scheme == "https" and uri.port == 443 -> ""
+        uri.scheme == "http" and uri.port == 80 -> ""
+        true -> ":#{uri.port}"
+      end
+
+    "#{uri.scheme}://#{uri.host}#{port_segment}#{absolute_path}"
   end
 
   defp extract_model_from_path(path) do

@@ -181,7 +181,7 @@ Live docs may list newer models that are not yet enabled for your API key.
 When that happens, the Live API returns a `1008` close error like:
 
 ```
-models/gemini-live-2.5-flash-preview is not found for API version v1beta,
+Publisher Model `projects/.../publishers/google/models/<model>` was not found
 or is not supported for bidiGenerateContent
 ```
 
@@ -197,10 +197,10 @@ text_model = Models.resolve(:text)
 audio_model = Models.resolve(:audio)
 ```
 
-The resolver prefers newer Live models when available, and falls back to the
-older rollout-safe models:
+The resolver uses the model registry plus runtime `list_models` results for your
+credentials. If no direct match is found, it falls back to rollout-safe models:
 
-- Text fallback: `gemini-2.0-flash-exp`
+- Text fallback: `gemini-2.5-flash-native-audio-preview-12-2025`
 - Image fallback: `gemini-2.0-flash-exp-image-generation`
 - Audio fallback: `gemini-2.5-flash-native-audio-preview-12-2025`
 

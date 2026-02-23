@@ -264,7 +264,7 @@ defmodule Gemini.APIs.Coordinator do
   """
   @spec list_models(Gemini.options()) :: api_result(ListModelsResponse.t())
   def list_models(opts \\ []) do
-    path = "models"
+    path = list_models_path(opts)
 
     case HTTP.get(path, opts) do
       {:ok, response} ->
@@ -291,7 +291,7 @@ defmodule Gemini.APIs.Coordinator do
   """
   @spec get_model(String.t(), Gemini.options()) :: api_result(map())
   def get_model(model_name, opts \\ []) do
-    path = "models/#{model_name}"
+    path = get_model_path(model_name, opts)
 
     case HTTP.get(path, opts) do
       {:ok, response} ->
@@ -1620,8 +1620,160 @@ defmodule Gemini.APIs.Coordinator do
 
   @spec parse_models_response(map()) :: {:ok, ListModelsResponse.t()} | {:error, term()}
   defp parse_models_response(response) when is_map(response) do
-    atomized_response = atomize_keys(response)
+    atomized_response =
+      response
+      |> normalize_models_payload()
+      |> atomize_keys()
+
     {:ok, struct(ListModelsResponse, atomized_response)}
+  end
+
+  defp normalize_models_payload(%{"publisherModels" => publisher_models} = response)
+       when is_list(publisher_models) do
+    %{
+      "models" => Enum.map(publisher_models, &normalize_publisher_model/1),
+      "nextPageToken" => Map.get(response, "nextPageToken")
+    }
+  end
+
+  defp normalize_models_payload(%{publisherModels: publisher_models} = response)
+       when is_list(publisher_models) do
+    %{
+      models: Enum.map(publisher_models, &normalize_publisher_model/1),
+      next_page_token: Map.get(response, :next_page_token)
+    }
+  end
+
+  defp normalize_models_payload(response), do: response
+
+  defp normalize_publisher_model(model) when is_map(model) do
+    name = get_model_value(model, ["name", :name], "")
+    normalized_name = normalize_model_name_for_lookup(name)
+    supported_methods = publisher_supported_methods(model, normalized_name)
+
+    %{
+      "name" => "models/#{normalized_name}",
+      "baseModelId" => normalized_name,
+      "version" => get_model_value(model, ["versionId", :version_id], normalized_name),
+      "displayName" => get_model_value(model, ["displayName", :display_name], normalized_name),
+      "description" => get_model_value(model, ["description", :description], ""),
+      "inputTokenLimit" => get_model_value(model, ["inputTokenLimit", :input_token_limit], 0),
+      "outputTokenLimit" => get_model_value(model, ["outputTokenLimit", :output_token_limit], 0),
+      "supportedGenerationMethods" => supported_methods
+    }
+  end
+
+  defp get_model_value(model, keys, default) when is_map(model) and is_list(keys) do
+    Enum.find_value(keys, default, fn key ->
+      case Map.fetch(model, key) do
+        {:ok, nil} -> nil
+        {:ok, value} -> value
+        :error -> nil
+      end
+    end)
+  end
+
+  defp publisher_supported_methods(model, normalized_name) do
+    explicit_methods =
+      get_model_value(
+        model,
+        [
+          "supportedGenerationMethods",
+          :supported_generation_methods
+        ],
+        nil
+      )
+
+    cond do
+      is_list(explicit_methods) and explicit_methods != [] ->
+        explicit_methods
+
+      String.contains?(normalized_name, "native-audio") or
+          String.contains?(normalized_name, "live") ->
+        ["generateContent", "bidiGenerateContent"]
+
+      true ->
+        ["generateContent"]
+    end
+  end
+
+  defp list_models_path(opts) do
+    query = model_list_query(opts)
+
+    case request_auth_strategy(opts) do
+      :vertex_ai ->
+        "/v1beta1/publishers/google/models#{query}"
+
+      :gemini ->
+        "models#{query}"
+    end
+  end
+
+  defp get_model_path(model_name, opts) when is_binary(model_name) do
+    normalized_name = normalize_model_name_for_lookup(model_name)
+
+    case request_auth_strategy(opts) do
+      :vertex_ai -> "publishers/google/models/#{normalized_name}"
+      :gemini -> "models/#{normalized_name}"
+    end
+  end
+
+  defp request_auth_strategy(opts) do
+    case Keyword.get(opts, :auth) do
+      :vertex -> :vertex_ai
+      :vertex_ai -> :vertex_ai
+      :gemini -> :gemini
+      _ -> default_auth_strategy()
+    end
+  end
+
+  defp default_auth_strategy do
+    case Config.auth_config() do
+      %{type: :vertex_ai} -> :vertex_ai
+      %{type: :vertex} -> :vertex_ai
+      %{type: :gemini} -> :gemini
+      _ -> :gemini
+    end
+  end
+
+  defp model_list_query(opts) do
+    params =
+      []
+      |> maybe_add_query_param("pageSize", Keyword.get(opts, :page_size))
+      |> maybe_add_query_param("pageToken", Keyword.get(opts, :page_token))
+      |> Enum.reverse()
+
+    case URI.encode_query(params) do
+      "" -> ""
+      encoded -> "?#{encoded}"
+    end
+  end
+
+  defp maybe_add_query_param(params, _key, nil), do: params
+  defp maybe_add_query_param(params, _key, ""), do: params
+  defp maybe_add_query_param(params, key, value), do: [{key, to_string(value)} | params]
+
+  defp normalize_model_name_for_lookup(model_name) when is_binary(model_name) do
+    model_name
+    |> strip_endpoint_suffix()
+    |> strip_known_model_prefixes()
+  end
+
+  defp strip_known_model_prefixes(model_name) do
+    cond do
+      String.starts_with?(model_name, "models/") ->
+        String.replace_prefix(model_name, "models/", "")
+
+      String.starts_with?(model_name, "publishers/google/models/") ->
+        String.replace_prefix(model_name, "publishers/google/models/", "")
+
+      String.contains?(model_name, "/models/") ->
+        [_prefix, normalized_name] = String.split(model_name, "/models/", parts: 2)
+        normalized_name
+
+      true ->
+        model_name
+    end
   end
 
   # Helper function to recursively convert string keys to atom keys

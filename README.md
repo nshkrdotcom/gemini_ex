@@ -209,7 +209,7 @@ Real-time bidirectional streaming for voice, video, and text interactions. For G
 
 #### Model Resolution
 
-Live API model availability varies by API key and regional rollout. Use `Gemini.Live.Models.resolve/1` to automatically select an available model:
+Live API model availability varies by API key and regional rollout. `Gemini.Live.Models.resolve/1` uses the model registry plus runtime `list_models` results to select a compatible model:
 
 ```elixir
 alias Gemini.Live.Models
@@ -1466,6 +1466,11 @@ Gemini.Config.models_for(:both)       # Only universal models
 # Get model by key with validation
 Gemini.Config.get_model(:flash_2_5)  #=> "gemini-2.5-flash"
 Gemini.Config.get_model(:flash_2_5, api: :vertex_ai)  # Validates compatibility
+
+# Registry metadata helpers
+Gemini.Config.model_info(:pro_3_1_preview)
+Gemini.Config.model_supports?(:pro_3_1_preview, :thinking)     #=> true
+Gemini.Config.models_with_capability(:live_api, :supported)
 ```
 
 ### Embedding Model Differences

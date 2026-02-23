@@ -17,11 +17,10 @@ defmodule Gemini.Live.SessionVertexLiveTest do
 
   use ExUnit.Case, async: false
 
-  alias Gemini.Live.Session
+  alias Gemini.Live.{Models, Session}
 
   @moduletag :live_vertex_ai
 
-  @live_model "gemini-2.5-flash-native-audio-preview-12-2025"
   @run_billed_live_tests System.get_env("RUN_BILLED_VERTEX_LIVE_TESTS") in [
                            "1",
                            "true",
@@ -30,6 +29,7 @@ defmodule Gemini.Live.SessionVertexLiveTest do
                            "YES"
                          ]
   @project_id System.get_env("VERTEX_PROJECT_ID")
+  @location System.get_env("VERTEX_LOCATION") || "us-central1"
   @has_auth Enum.any?(
               [
                 System.get_env("VERTEX_SERVICE_ACCOUNT"),
@@ -52,8 +52,15 @@ defmodule Gemini.Live.SessionVertexLiveTest do
                  "One of VERTEX_SERVICE_ACCOUNT, VERTEX_ACCESS_TOKEN, GOOGLE_APPLICATION_CREDENTIALS_JSON required"
   end
 
-  setup do
-    {:ok, project_id: System.fetch_env!("VERTEX_PROJECT_ID")}
+  setup_all do
+    {:ok, live_model: Models.resolve(:text, auth: :vertex_ai)}
+  end
+
+  setup %{live_model: live_model} do
+    {:ok,
+     project_id: System.fetch_env!("VERTEX_PROJECT_ID"),
+     location: @location,
+     live_model: live_model}
   end
 
   describe "Vertex AI connection" do
@@ -67,9 +74,13 @@ defmodule Gemini.Live.SessionVertexLiveTest do
     else
       @tag :adc_json
       @tag :live_vertex_ai
-      test "connects using ADC JSON env credentials", %{project_id: project_id} do
+      test "connects using ADC JSON env credentials", %{
+        project_id: project_id,
+        location: location,
+        live_model: live_model
+      } do
         test_pid = self()
-        {:ok, session} = start_vertex_session(test_pid, project_id)
+        {:ok, session} = start_vertex_session(test_pid, project_id, location, live_model)
         assert :ok = Session.connect(session)
         assert Session.status(session) == :ready
         Session.close(session)
@@ -77,18 +88,26 @@ defmodule Gemini.Live.SessionVertexLiveTest do
     end
 
     @tag :live_vertex_ai
-    test "connects with service account", %{project_id: project_id} do
+    test "connects with service account", %{
+      project_id: project_id,
+      location: location,
+      live_model: live_model
+    } do
       test_pid = self()
-      {:ok, session} = start_vertex_session(test_pid, project_id)
+      {:ok, session} = start_vertex_session(test_pid, project_id, location, live_model)
       assert :ok = Session.connect(session)
       assert Session.status(session) == :ready
       Session.close(session)
     end
 
     @tag :live_vertex_ai
-    test "sends text and receives response", %{project_id: project_id} do
+    test "sends text and receives response", %{
+      project_id: project_id,
+      location: location,
+      live_model: live_model
+    } do
       test_pid = self()
-      {:ok, session} = start_vertex_session(test_pid, project_id)
+      {:ok, session} = start_vertex_session(test_pid, project_id, location, live_model)
       assert :ok = Session.connect(session)
       assert_receive {:msg, %{setup_complete: _}}, 10_000
       :ok = Session.send_client_content(session, "Say hello in one word")
@@ -98,9 +117,9 @@ defmodule Gemini.Live.SessionVertexLiveTest do
     end
 
     @tag :live_vertex_ai
-    test "returns error without project_id" do
+    test "returns error without project_id", %{live_model: live_model} do
       result =
-        case Session.start_link(model: @live_model, auth: :vertex_ai) do
+        case Session.start_link(model: live_model, auth: :vertex_ai) do
           {:ok, pid} ->
             connect_result = Session.connect(pid)
             GenServer.stop(pid)
@@ -114,10 +133,14 @@ defmodule Gemini.Live.SessionVertexLiveTest do
     end
 
     @tag :live_vertex_ai
-    test "handles different locations", %{project_id: project_id} do
+    test "handles different locations", %{
+      project_id: project_id,
+      location: location,
+      live_model: live_model
+    } do
       # Test with a different location (if available)
       test_pid = self()
-      {:ok, session} = start_vertex_session(test_pid, project_id)
+      {:ok, session} = start_vertex_session(test_pid, project_id, location, live_model)
       assert :ok = Session.connect(session)
       assert Session.status(session) == :ready
       Session.close(session)
@@ -126,15 +149,19 @@ defmodule Gemini.Live.SessionVertexLiveTest do
 
   describe "Vertex AI with system instruction" do
     @tag :live_vertex_ai
-    test "respects system instruction", %{project_id: project_id} do
+    test "respects system instruction", %{
+      project_id: project_id,
+      location: location,
+      live_model: live_model
+    } do
       test_pid = self()
 
       {:ok, session} =
         Session.start_link(
-          model: @live_model,
+          model: live_model,
           auth: :vertex_ai,
           project_id: project_id,
-          location: "us-central1",
+          location: location,
           generation_config: %{response_modalities: ["TEXT"]},
           system_instruction:
             "You are a helpful assistant that always starts responses with 'Certainly!'",
@@ -149,12 +176,12 @@ defmodule Gemini.Live.SessionVertexLiveTest do
     end
   end
 
-  defp start_vertex_session(test_pid, project_id) do
+  defp start_vertex_session(test_pid, project_id, location, live_model) do
     Session.start_link(
-      model: @live_model,
+      model: live_model,
       auth: :vertex_ai,
       project_id: project_id,
-      location: "us-central1",
+      location: location,
       generation_config: %{response_modalities: ["TEXT"]},
       on_message: fn msg -> send(test_pid, {:msg, msg}) end
     )
