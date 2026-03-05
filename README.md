@@ -29,7 +29,7 @@ A comprehensive Elixir client for Google's Gemini AI API with dual authenticatio
 - **Batches API**: Submit large numbers of requests with 50% cost savings (NEW in v0.7.0!)
 - **Operations API**: Track long-running operations like video generation (NEW in v0.7.0!)
 - **Tunings (Fine-Tuning)**: Create, monitor, and manage tuned models (NEW in v0.8.x!)
-- **Model Registry**: Centralized model capabilities, modality tracking, and registry-backed Live API model resolution (NEW in v0.10.0!)
+- **Model Registry**: Centralized model capabilities, modality tracking, and registry-backed Live API model resolution (Enhanced in v0.11.0!)
 - **Image & Video Generation**: Imagen/Veo APIs for text-to-image, editing, upscaling, and video generation with Veo 3.1 support
 - **Embeddings with MRL**: Text embeddings with Matryoshka Representation Learning, normalization, and distance metrics
 - **Async Batch Embeddings**: Production-scale embedding generation with 50% cost savings
@@ -59,7 +59,7 @@ Add `gemini` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:gemini_ex, "~> 0.10.0"}
+    {:gemini_ex, "~> 0.11.0"}
   ]
 end
 ```
@@ -431,7 +431,7 @@ alias Gemini.Types.Content
 - `gemini-2.5-pro`
 - `gemini-2.0-flash-001`
 - `gemini-2.0-flash-lite-001`
-- `gemini-3-pro-preview`
+- `gemini-3.1-pro-preview`
 - `gemini-3-flash-preview`
 
 You can list, get, update TTL, and delete caches via the top-level `Gemini.*cache*` helpers or `Gemini.APIs.ContextCache.*`. Vertex AI names are auto-expanded when `auth: :vertex_ai` or configured credentials are present.
@@ -442,25 +442,24 @@ Upload and manage files for use with Gemini models. Perfect for multimodal conte
 
 ```elixir
 alias Gemini.APIs.Files
-alias Gemini.Types.File
 
-# Upload a file
-{:ok, file} = Files.upload("path/to/image.png")
+# Upload a file (Gemini Developer API only)
+{:ok, file} = Files.upload("path/to/image.png", auth: :gemini)
 
-# Wait for processing (videos/large files)
-{:ok, ready} = Files.wait_for_processing(file.name)
+# Use the File struct directly in content generation
+{:ok, response} = Gemini.generate([file, "What's in this image?"])
 
-# Use in content generation
-{:ok, response} = Gemini.generate([
-  "What's in this image?",
-  %{file_uri: ready.uri, mime_type: ready.mime_type}
-])
+# Wait for processing only when the file is still processing
+{:ok, video} = Files.upload("path/to/video.mp4", auth: :gemini)
+{:ok, ready_video} = Files.wait_for_processing(video.name, auth: :gemini)
+{:ok, video_response} = Gemini.generate([ready_video, "Describe this video clip"])
 
 # List all files
-{:ok, files} = Files.list_all()
+{:ok, files} = Files.list_all(auth: :gemini)
 
 # Clean up
-:ok = Files.delete(file.name)
+:ok = Files.delete(file.name, auth: :gemini)
+:ok = Files.delete(video.name, auth: :gemini)
 ```
 
 **Key Features:**
@@ -468,6 +467,8 @@ alias Gemini.Types.File
 - Support for images, videos, audio, and documents
 - Automatic MIME type detection
 - 48-hour file expiration
+
+**Note:** The Files API is available only on the Gemini Developer API. It is not supported on Vertex AI.
 
 See [Files API Guide](guides/files.md) for complete documentation.
 
@@ -631,18 +632,14 @@ Register existing GCS files with the Gemini API without uploading. Ideal for lar
 ```elixir
 alias Gemini.APIs.Files
 
-# GCS credentials with read access to the bucket
-credentials = %{
-  "type" => "service_account",
-  "client_email" => "...",
-  "private_key" => "...",
-  # ... other service account fields
-}
+# Fetch an OAuth token with read access to the bucket
+{:ok, token} = Goth.fetch(MyApp.Goth)
 
 # Register GCS files
 {:ok, response} = Files.register_files(
   ["gs://my-bucket/documents/report.pdf", "gs://my-bucket/images/photo.jpg"],
-  credentials: credentials
+  credentials: %{token: token.token},
+  auth: :gemini
 )
 
 # Use registered files in generation
@@ -652,12 +649,12 @@ end)
 
 file = hd(response.files)
 {:ok, response} = Gemini.generate([
-  "Summarize this document",
-  %{file_uri: file.uri, mime_type: file.mime_type}
+  file,
+  "Summarize this document"
 ])
 ```
 
-**Note:** This feature is only available in the Gemini Developer API, not Vertex AI. The credentials must have read access to the GCS bucket.
+**Note:** This feature is only available in the Gemini Developer API, not Vertex AI. Pass either `%{token: "..."}` or a `Goth.Token`-style struct, and ensure the token can read the referenced GCS objects.
 
 ## Model Armor (Vertex AI only)
 
@@ -1510,7 +1507,7 @@ config :gemini_ex,
 Or specify per-request:
 
 ```elixir
-Gemini.generate("Hello", model: "gemini-3-pro-preview")
+Gemini.generate("Hello", model: "gemini-3.1-pro-preview")
 Gemini.embed_content("Text", model: "gemini-embedding-001")
 ```
 
@@ -1622,7 +1619,7 @@ All generation config options are fully supported across all API entry points:
 - `gemini-flash-lite-latest` (default; fastest + most cost-efficient)
 - `gemini-2.5-flash` (balanced price/performance for high-volume workloads)
 - `gemini-3-flash-preview` (fast Gemini 3 with full thinking levels + built-in tools)
-- `gemini-3-pro-preview` (most capable multimodal reasoning)
+- `gemini-3.1-pro-preview` (most capable multimodal reasoning and agentic coding)
 
 ### Multimodal Content (New in v0.2.2!)
 

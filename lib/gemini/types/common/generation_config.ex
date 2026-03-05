@@ -107,6 +107,7 @@ defmodule Gemini.Types.GenerationConfig do
     field(:response_modalities, [Modality.t()] | nil, default: nil)
     field(:speech_config, SpeechConfig.t() | nil, default: nil)
     field(:media_resolution, MediaResolution.t() | nil, default: nil)
+    field(:enable_enhanced_civic_answers, boolean() | nil, default: nil)
   end
 
   @doc """

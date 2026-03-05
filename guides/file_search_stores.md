@@ -189,8 +189,8 @@ Stores are created asynchronously. Always wait for activation before adding docu
 If you've already uploaded a file using the Files API:
 
 ```elixir
-# Upload a file first
-{:ok, file} = Gemini.upload_file("/path/to/document.pdf")
+# Upload a file first with the Gemini Files API
+{:ok, file} = Gemini.APIs.Files.upload("/path/to/document.pdf", auth: :gemini)
 
 # Import it into the store
 {:ok, doc} = FileSearchStores.import_file(
@@ -200,7 +200,7 @@ If you've already uploaded a file using the Files API:
 )
 
 # Wait for processing
-{:ok, ready_doc} = FileSearchStores.wait_for_document(doc.name)
+{:ok, ready_doc} = FileSearchStores.wait_for_document(doc.name, auth: :vertex_ai)
 IO.puts("Document ready with #{ready_doc.chunk_count} chunks")
 ```
 

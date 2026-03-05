@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-03-05
+
+### Added
+
+#### New Model Registry Entries
+- `gemini-3.1-flash-lite-preview` — Gemini 3.1 Flash-Lite Preview, frontier-class performance rivaling larger models at a fraction of the cost
+- `gemini-3.1-flash-image-preview` — Nano Banana 2, high-efficiency image generation and editing optimized for speed and high-volume use cases
+
+#### Config Model Registry
+- `flash_3_1_lite_preview` and `flash_3_1_image_preview` keys added to universal models in `Gemini.Config`
+
+#### Models API: `thinking` field
+- **`thinking` boolean field** added to `Gemini.Types.Response.Model` — reflects whether the model supports thinking/reasoning as returned by the API
+- **`Model.supports_thinking?/1`** helper function for querying thinking capability
+- `thinking` included in `Model.capabilities_summary/1` output
+- Parsed from API responses in both `Gemini.APIs.Models` and `Gemini.APIs.Coordinator`
+
+#### generateContent/streamGenerateContent API completeness
+- **`candidates_tokens_details`** field added to `UsageMetadata` — parses `candidatesTokensDetails` modality token counts from API responses
+- **`grounding_metadata`** field added to `Candidate` — stores `groundingMetadata` (grounding chunks, supports, web search queries) from API responses
+- **`logprobs_result`** field added to `Candidate` — stores `logprobsResult` log probability data from API responses
+- **`url_context_metadata`** field added to `Candidate` — stores `urlContextMetadata` from API responses
+- **`CitationMetadata.from_api/1`** and **`CitationSource.from_api/1`** — proper structured parsing of citation data (previously stored as raw maps)
+- **`safety_settings`** wired into `build_generate_request` — pass `safety_settings: [SafetySetting.harassment(:block_none)]` to set per-request safety thresholds
+- **`enable_enhanced_civic_answers`** field added to `GenerationConfig` and supported in `put_generation_opt`
+- **`MultiSpeakerVoiceConfig`** and **`SpeakerVoiceConfig`** types added with `from_api/1` and `to_api/1`
+- **`multi_speaker_voice_config`** field added to `SpeechConfig` for multi-speaker voice synthesis
+
+#### Models API: `predict` and `predictLongRunning` endpoints
+- **`Gemini.predict/3`** — generic `models.predict` endpoint (`POST /v1beta/{model=models/*}:predict`) for direct prediction requests
+- **`Gemini.predict_long_running/3`** — `models.predictLongRunning` endpoint (`POST /v1beta/{model=models/*}:predictLongRunning`) returning an Operation for async processing
+- Both endpoints support Vertex AI (`projects/.../publishers/google/models/...:predict`) and Gemini API paths
+- For most use cases, prefer the higher-level `Gemini.APIs.Images` or `Gemini.APIs.Videos` modules which use these endpoints internally
+
+### Changed
+- **Gemini 3 Pro deprecation**: `gemini-3-pro-preview` track changed from `:preview` to `:deprecated` — Google is discontinuing the model on March 9, 2026; migrate to `gemini-3.1-pro-preview`
+
 ## [0.10.0] - 2026-02-22
 
 ### Added
@@ -1998,7 +2035,8 @@ config :gemini_ex,
 - Minimal latency overhead
 - Concurrent request processing
 
-[Unreleased]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.9.1...v0.10.0
 [0.9.1]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.8.8...v0.9.0

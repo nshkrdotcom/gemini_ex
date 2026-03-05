@@ -304,6 +304,72 @@ defmodule Gemini.APIs.Coordinator do
     end
   end
 
+  # Predict API
+
+  @doc """
+  Perform a prediction request on a model.
+
+  This is the generic prediction endpoint used by specialized APIs (Imagen, Veo, etc.).
+  For most use cases, prefer the higher-level `Gemini.APIs.Images` or `Gemini.APIs.Videos` modules.
+
+  ## Parameters
+
+  - `model_name`: The model to use (e.g. `"imagen-4.0-generate-001"`)
+  - `instances`: List of input instances for prediction
+  - `opts`: Options including `:parameters` map and auth strategy
+
+  ## Examples
+
+      Coordinator.predict("imagen-4.0-generate-001", [%{"prompt" => "a cat"}],
+        parameters: %{"sampleCount" => 1}, auth: :vertex_ai)
+  """
+  @spec predict(String.t(), list(), Gemini.options()) :: api_result(map())
+  def predict(model_name, instances, opts \\ [])
+      when is_binary(model_name) and is_list(instances) do
+    path = predict_path(model_name, opts)
+    parameters = Keyword.get(opts, :parameters, %{})
+
+    body = %{"instances" => instances}
+    body = if parameters != %{}, do: Map.put(body, "parameters", parameters), else: body
+
+    case HTTP.post(path, body, opts) do
+      {:ok, response} -> {:ok, response}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
+  @doc """
+  Perform a long-running prediction request on a model.
+
+  Same as `predict/3` but returns an Operation for asynchronous processing.
+  Used for tasks like video generation that take significant time.
+
+  ## Parameters
+
+  - `model_name`: The model to use
+  - `instances`: List of input instances for prediction
+  - `opts`: Options including `:parameters` map and auth strategy
+
+  ## Examples
+
+      {:ok, operation} = Coordinator.predict_long_running("veo-3.1-generate-preview",
+        [%{"prompt" => "a sunset"}], parameters: %{}, auth: :gemini)
+  """
+  @spec predict_long_running(String.t(), list(), Gemini.options()) :: api_result(map())
+  def predict_long_running(model_name, instances, opts \\ [])
+      when is_binary(model_name) and is_list(instances) do
+    path = predict_long_running_path(model_name, opts)
+    parameters = Keyword.get(opts, :parameters, %{})
+
+    body = %{"instances" => instances}
+    body = if parameters != %{}, do: Map.put(body, "parameters", parameters), else: body
+
+    case HTTP.post(path, body, opts) do
+      {:ok, response} -> {:ok, response}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+
   # Embedding API
 
   @doc """
@@ -956,6 +1022,9 @@ defmodule Gemini.APIs.Coordinator do
     # Add system_instruction if provided
     final_content = maybe_put_system_instruction(final_content, opts)
 
+    # Add safety settings if provided
+    final_content = maybe_put_safety_settings(final_content, opts)
+
     {:ok, final_content}
   end
 
@@ -999,6 +1068,9 @@ defmodule Gemini.APIs.Coordinator do
 
     # Add system_instruction if provided
     final_content = maybe_put_system_instruction(final_content, opts)
+
+    # Add safety settings if provided
+    final_content = maybe_put_safety_settings(final_content, opts)
 
     {:ok, final_content}
   end
@@ -1347,6 +1419,41 @@ defmodule Gemini.APIs.Coordinator do
   defp format_system_instruction_part(%Part{} = part), do: format_part(part)
   defp format_system_instruction_part(part), do: part
 
+  # Add safety settings to request if provided
+  defp maybe_put_safety_settings(map, opts) do
+    case Keyword.get(opts, :safety_settings) do
+      [_ | _] = settings ->
+        api_settings =
+          Enum.map(settings, fn setting ->
+            %{
+              "category" => convert_safety_category(setting.category),
+              "threshold" => convert_safety_threshold(setting.threshold)
+            }
+          end)
+
+        Map.put(map, :safetySettings, api_settings)
+
+      _ ->
+        map
+    end
+  end
+
+  defp convert_safety_category(category) when is_atom(category) do
+    category
+    |> Atom.to_string()
+    |> String.upcase()
+  end
+
+  defp convert_safety_category(category) when is_binary(category), do: category
+
+  defp convert_safety_threshold(threshold) when is_atom(threshold) do
+    threshold
+    |> Atom.to_string()
+    |> String.upcase()
+  end
+
+  defp convert_safety_threshold(threshold) when is_binary(threshold), do: threshold
+
   # Convert ThinkingConfig to API format with camelCase keys
   @doc false
   defp convert_thinking_config_to_api(%ThinkingConfig{} = config) do
@@ -1459,6 +1566,7 @@ defmodule Gemini.APIs.Coordinator do
           "inputTokenLimit" -> :input_token_limit
           "outputTokenLimit" -> :output_token_limit
           "supportedGenerationMethods" -> :supported_generation_methods
+          "thinking" -> :thinking
           _ -> key
         end
 
@@ -1541,6 +1649,9 @@ defmodule Gemini.APIs.Coordinator do
 
   defp put_generation_opt({:image_config, image_config}, acc) when not is_nil(image_config),
     do: put_image_config(acc, image_config)
+
+  defp put_generation_opt({:enable_enhanced_civic_answers, value}, acc) when is_boolean(value),
+    do: Map.put(acc, :enableEnhancedCivicAnswers, value)
 
   defp put_generation_opt(_, acc), do: acc
 
@@ -1659,7 +1770,8 @@ defmodule Gemini.APIs.Coordinator do
       "description" => get_model_value(model, ["description", :description], ""),
       "inputTokenLimit" => get_model_value(model, ["inputTokenLimit", :input_token_limit], 0),
       "outputTokenLimit" => get_model_value(model, ["outputTokenLimit", :output_token_limit], 0),
-      "supportedGenerationMethods" => supported_methods
+      "supportedGenerationMethods" => supported_methods,
+      "thinking" => get_model_value(model, ["thinking", :thinking], nil)
     }
   end
 
@@ -1718,6 +1830,49 @@ defmodule Gemini.APIs.Coordinator do
     end
   end
 
+  defp predict_path(model_name, opts) when is_binary(model_name) do
+    normalized_name = normalize_model_name_for_lookup(model_name)
+
+    case request_auth_strategy(opts) do
+      :vertex_ai ->
+        auth_config = Config.auth_config()
+        project_id = predict_project_id(opts, auth_config)
+        location = predict_location(opts, auth_config)
+
+        "projects/#{project_id}/locations/#{location}/publishers/google/models/#{normalized_name}:predict"
+
+      :gemini ->
+        "models/#{normalized_name}:predict"
+    end
+  end
+
+  defp predict_long_running_path(model_name, opts) when is_binary(model_name) do
+    normalized_name = normalize_model_name_for_lookup(model_name)
+
+    case request_auth_strategy(opts) do
+      :vertex_ai ->
+        auth_config = Config.auth_config()
+        project_id = predict_project_id(opts, auth_config)
+        location = predict_location(opts, auth_config)
+
+        "projects/#{project_id}/locations/#{location}/publishers/google/models/#{normalized_name}:predictLongRunning"
+
+      :gemini ->
+        "models/#{normalized_name}:predictLongRunning"
+    end
+  end
+
+  defp predict_project_id(opts, auth_config) do
+    Keyword.get(opts, :project_id) ||
+      get_in(auth_config, [:credentials, :project_id])
+  end
+
+  defp predict_location(opts, auth_config) do
+    Keyword.get(opts, :location) ||
+      get_in(auth_config, [:credentials, :location]) ||
+      "us-central1"
+  end
+
   defp request_auth_strategy(opts) do
     case Keyword.get(opts, :auth) do
       :vertex -> :vertex_ai
@@ -1730,7 +1885,6 @@ defmodule Gemini.APIs.Coordinator do
   defp default_auth_strategy do
     case Config.auth_config() do
       %{type: :vertex_ai} -> :vertex_ai
-      %{type: :vertex} -> :vertex_ai
       %{type: :gemini} -> :gemini
       _ -> :gemini
     end

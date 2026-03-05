@@ -15,7 +15,7 @@ defmodule Gemini.APIs.Models do
       models = response.models
 
       # Get specific model information
-      {:ok, model} = Models.get("gemini-3-pro-preview")
+      {:ok, model} = Models.get("gemini-3.1-pro-preview")
 
       # Check if model exists
       {:ok, true} = Models.exists?("gemini-flash-lite-latest")
@@ -459,6 +459,7 @@ defmodule Gemini.APIs.Models do
       input_token_limit: Map.get(model_data, "inputTokenLimit", 0),
       output_token_limit: Map.get(model_data, "outputTokenLimit", 0),
       supported_generation_methods: Map.get(model_data, "supportedGenerationMethods", []),
+      thinking: Map.get(model_data, "thinking"),
       temperature: Map.get(model_data, "temperature"),
       max_temperature: Map.get(model_data, "maxTemperature"),
       top_p: Map.get(model_data, "topP"),

@@ -319,17 +319,18 @@ defmodule Gemini.APIs.FileSearchStores do
 
   ## Examples
 
-      # Upload a file first
-      {:ok, file} = Gemini.upload_file("/path/to/doc.pdf")
+      # Upload a file first with the Gemini Files API
+      {:ok, file} = Gemini.APIs.Files.upload("/path/to/doc.pdf", auth: :gemini)
 
       # Import it into the store
       {:ok, doc} = FileSearchStores.import_file(
         "fileSearchStores/abc123",
-        file.name
+        file.name,
+        auth: :vertex_ai
       )
 
       # Wait for processing
-      {:ok, ready_doc} = FileSearchStores.wait_for_document(doc.name)
+      {:ok, ready_doc} = FileSearchStores.wait_for_document(doc.name, auth: :vertex_ai)
   """
   @spec import_file(String.t(), String.t(), import_opts()) ::
           {:ok, FileSearchDocument.t()} | {:error, term()}

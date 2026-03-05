@@ -24,7 +24,7 @@ defmodule Gemini.Types.File do
   ## Example
 
       # Upload a file
-      {:ok, file} = Gemini.upload_file("path/to/image.png")
+      {:ok, file} = Gemini.APIs.Files.upload("path/to/image.png", auth: :gemini)
 
       # Check file state
       case file.state do
@@ -33,11 +33,8 @@ defmodule Gemini.Types.File do
         :failed -> IO.puts("Failed: \#{file.error}")
       end
 
-      # Use in content generation
-      {:ok, response} = Gemini.generate([
-        "What's in this image?",
-        %{file_uri: file.uri, mime_type: file.mime_type}
-      ])
+      # Use the File struct directly in content generation
+      {:ok, response} = Gemini.generate([file, "What's in this image?"])
   """
 
   use TypedStruct
@@ -104,7 +101,7 @@ defmodule Gemini.Types.File do
     - `expiration_time` - When the file expires (ISO 8601)
     - `update_time` - Last update timestamp (ISO 8601)
     - `sha256_hash` - Base64-encoded SHA256 hash
-    - `uri` - URI for using the file in content (e.g., "gs://...")
+    - `uri` - URI for using the file in content (for example a Gemini Files URI)
     - `download_uri` - Download URI (only for generated files)
     - `state` - Current processing state
     - `source` - How the file was created

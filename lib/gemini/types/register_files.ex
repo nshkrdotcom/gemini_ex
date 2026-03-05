@@ -30,9 +30,12 @@ defmodule Gemini.Types.RegisterFilesResponse do
 
   ## Example
 
+      {:ok, token} = Goth.fetch(MyApp.Goth)
+
       {:ok, response} = Gemini.APIs.Files.register_files(
         ["gs://bucket/file.pdf"],
-        credentials: credentials
+        credentials: %{token: token.token},
+        auth: :gemini
       )
 
       Enum.each(response.files, fn file ->

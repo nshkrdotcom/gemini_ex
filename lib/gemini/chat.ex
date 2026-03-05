@@ -75,7 +75,7 @@ defmodule Gemini.Chat do
 
   ## Examples
 
-      {:ok, response} = Gemini.generate("Hello", model: "gemini-3-pro-preview")
+      {:ok, response} = Gemini.generate("Hello", model: "gemini-3.1-pro-preview")
       chat = Chat.add_model_response(chat, response)
       # chat.last_signatures contains any signatures from the response
   """

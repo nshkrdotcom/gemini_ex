@@ -286,6 +286,32 @@ defmodule Gemini do
   end
 
   @doc """
+  Perform a prediction request on a model.
+
+  Generic prediction endpoint used by specialized APIs (Imagen, Veo).
+  For most use cases, prefer `Gemini.APIs.Images` or `Gemini.APIs.Videos`.
+
+  See `t:Gemini.options/0` for available options.
+  """
+  @spec predict(String.t(), list(), options()) :: {:ok, map()} | {:error, Error.t()}
+  def predict(model_name, instances, opts \\ []) do
+    Coordinator.predict(model_name, instances, opts)
+  end
+
+  @doc """
+  Perform a long-running prediction request on a model.
+
+  Returns an Operation for asynchronous processing. Used for tasks
+  like video generation that take significant time.
+
+  See `t:Gemini.options/0` for available options.
+  """
+  @spec predict_long_running(String.t(), list(), options()) :: {:ok, map()} | {:error, Error.t()}
+  def predict_long_running(model_name, instances, opts \\ []) do
+    Coordinator.predict_long_running(model_name, instances, opts)
+  end
+
+  @doc """
   Count tokens in the given content.
 
   See `t:Gemini.options/0` for available options.
@@ -536,7 +562,7 @@ defmodule Gemini do
 
   ## Examples
 
-      {:ok, response} = Gemini.generate("Complex question", model: "gemini-3-pro-preview")
+      {:ok, response} = Gemini.generate("Complex question", model: "gemini-3.1-pro-preview")
       signatures = Gemini.extract_thought_signatures(response)
       # => ["sig_abc123", "sig_def456"]
 

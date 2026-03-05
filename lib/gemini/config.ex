@@ -63,6 +63,8 @@ defmodule Gemini.Config do
     pro_3_1_preview: "gemini-3.1-pro-preview",
     pro_3_1_preview_customtools: "gemini-3.1-pro-preview-customtools",
     pro_3_preview: "gemini-3-pro-preview",
+    flash_3_1_lite_preview: "gemini-3.1-flash-lite-preview",
+    flash_3_1_image_preview: "gemini-3.1-flash-image-preview",
     pro_3_image_preview: "gemini-3-pro-image-preview",
     flash_3_preview: "gemini-3-flash-preview",
 
@@ -293,6 +295,7 @@ defmodule Gemini.Config do
   2. Application configuration
   3. Default to Gemini with API key
   """
+  @spec auth_config() :: auth_config() | nil
   def auth_config do
     gemini_auth_config_from_env() ||
       vertex_access_token_config_from_env() ||
@@ -1073,9 +1076,6 @@ defmodule Gemini.Config do
 
       %{type: :gemini} ->
         :ok
-
-      _ ->
-        raise "Invalid authentication configuration"
     end
   end
 

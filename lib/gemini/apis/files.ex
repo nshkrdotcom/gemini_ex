@@ -11,29 +11,30 @@ defmodule Gemini.APIs.Files do
   - **Gemini API Only**: File operations are only supported with the Gemini Developer API,
     not Vertex AI. Using file operations with Vertex AI will return an error.
   - **File Expiration**: Uploaded files expire after 48 hours
+  - **Project Storage Limit**: Gemini caps total uploaded file storage at 20 GB per project
   - **Size Limits**: Maximum file size is 2GB for most file types
-  - **Processing Time**: Large files (especially video) may take time to process
+  - **Processing Time**: Video files may take time to process
 
   ## Quick Start
 
       # Upload an image
-      {:ok, file} = Gemini.APIs.Files.upload("path/to/image.png")
+      {:ok, file} = Gemini.APIs.Files.upload("path/to/image.png", auth: :gemini)
 
-      # Wait for processing (for video files)
-      {:ok, ready_file} = Gemini.APIs.Files.wait_for_processing(file.name)
+      # Use the File struct directly in content generation
+      {:ok, response} = Gemini.generate([file, "What's in this image?"])
 
-      # Use in content generation
-      {:ok, response} = Gemini.generate([
-        "What's in this image?",
-        %{file_uri: ready_file.uri, mime_type: ready_file.mime_type}
-      ])
+      # Video files may need polling until they become active
+      {:ok, video} = Gemini.APIs.Files.upload("path/to/video.mp4", auth: :gemini)
+      {:ok, ready_video} = Gemini.APIs.Files.wait_for_processing(video.name, auth: :gemini)
+      {:ok, video_response} = Gemini.generate([ready_video, "Describe this video clip"])
 
       # Clean up when done
-      :ok = Gemini.APIs.Files.delete(file.name)
+      :ok = Gemini.APIs.Files.delete(file.name, auth: :gemini)
+      :ok = Gemini.APIs.Files.delete(video.name, auth: :gemini)
 
   ## Resumable Uploads
 
-  For large files (>10MB), the API uses resumable uploads automatically:
+  This module uses the resumable upload protocol for file uploads:
 
       # Large file upload with progress tracking
       {:ok, file} = Gemini.APIs.Files.upload("path/to/video.mp4",
@@ -53,6 +54,7 @@ defmodule Gemini.APIs.Files do
 
   alias Gemini.Client.HTTP
   alias Gemini.Config
+  alias Gemini.Error
   alias Gemini.Types.{File, ListFilesResponse, RegisterFilesResponse}
 
   import Gemini.Utils.MapHelpers, only: [build_paginated_path: 2]
@@ -65,16 +67,18 @@ defmodule Gemini.APIs.Files do
           | {:display_name, String.t()}
           | {:mime_type, String.t()}
           | {:on_progress, (integer(), integer() -> any())}
+          | {:api_key, String.t()}
           | {:auth, :gemini | :vertex_ai}
         ]
 
   @type list_opts :: [
           {:page_size, pos_integer()}
           | {:page_token, String.t()}
+          | {:api_key, String.t()}
           | {:auth, :gemini | :vertex_ai}
         ]
 
-  @type file_opts :: [{:auth, :gemini | :vertex_ai}]
+  @type file_opts :: [{:api_key, String.t()} | {:auth, :gemini | :vertex_ai}]
 
   # Chunk size for resumable uploads (8MB)
   @chunk_size 8 * 1024 * 1024
@@ -99,6 +103,7 @@ defmodule Gemini.APIs.Files do
   - `:display_name` - Human-readable display name (max 512 characters)
   - `:mime_type` - MIME type (auto-detected from extension if not provided)
   - `:on_progress` - Callback function `fn(uploaded_bytes, total_bytes) -> any()` for progress updates
+  - `:api_key` - Per-request Gemini API key override
   - `:auth` - Authentication strategy (must be `:gemini`)
 
   ## Returns
@@ -109,19 +114,21 @@ defmodule Gemini.APIs.Files do
   ## Examples
 
       # Simple upload
-      {:ok, file} = Gemini.APIs.Files.upload("path/to/image.png")
+      {:ok, file} = Gemini.APIs.Files.upload("path/to/image.png", auth: :gemini)
       IO.puts("Uploaded: \#{file.uri}")
 
       # With display name
       {:ok, file} = Gemini.APIs.Files.upload("document.pdf",
-        display_name: "Important Document"
+        display_name: "Important Document",
+        auth: :gemini
       )
 
       # With progress tracking
       {:ok, file} = Gemini.APIs.Files.upload("large_video.mp4",
         on_progress: fn uploaded, total ->
           IO.puts("Progress: \#{div(uploaded * 100, total)}%")
-        end
+        end,
+        auth: :gemini
       )
   """
   @spec upload(Path.t() | String.t(), upload_opts()) ::
@@ -136,13 +143,9 @@ defmodule Gemini.APIs.Files do
       mime_type = Keyword.get(opts, :mime_type) || detect_mime_type(file_path)
       display_name = Keyword.get(opts, :display_name) || Path.basename(file_path)
 
-      # Prepare file metadata
-      file_metadata = %{
-        file: %{
-          displayName: display_name,
-          mimeType: mime_type
-        }
-      }
+      # Prepare file metadata. MIME type is sent via upload headers; the File
+      # resource's mimeType field is output-only and should not be included here.
+      file_metadata = %{file: %{displayName: display_name}}
 
       # Add custom name if provided
       file_metadata =
@@ -152,8 +155,15 @@ defmodule Gemini.APIs.Files do
         end
 
       # Initiate resumable upload
-      with {:ok, upload_url} <-
-             initiate_resumable_upload(file_metadata, file_size, mime_type, opts),
+      with {:ok, auth_config} <- resolve_gemini_files_auth(opts),
+           {:ok, upload_url} <-
+             initiate_resumable_upload(
+               file_metadata,
+               file_size,
+               mime_type,
+               auth_config.credentials.api_key,
+               opts
+             ),
            {:ok, response} <- upload_file_data(upload_url, file_path, file_size, opts) do
         {:ok, File.from_api_response(response)}
       end
@@ -175,7 +185,8 @@ defmodule Gemini.APIs.Files do
       image_data = File.read!("image.png")
       {:ok, file} = Gemini.APIs.Files.upload_data(image_data,
         mime_type: "image/png",
-        display_name: "My Image"
+        display_name: "My Image",
+        auth: :gemini
       )
   """
   @spec upload_data(binary(), upload_opts()) :: {:ok, File.t()} | {:error, term()}
@@ -186,15 +197,17 @@ defmodule Gemini.APIs.Files do
       file_size = byte_size(data)
       display_name = Keyword.get(opts, :display_name, "uploaded_file")
 
-      file_metadata = %{
-        file: %{
-          displayName: display_name,
-          mimeType: mime_type
-        }
-      }
+      file_metadata = %{file: %{displayName: display_name}}
 
-      with {:ok, upload_url} <-
-             initiate_resumable_upload(file_metadata, file_size, mime_type, opts),
+      with {:ok, auth_config} <- resolve_gemini_files_auth(opts),
+           {:ok, upload_url} <-
+             initiate_resumable_upload(
+               file_metadata,
+               file_size,
+               mime_type,
+               auth_config.credentials.api_key,
+               opts
+             ),
            {:ok, response} <- upload_binary_data(upload_url, data, file_size, opts) do
         {:ok, File.from_api_response(response)}
       end
@@ -213,7 +226,7 @@ defmodule Gemini.APIs.Files do
 
   ## Examples
 
-      {:ok, file} = Gemini.APIs.Files.get("files/abc123")
+      {:ok, file} = Gemini.APIs.Files.get("files/abc123", auth: :gemini)
       IO.puts("State: \#{file.state}")
       IO.puts("MIME type: \#{file.mime_type}")
   """
@@ -221,9 +234,11 @@ defmodule Gemini.APIs.Files do
   def get(name, opts \\ []) do
     path = normalize_file_path(name)
 
-    case HTTP.get(path, opts) do
-      {:ok, response} -> {:ok, File.from_api_response(response)}
-      {:error, reason} -> {:error, reason}
+    with {:ok, _auth_config} <- resolve_gemini_files_auth(opts) do
+      case HTTP.get(path, opts) do
+        {:ok, response} -> {:ok, File.from_api_response(response)}
+        {:error, reason} -> {:error, reason}
+      end
     end
   end
 
@@ -236,28 +251,31 @@ defmodule Gemini.APIs.Files do
 
   ## Options
 
-  - `:page_size` - Number of files per page (default: 100, max: 1000)
+  - `:page_size` - Number of files per page (Gemini supports up to 100)
   - `:page_token` - Token from previous response for pagination
+  - `:api_key` - Per-request Gemini API key override
   - `:auth` - Authentication strategy
 
   ## Examples
 
       # List first page
-      {:ok, response} = Gemini.APIs.Files.list()
+      {:ok, response} = Gemini.APIs.Files.list(auth: :gemini)
       Enum.each(response.files, fn file ->
         IO.puts("\#{file.name}: \#{file.mime_type}")
       end)
 
       # Paginate through all files
-      {:ok, all_files} = Gemini.APIs.Files.list_all()
+      {:ok, all_files} = Gemini.APIs.Files.list_all(auth: :gemini)
   """
   @spec list(list_opts()) :: {:ok, ListFilesResponse.t()} | {:error, term()}
   def list(opts \\ []) do
     path = build_list_path(opts)
 
-    case HTTP.get(path, opts) do
-      {:ok, response} -> {:ok, ListFilesResponse.from_api_response(response)}
-      {:error, reason} -> {:error, reason}
+    with {:ok, _auth_config} <- resolve_gemini_files_auth(opts) do
+      case HTTP.get(path, opts) do
+        {:ok, response} -> {:ok, ListFilesResponse.from_api_response(response)}
+        {:error, reason} -> {:error, reason}
+      end
     end
   end
 
@@ -272,7 +290,7 @@ defmodule Gemini.APIs.Files do
 
   ## Examples
 
-      {:ok, all_files} = Gemini.APIs.Files.list_all()
+      {:ok, all_files} = Gemini.APIs.Files.list_all(auth: :gemini)
       IO.puts("Total files: \#{length(all_files)}")
   """
   @spec list_all(list_opts()) :: {:ok, [File.t()]} | {:error, term()}
@@ -290,15 +308,17 @@ defmodule Gemini.APIs.Files do
 
   ## Examples
 
-      :ok = Gemini.APIs.Files.delete("files/abc123")
+      :ok = Gemini.APIs.Files.delete("files/abc123", auth: :gemini)
   """
   @spec delete(String.t(), file_opts()) :: :ok | {:error, term()}
   def delete(name, opts \\ []) do
     path = normalize_file_path(name)
 
-    case HTTP.delete(path, opts) do
-      {:ok, _} -> :ok
-      {:error, reason} -> {:error, reason}
+    with {:ok, _auth_config} <- resolve_gemini_files_auth(opts) do
+      case HTTP.delete(path, opts) do
+        {:ok, _} -> :ok
+        {:error, reason} -> {:error, reason}
+      end
     end
   end
 
@@ -320,11 +340,12 @@ defmodule Gemini.APIs.Files do
 
   ## Examples
 
-      {:ok, file} = Gemini.APIs.Files.upload("video.mp4")
+      {:ok, file} = Gemini.APIs.Files.upload("video.mp4", auth: :gemini)
 
       {:ok, ready_file} = Gemini.APIs.Files.wait_for_processing(file.name,
         poll_interval: 5000,
-        on_status: fn f -> IO.puts("Status: \#{f.state}") end
+        on_status: fn f -> IO.puts("Status: \#{f.state}") end,
+        auth: :gemini
       )
   """
   @spec wait_for_processing(String.t(), keyword()) ::
@@ -376,13 +397,12 @@ defmodule Gemini.APIs.Files do
 
   # Private Functions
 
-  defp initiate_resumable_upload(file_metadata, file_size, mime_type, _opts) do
+  defp initiate_resumable_upload(file_metadata, file_size, mime_type, api_key, opts) do
     # The upload endpoint uses a different URL structure:
     # https://generativelanguage.googleapis.com/upload/v1beta/files
     # NOT the standard base_url/path pattern
-    api_key = Gemini.Config.api_key()
-
     url = "https://generativelanguage.googleapis.com/upload/v1beta/files?key=#{api_key}"
+    timeout = Keyword.get(opts, :timeout, Config.timeout())
 
     headers = [
       {"Content-Type", "application/json"},
@@ -394,7 +414,7 @@ defmodule Gemini.APIs.Files do
 
     body = Jason.encode!(file_metadata)
 
-    case Req.post(url, body: body, headers: headers) do
+    case Req.post(url, body: body, headers: headers, receive_timeout: timeout) do
       {:ok, %Req.Response{status: 200, headers: resp_headers}} ->
         case get_upload_url_from_headers(resp_headers) do
           nil -> {:error, :missing_upload_url}
@@ -508,9 +528,15 @@ defmodule Gemini.APIs.Files do
     end
   end
 
-  defp do_upload_chunk(url, data, headers, _opts) do
+  defp do_upload_chunk(url, data, headers, opts) do
     # Use Req directly for the upload URL (it's an absolute URL)
-    req = Req.new(url: url, body: data, headers: headers)
+    req =
+      Req.new(
+        url: url,
+        body: data,
+        headers: headers,
+        receive_timeout: Keyword.get(opts, :timeout, Config.timeout())
+      )
 
     case Req.post(req) do
       {:ok, %{status: status, body: body}} when status in 200..299 ->
@@ -699,6 +725,8 @@ defmodule Gemini.APIs.Files do
   @type register_files_opts :: [
           {:credentials, map()}
           | {:config, map()}
+          | {:api_key, String.t()}
+          | {:auth, :gemini | :vertex_ai}
         ]
 
   @doc """
@@ -718,6 +746,8 @@ defmodule Gemini.APIs.Files do
       - A map with `:token` key containing the access token
       - A Goth token struct
     - `:config` - Optional RegisterFilesConfig
+    - `:api_key` - Per-request Gemini API key override
+    - `:auth` - Authentication strategy (must be `:gemini`)
 
   ## Returns
 
@@ -731,15 +761,13 @@ defmodule Gemini.APIs.Files do
 
       {:ok, response} = Gemini.APIs.Files.register_files(
         ["gs://my-bucket/file1.txt", "gs://my-bucket/file2.pdf"],
-        credentials: %{token: token.token}
+        credentials: %{token: token.token},
+        auth: :gemini
       )
 
       # Use the registered files
       file = hd(response.files)
-      Gemini.generate([
-        "Summarize this document",
-        %{file_uri: file.uri, mime_type: file.mime_type}
-      ])
+      Gemini.generate([file, "Summarize this document"])
 
   ## GCS URI Format
 
@@ -752,10 +780,7 @@ defmodule Gemini.APIs.Files do
   @spec register_files([String.t()], register_files_opts()) ::
           {:ok, RegisterFilesResponse.t()} | {:error, term()}
   def register_files(uris, opts \\ []) when is_list(uris) do
-    # Validate this is Gemini API only (not Vertex AI)
-    if Config.current_api_type() == :vertex_ai do
-      {:error, "RegisterFiles is only supported in the Gemini Developer API, not Vertex AI"}
-    else
+    with {:ok, _auth_config} <- resolve_gemini_files_auth(opts) do
       do_register_files(uris, opts)
     end
   end
@@ -763,6 +788,8 @@ defmodule Gemini.APIs.Files do
   defp do_register_files(uris, opts) do
     credentials = Keyword.fetch!(opts, :credentials)
     token = get_token_from_credentials(credentials)
+    {:ok, auth_config} = resolve_gemini_files_auth(opts)
+    timeout = Keyword.get(opts, :timeout, Config.timeout())
 
     headers = [
       {"authorization", "Bearer #{token}"},
@@ -782,10 +809,10 @@ defmodule Gemini.APIs.Files do
     body = Jason.encode!(%{"uris" => uris})
 
     # Build the URL using the API key
-    api_key = Config.api_key()
+    api_key = auth_config.credentials.api_key
     url = "https://generativelanguage.googleapis.com/v1beta/files:register?key=#{api_key}"
 
-    case Req.post(url, body: body, headers: headers) do
+    case Req.post(url, body: body, headers: headers, receive_timeout: timeout) do
       {:ok, %Req.Response{status: 200, body: response}} ->
         {:ok, RegisterFilesResponse.from_api(response)}
 
@@ -824,5 +851,34 @@ defmodule Gemini.APIs.Files do
       {:ok, token} = Goth.fetch(MyApp.Goth)
       Gemini.APIs.Files.register_files(uris, credentials: %{token: token.token})
     """
+  end
+
+  defp resolve_gemini_files_auth(opts) do
+    case HTTP.auth_config_for_request(opts) do
+      %{type: :gemini, credentials: %{api_key: api_key}} = auth_config
+      when is_binary(api_key) and api_key != "" ->
+        {:ok, auth_config}
+
+      %{type: :gemini} ->
+        {:error,
+         Error.config_error(
+           "Files API requires Gemini Developer API credentials. " <>
+             "Set GEMINI_API_KEY or pass auth: :gemini with api_key: ..."
+         )}
+
+      %{type: :vertex_ai} ->
+        {:error,
+         Error.config_error(
+           "Files API is only supported with the Gemini Developer API, not Vertex AI. " <>
+             "Pass auth: :gemini with a Gemini API key."
+         )}
+
+      nil ->
+        {:error,
+         Error.config_error(
+           "Files API requires Gemini Developer API credentials. " <>
+             "Set GEMINI_API_KEY or pass auth: :gemini with api_key: ..."
+         )}
+    end
   end
 end

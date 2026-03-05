@@ -87,10 +87,54 @@ defmodule Gemini.ModelRegistry do
       notes: nil
     },
     %{
+      key: :gemini_3_1_flash_lite_preview,
+      code: "gemini-3.1-flash-lite-preview",
+      source_page: "https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite-preview",
+      track: :preview,
+      latest_update: "March 2026",
+      input_modalities: [:text, :image, :video, :audio, :pdf],
+      output_modalities: [:text],
+      capabilities: %{
+        audio_generation: :not_supported,
+        batch_api: :unknown,
+        caching: :unknown,
+        function_calling: :supported,
+        image_generation: :not_supported,
+        live_api: :not_supported,
+        structured_outputs: :supported,
+        thinking: :supported
+      },
+      aliases: [],
+      live_modalities: [],
+      notes: "Frontier-class performance rivaling larger models at a fraction of the cost"
+    },
+    %{
+      key: :gemini_3_1_flash_image_preview,
+      code: "gemini-3.1-flash-image-preview",
+      source_page: "https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-image-preview",
+      track: :preview,
+      latest_update: "March 2026",
+      input_modalities: [:text, :image],
+      output_modalities: [:image],
+      capabilities: %{
+        audio_generation: :not_supported,
+        batch_api: :unknown,
+        caching: :not_supported,
+        function_calling: :not_supported,
+        image_generation: :supported,
+        live_api: :not_supported,
+        structured_outputs: :unknown,
+        thinking: :unknown
+      },
+      aliases: [],
+      live_modalities: [],
+      notes: "Nano Banana 2 - high-efficiency image generation and editing"
+    },
+    %{
       key: :gemini_3_pro_preview,
       code: "gemini-3-pro-preview",
       source_page: "https://ai.google.dev/gemini-api/docs/models/gemini-3-pro-preview",
-      track: :preview,
+      track: :deprecated,
       latest_update: "November 2025",
       input_modalities: [:text, :image, :video, :audio, :pdf],
       output_modalities: [:text],

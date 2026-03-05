@@ -10,27 +10,23 @@ Files uploaded to the Gemini API can be:
 - Managed with list, get, and delete operations
 
 **Important Notes:**
+- Files API requests require Gemini Developer API auth (`auth: :gemini`); they are not supported on Vertex AI
 - Files expire after 48 hours
+- Project storage is capped by Gemini at 20 GB across uploaded files
 - Maximum file size is 2GB for most file types
-- Large files (especially video) may take time to process
+- Video files may take time to process before they can be used for inference
 
 ## Quick Start
 
 ```elixir
 # Upload an image
-{:ok, file} = Gemini.APIs.Files.upload("path/to/image.png")
+{:ok, file} = Gemini.APIs.Files.upload("path/to/image.png", auth: :gemini)
 
-# Wait for processing (for video files)
-{:ok, ready_file} = Gemini.APIs.Files.wait_for_processing(file.name)
-
-# Use in content generation
-{:ok, response} = Gemini.generate([
-  "What's in this image?",
-  %{file_uri: ready_file.uri, mime_type: ready_file.mime_type}
-])
+# Use the File struct directly in content generation
+{:ok, response} = Gemini.generate([file, "What's in this image?"])
 
 # Clean up when done
-:ok = Gemini.APIs.Files.delete(file.name)
+:ok = Gemini.APIs.Files.delete(file.name, auth: :gemini)
 ```
 
 ## Uploading Files
@@ -39,12 +35,13 @@ Files uploaded to the Gemini API can be:
 
 ```elixir
 # Simple upload
-{:ok, file} = Gemini.APIs.Files.upload("document.pdf")
+{:ok, file} = Gemini.APIs.Files.upload("document.pdf", auth: :gemini)
 
 # With options
 {:ok, file} = Gemini.APIs.Files.upload("video.mp4",
   display_name: "My Video",
-  mime_type: "video/mp4"
+  mime_type: "video/mp4",
+  auth: :gemini
 )
 ```
 
@@ -57,20 +54,22 @@ image_data = File.read!("image.png")
 
 {:ok, file} = Gemini.APIs.Files.upload_data(image_data,
   mime_type: "image/png",
-  display_name: "In-Memory Image"
+  display_name: "In-Memory Image",
+  auth: :gemini
 )
 ```
 
 ### With Progress Tracking
 
-For large files, track upload progress:
+All uploads use the resumable upload protocol, so progress callbacks work well for large files:
 
 ```elixir
 {:ok, file} = Gemini.APIs.Files.upload("large_video.mp4",
   on_progress: fn uploaded, total ->
     percent = Float.round(uploaded / total * 100, 1)
     IO.puts("Uploaded: #{percent}%")
-  end
+  end,
+  auth: :gemini
 )
 ```
 
@@ -86,19 +85,20 @@ After upload, files go through processing states:
 
 ### Waiting for Processing
 
-For video and large files that need processing:
+Most text, image, audio, and PDF uploads are ready immediately. Poll only when a file is still `:processing`, especially for video uploads:
 
 ```elixir
-{:ok, file} = Gemini.APIs.Files.upload("video.mp4")
+{:ok, file} = Gemini.APIs.Files.upload("video.mp4", auth: :gemini)
 
 # Wait with default settings (5 min timeout)
-{:ok, ready} = Gemini.APIs.Files.wait_for_processing(file.name)
+{:ok, ready} = Gemini.APIs.Files.wait_for_processing(file.name, auth: :gemini)
 
 # Or with custom options
 {:ok, ready} = Gemini.APIs.Files.wait_for_processing(file.name,
   poll_interval: 5000,      # Check every 5 seconds
   timeout: 600_000,         # 10 minute timeout
-  on_status: fn f -> IO.puts("State: #{f.state}") end
+  on_status: fn f -> IO.puts("State: #{f.state}") end,
+  auth: :gemini
 )
 ```
 
@@ -107,17 +107,18 @@ For video and large files that need processing:
 ### List with Pagination
 
 ```elixir
-{:ok, response} = Gemini.APIs.Files.list()
+{:ok, response} = Gemini.APIs.Files.list(auth: :gemini)
 
 Enum.each(response.files, fn file ->
   IO.puts("#{file.name}: #{file.mime_type} (#{file.state})")
 end)
 
-# With pagination options
-{:ok, response} = Gemini.APIs.Files.list(page_size: 10)
+# With pagination options (Gemini currently supports up to 100 items per page)
+{:ok, response} = Gemini.APIs.Files.list(page_size: 10, auth: :gemini)
 
 if Gemini.Types.ListFilesResponse.has_more_pages?(response) do
-  {:ok, page2} = Gemini.APIs.Files.list(page_token: response.next_page_token)
+  {:ok, page2} =
+    Gemini.APIs.Files.list(page_token: response.next_page_token, auth: :gemini)
 end
 ```
 
@@ -126,7 +127,7 @@ end
 Automatically handles pagination:
 
 ```elixir
-{:ok, all_files} = Gemini.APIs.Files.list_all()
+{:ok, all_files} = Gemini.APIs.Files.list_all(auth: :gemini)
 IO.puts("Total files: #{length(all_files)}")
 
 # Filter active files
@@ -136,7 +137,7 @@ active = Enum.filter(all_files, &Gemini.Types.File.active?/1)
 ## Getting File Metadata
 
 ```elixir
-{:ok, file} = Gemini.APIs.Files.get("files/abc123")
+{:ok, file} = Gemini.APIs.Files.get("files/abc123", auth: :gemini)
 
 IO.puts("Name: #{file.display_name}")
 IO.puts("MIME type: #{file.mime_type}")
@@ -148,7 +149,7 @@ IO.puts("URI: #{file.uri}")
 ## Deleting Files
 
 ```elixir
-:ok = Gemini.APIs.Files.delete("files/abc123")
+:ok = Gemini.APIs.Files.delete("files/abc123", auth: :gemini)
 ```
 
 ## Using Files in Generation
@@ -156,13 +157,18 @@ IO.puts("URI: #{file.uri}")
 Once a file is active, use it in content generation:
 
 ```elixir
-{:ok, file} = Gemini.APIs.Files.upload("photo.jpg")
-{:ok, ready} = Gemini.APIs.Files.wait_for_processing(file.name)
+{:ok, file} = Gemini.APIs.Files.upload("photo.jpg", auth: :gemini)
 
-{:ok, response} = Gemini.generate([
-  "Describe this image in detail",
-  %{file_uri: ready.uri, mime_type: ready.mime_type}
-])
+{:ok, response} = Gemini.generate([file, "Describe this image in detail"])
+```
+
+For video files, wait until the file becomes active:
+
+```elixir
+{:ok, video} = Gemini.APIs.Files.upload("clip.mp4", auth: :gemini)
+{:ok, ready_video} = Gemini.APIs.Files.wait_for_processing(video.name, auth: :gemini)
+
+{:ok, response} = Gemini.generate([ready_video, "Describe this video clip"])
 ```
 
 ## Supported MIME Types
@@ -203,6 +209,9 @@ case Gemini.APIs.Files.upload("file.pdf") do
   {:ok, file} ->
     IO.puts("Uploaded: #{file.name}")
 
+  {:error, %Gemini.Error{type: :config_error, message: message}} ->
+    IO.puts("Configuration error: #{message}")
+
   {:error, {:file_not_found, path}} ->
     IO.puts("File not found: #{path}")
 
@@ -217,7 +226,7 @@ end
 ## Best Practices
 
 1. **Clean up files** - Delete files when no longer needed to avoid hitting storage limits
-2. **Wait for processing** - Always wait for video/audio files to become active before using
+2. **Wait only when needed** - Poll while the file is `:processing`, especially for video files
 3. **Track progress** - Use `on_progress` callback for large file uploads
 4. **Handle expiration** - Files expire after 48 hours; re-upload if needed
 5. **Use appropriate MIME types** - Let auto-detection work, or specify explicitly

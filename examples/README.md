@@ -53,6 +53,7 @@ mix run examples/01_basic_generation.exs
 | 12 | `12_live_audio_streaming.exs` | Live API audio input/output streaming |
 | 13 | `13_live_session_resumption.exs` | Session resume across disconnections |
 | 14 | `14_live_function_calling.exs` | Tool/function calling with telemetry |
+| 15 | `15_files_api.exs` | Gemini Files upload/get/list/delete workflow with generation |
 
 ## Example Details
 
@@ -206,6 +207,18 @@ You are a helpful coding assistant. Always:
 
 Gemini.generate(prompt, system_instruction: system_instruction)
 ```
+
+### 15 - Files API
+Upload a file with Gemini, use the returned `Gemini.Types.File` directly in generation, inspect it, and delete it:
+
+```elixir
+{:ok, file} = Gemini.APIs.Files.upload("test/fixtures/test_document.txt", auth: :gemini)
+{:ok, response} = Gemini.generate([file, "Summarize this file in one sentence."])
+{:ok, fetched} = Gemini.APIs.Files.get(file.name, auth: :gemini)
+:ok = Gemini.APIs.Files.delete(file.name, auth: :gemini)
+```
+
+This example skips itself unless `GEMINI_API_KEY` is present, because the Files API is Gemini-only.
 
 ## Output Format
 

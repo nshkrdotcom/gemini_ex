@@ -57,7 +57,7 @@ defmodule Gemini.Client.HTTP do
   end
 
   @doc false
-  @spec auth_config_for_request(keyword()) :: %{type: :gemini | :vertex_ai, credentials: map()}
+  @spec auth_config_for_request(keyword()) :: Config.auth_config() | nil
   def auth_config_for_request(opts \\ []) do
     resolve_auth_config(opts)
   end
@@ -140,7 +140,7 @@ defmodule Gemini.Client.HTTP do
 
   # Private functions
 
-  @spec resolve_auth_config(keyword()) :: %{type: :gemini | :vertex_ai, credentials: map()}
+  @spec resolve_auth_config(keyword()) :: Config.auth_config() | nil
   defp resolve_auth_config(opts) when is_list(opts) do
     case normalize_auth_strategy(Keyword.get(opts, :auth)) do
       nil ->

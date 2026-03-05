@@ -74,6 +74,7 @@ defmodule Gemini.Types.Response.GenerateContentResponse do
     field(:usage_metadata, UsageMetadata.t() | nil, default: nil)
     field(:response_id, String.t() | nil, default: nil)
     field(:model_version, String.t() | nil, default: nil)
+    field(:model_status, map() | nil, default: nil)
     field(:create_time, DateTime.t() | nil, default: nil)
   end
 
@@ -158,6 +159,7 @@ defmodule Gemini.Types.Response.GenerateContentResponse do
         UsageMetadata.from_api(Map.get(data, "usageMetadata") || Map.get(data, :usage_metadata)),
       response_id: Map.get(data, "responseId") || Map.get(data, :response_id),
       model_version: Map.get(data, "modelVersion") || Map.get(data, :model_version),
+      model_status: Map.get(data, "modelStatus") || Map.get(data, :model_status),
       create_time: parse_datetime(Map.get(data, "createTime") || Map.get(data, :create_time))
     }
   end
@@ -231,6 +233,9 @@ defmodule Gemini.Types.Response.Candidate do
     field(:citation_metadata, CitationMetadata.t() | nil, default: nil)
     field(:token_count, integer() | nil, default: nil)
     field(:grounding_attributions, [GroundingAttribution.t()], default: [])
+    field(:grounding_metadata, map() | nil, default: nil)
+    field(:logprobs_result, map() | nil, default: nil)
+    field(:url_context_metadata, map() | nil, default: nil)
     field(:index, integer() | nil, default: nil)
     field(:finish_message, String.t() | nil, default: nil)
     field(:avg_logprobs, float() | nil, default: nil)
@@ -244,28 +249,51 @@ defmodule Gemini.Types.Response.Candidate do
 
   def from_api(%{} = data) do
     %__MODULE__{
-      content:
-        data
-        |> Map.get("content")
-        |> Kernel.||(Map.get(data, :content))
-        |> Response.parse_content(),
-      finish_reason: Map.get(data, "finishReason") || Map.get(data, :finish_reason),
-      finish_message: Map.get(data, "finishMessage") || Map.get(data, :finish_message),
-      safety_ratings:
-        data
-        |> Map.get("safetyRatings")
-        |> Kernel.||(Map.get(data, :safety_ratings))
-        |> Response.parse_safety_ratings(),
-      citation_metadata: Map.get(data, "citationMetadata") || Map.get(data, :citation_metadata),
-      token_count: Map.get(data, "tokenCount") || Map.get(data, :token_count),
-      grounding_attributions:
-        data
-        |> Map.get("groundingAttributions")
-        |> Kernel.||(Map.get(data, :grounding_attributions))
-        |> Response.parse_grounding_attributions(),
-      index: Map.get(data, "index") || Map.get(data, :index),
-      avg_logprobs: Map.get(data, "avgLogprobs") || Map.get(data, :avg_logprobs)
+      content: parse_candidate_content(data),
+      finish_reason: get_field(data, "finishReason", :finish_reason),
+      finish_message: get_field(data, "finishMessage", :finish_message),
+      safety_ratings: parse_candidate_safety_ratings(data),
+      citation_metadata: parse_candidate_citation_metadata(data),
+      token_count: get_field(data, "tokenCount", :token_count),
+      grounding_attributions: parse_candidate_grounding_attributions(data),
+      grounding_metadata: get_field(data, "groundingMetadata", :grounding_metadata),
+      logprobs_result: get_field(data, "logprobsResult", :logprobs_result),
+      url_context_metadata: get_field(data, "urlContextMetadata", :url_context_metadata),
+      index: get_field(data, "index", :index),
+      avg_logprobs: get_field(data, "avgLogprobs", :avg_logprobs)
     }
+  end
+
+  defp parse_candidate_content(data) do
+    data
+    |> get_field("content", :content)
+    |> Response.parse_content()
+  end
+
+  defp parse_candidate_safety_ratings(data) do
+    data
+    |> get_field("safetyRatings", :safety_ratings)
+    |> Response.parse_safety_ratings()
+  end
+
+  defp parse_candidate_citation_metadata(data) do
+    data
+    |> get_field("citationMetadata", :citation_metadata)
+    |> CitationMetadata.from_api()
+  end
+
+  defp parse_candidate_grounding_attributions(data) do
+    data
+    |> get_field("groundingAttributions", :grounding_attributions)
+    |> Response.parse_grounding_attributions()
+  end
+
+  defp get_field(data, string_key, atom_key) do
+    case Map.fetch(data, string_key) do
+      {:ok, nil} -> Map.get(data, atom_key)
+      {:ok, value} -> value
+      :error -> Map.get(data, atom_key)
+    end
   end
 end
 
@@ -326,6 +354,7 @@ defmodule Gemini.Types.Response.UsageMetadata do
     field(:tool_use_prompt_token_count, integer() | nil, default: nil)
     field(:prompt_tokens_details, [ModalityTokenCount.t()] | nil, default: nil)
     field(:cache_tokens_details, [ModalityTokenCount.t()] | nil, default: nil)
+    field(:candidates_tokens_details, [ModalityTokenCount.t()] | nil, default: nil)
     field(:response_tokens_details, [ModalityTokenCount.t()] | nil, default: nil)
     field(:tool_use_prompt_tokens_details, [ModalityTokenCount.t()] | nil, default: nil)
     field(:traffic_type, TrafficType.t() | nil, default: nil)
@@ -359,6 +388,11 @@ defmodule Gemini.Types.Response.UsageMetadata do
         data
         |> Map.get("cacheTokensDetails")
         |> Kernel.||(Map.get(data, :cache_tokens_details))
+        |> Response.parse_modality_token_counts(),
+      candidates_tokens_details:
+        data
+        |> Map.get("candidatesTokensDetails")
+        |> Kernel.||(Map.get(data, :candidates_tokens_details))
         |> Response.parse_modality_token_counts(),
       response_tokens_details:
         data
@@ -427,6 +461,17 @@ defmodule Gemini.Types.Response.CitationMetadata do
   typedstruct do
     field(:citation_sources, [CitationSource.t()], default: [])
   end
+
+  @spec from_api(map() | nil) :: t() | nil
+  def from_api(nil), do: nil
+
+  def from_api(%{} = data) do
+    sources =
+      (Map.get(data, "citationSources") || Map.get(data, :citation_sources) || [])
+      |> Enum.map(&CitationSource.from_api/1)
+
+    %__MODULE__{citation_sources: sources}
+  end
 end
 
 defmodule Gemini.Types.Response.CitationSource do
@@ -442,6 +487,18 @@ defmodule Gemini.Types.Response.CitationSource do
     field(:end_index, integer() | nil, default: nil)
     field(:uri, String.t() | nil, default: nil)
     field(:license, String.t() | nil, default: nil)
+  end
+
+  @spec from_api(map() | nil) :: t() | nil
+  def from_api(nil), do: nil
+
+  def from_api(%{} = data) do
+    %__MODULE__{
+      start_index: Map.get(data, "startIndex") || Map.get(data, :start_index),
+      end_index: Map.get(data, "endIndex") || Map.get(data, :end_index),
+      uri: Map.get(data, "uri") || Map.get(data, :uri),
+      license: Map.get(data, "license") || Map.get(data, :license)
+    }
   end
 end
 

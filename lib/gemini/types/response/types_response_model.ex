@@ -18,6 +18,7 @@ defmodule Gemini.Types.Response.Model do
     field(:input_token_limit, integer(), enforce: true)
     field(:output_token_limit, integer(), enforce: true)
     field(:supported_generation_methods, [String.t()], default: [])
+    field(:thinking, boolean() | nil, default: nil)
     field(:temperature, float() | nil, default: nil)
     field(:max_temperature, float() | nil, default: nil)
     field(:top_p, float() | nil, default: nil)
@@ -60,6 +61,14 @@ defmodule Gemini.Types.Response.Model do
   @spec supports_token_counting?(t()) :: boolean()
   def supports_token_counting?(model) do
     supports_method?(model, "countTokens")
+  end
+
+  @doc """
+  Check if model supports thinking/reasoning.
+  """
+  @spec supports_thinking?(t()) :: boolean()
+  def supports_thinking?(%__MODULE__{thinking: thinking}) do
+    thinking == true
   end
 
   @doc """
@@ -163,6 +172,7 @@ defmodule Gemini.Types.Response.Model do
   def capabilities_summary(%__MODULE__{} = model) do
     %{
       supports_streaming: supports_streaming?(model),
+      supports_thinking: supports_thinking?(model),
       supports_token_counting: supports_token_counting?(model),
       supports_embeddings: supports_embeddings?(model),
       has_temperature: not is_nil(model.temperature),

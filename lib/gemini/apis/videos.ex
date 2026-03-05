@@ -431,10 +431,6 @@ defmodule Gemini.APIs.Videos do
     {:error, Error.config_error("No authentication configured for video generation.")}
   end
 
-  defp validate_video_auth(_other, _project_id, _location) do
-    {:error, Error.config_error("Unsupported authentication for video generation.")}
-  end
-
   @spec get_project_id(keyword(), map() | nil) :: String.t() | nil
   defp get_project_id(opts, auth_config) do
     case Keyword.get(opts, :project_id) do

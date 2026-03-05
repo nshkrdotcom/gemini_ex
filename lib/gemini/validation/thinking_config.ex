@@ -48,10 +48,10 @@ defmodule Gemini.Validation.ThinkingConfig do
 
   ## Examples
 
-      iex> Gemini.Validation.ThinkingConfig.validate_level(:low, "gemini-3-pro-preview")
+      iex> Gemini.Validation.ThinkingConfig.validate_level(:low, "gemini-3.1-pro-preview")
       :ok
 
-      iex> Gemini.Validation.ThinkingConfig.validate_level(:medium, "gemini-3-pro-preview")
+      iex> Gemini.Validation.ThinkingConfig.validate_level(:medium, "gemini-3.1-pro-preview")
       {:error, "Thinking level :medium is only supported on Gemini 3 Flash models"}
   """
   @spec validate_level(thinking_level(), String.t() | nil) :: validation_result()
@@ -135,10 +135,10 @@ defmodule Gemini.Validation.ThinkingConfig do
 
   ## Examples
 
-      iex> Gemini.Validation.ThinkingConfig.validate(%{thinking_level: :low}, "gemini-3-pro-preview")
+      iex> Gemini.Validation.ThinkingConfig.validate(%{thinking_level: :low}, "gemini-3.1-pro-preview")
       :ok
 
-      iex> Gemini.Validation.ThinkingConfig.validate(%{thinking_budget: 1024, thinking_level: :low}, "gemini-3-pro-preview")
+      iex> Gemini.Validation.ThinkingConfig.validate(%{thinking_budget: 1024, thinking_level: :low}, "gemini-3.1-pro-preview")
       {:error, "Cannot use both thinking_level and thinking_budget in the same request"}
   """
   @spec validate(map() | struct(), String.t()) :: validation_result()
