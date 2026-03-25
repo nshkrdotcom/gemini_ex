@@ -17,6 +17,8 @@ defmodule Gemini.Types.Live.UsageMetadata do
   - `cache_tokens_details` - Token counts by modality for cached content
   - `response_tokens_details` - Token counts by modality for response
   - `tool_use_prompt_tokens_details` - Token counts by modality for tool use
+  - `candidates_token_count` - Total tokens across all response candidates
+  - `candidates_tokens_details` - Token counts by modality for candidates
 
   ## Example
 
@@ -42,7 +44,9 @@ defmodule Gemini.Types.Live.UsageMetadata do
           prompt_tokens_details: [modality_token_count()] | nil,
           cache_tokens_details: [modality_token_count()] | nil,
           response_tokens_details: [modality_token_count()] | nil,
-          tool_use_prompt_tokens_details: [modality_token_count()] | nil
+          tool_use_prompt_tokens_details: [modality_token_count()] | nil,
+          candidates_token_count: integer() | nil,
+          candidates_tokens_details: [modality_token_count()] | nil
         }
 
   defstruct [
@@ -55,7 +59,9 @@ defmodule Gemini.Types.Live.UsageMetadata do
     :prompt_tokens_details,
     :cache_tokens_details,
     :response_tokens_details,
-    :tool_use_prompt_tokens_details
+    :tool_use_prompt_tokens_details,
+    :candidates_token_count,
+    :candidates_tokens_details
   ]
 
   @doc """
@@ -73,7 +79,9 @@ defmodule Gemini.Types.Live.UsageMetadata do
       prompt_tokens_details: Keyword.get(opts, :prompt_tokens_details),
       cache_tokens_details: Keyword.get(opts, :cache_tokens_details),
       response_tokens_details: Keyword.get(opts, :response_tokens_details),
-      tool_use_prompt_tokens_details: Keyword.get(opts, :tool_use_prompt_tokens_details)
+      tool_use_prompt_tokens_details: Keyword.get(opts, :tool_use_prompt_tokens_details),
+      candidates_token_count: Keyword.get(opts, :candidates_token_count),
+      candidates_tokens_details: Keyword.get(opts, :candidates_tokens_details)
     }
   end
 
@@ -98,6 +106,11 @@ defmodule Gemini.Types.Live.UsageMetadata do
       "toolUsePromptTokensDetails",
       convert_details_to_api(value.tool_use_prompt_tokens_details)
     )
+    |> maybe_put("candidatesTokenCount", value.candidates_token_count)
+    |> maybe_put(
+      "candidatesTokensDetails",
+      convert_details_to_api(value.candidates_tokens_details)
+    )
   end
 
   @doc """
@@ -121,7 +134,10 @@ defmodule Gemini.Types.Live.UsageMetadata do
       response_tokens_details:
         get_details(data, "responseTokensDetails", "response_tokens_details"),
       tool_use_prompt_tokens_details:
-        get_details(data, "toolUsePromptTokensDetails", "tool_use_prompt_tokens_details")
+        get_details(data, "toolUsePromptTokensDetails", "tool_use_prompt_tokens_details"),
+      candidates_token_count: get_field(data, "candidatesTokenCount", "candidates_token_count"),
+      candidates_tokens_details:
+        get_details(data, "candidatesTokensDetails", "candidates_tokens_details")
     }
   end
 
