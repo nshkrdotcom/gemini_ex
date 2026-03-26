@@ -16,6 +16,7 @@ defmodule Gemini.Types.Live.ServerContent do
   - `input_transcription` - Transcription of input audio
   - `output_transcription` - Transcription of model's audio output
   - `url_context_metadata` - Metadata from URL context retrieval
+  - `turn_complete_reason` - Reason why the turn is complete (`:malformed_function_call`, `:response_rejected`, `:need_more_input`)
 
   ## Example
 
@@ -44,7 +45,8 @@ defmodule Gemini.Types.Live.ServerContent do
           grounding_metadata: GroundingMetadata.t() | nil,
           input_transcription: Transcription.t() | nil,
           output_transcription: Transcription.t() | nil,
-          url_context_metadata: url_context_metadata() | nil
+          url_context_metadata: url_context_metadata() | nil,
+          turn_complete_reason: String.t() | nil
         }
 
   defstruct [
@@ -55,7 +57,8 @@ defmodule Gemini.Types.Live.ServerContent do
     :grounding_metadata,
     :input_transcription,
     :output_transcription,
-    :url_context_metadata
+    :url_context_metadata,
+    :turn_complete_reason
   ]
 
   @doc """
@@ -71,7 +74,8 @@ defmodule Gemini.Types.Live.ServerContent do
       grounding_metadata: Keyword.get(opts, :grounding_metadata),
       input_transcription: Keyword.get(opts, :input_transcription),
       output_transcription: Keyword.get(opts, :output_transcription),
-      url_context_metadata: Keyword.get(opts, :url_context_metadata)
+      url_context_metadata: Keyword.get(opts, :url_context_metadata),
+      turn_complete_reason: Keyword.get(opts, :turn_complete_reason)
     }
   end
 
@@ -91,6 +95,7 @@ defmodule Gemini.Types.Live.ServerContent do
     |> maybe_put("inputTranscription", Transcription.to_api(value.input_transcription))
     |> maybe_put("outputTranscription", Transcription.to_api(value.output_transcription))
     |> maybe_put("urlContextMetadata", convert_url_context_to_api(value.url_context_metadata))
+    |> maybe_put("turnCompleteReason", value.turn_complete_reason)
   end
 
   @doc """
@@ -115,7 +120,8 @@ defmodule Gemini.Types.Live.ServerContent do
         (data["outputTranscription"] || data["output_transcription"])
         |> Transcription.from_api(),
       url_context_metadata:
-        parse_url_context(data["urlContextMetadata"] || data["url_context_metadata"])
+        parse_url_context(data["urlContextMetadata"] || data["url_context_metadata"]),
+      turn_complete_reason: data["turnCompleteReason"] || data["turn_complete_reason"]
     }
   end
 
