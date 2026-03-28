@@ -106,7 +106,8 @@ defmodule Gemini.Live.ModelsTest do
       candidates = Models.candidates(:text, auth: :vertex_ai)
 
       refute "gemini-live-2.5-flash" in candidates
-      assert "gemini-2.5-flash-native-audio-preview-12-2025" in candidates
+      refute Enum.any?(candidates, &String.contains?(&1, "native-audio"))
+      assert "gemini-2.0-flash-live-001" in candidates
     end
   end
 end

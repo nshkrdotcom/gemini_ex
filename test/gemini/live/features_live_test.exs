@@ -34,6 +34,10 @@ defmodule Gemini.Live.FeaturesLiveTest do
       :quota_exceeded ->
         Session.close(session)
         false
+
+      :transient_backend_error ->
+        Session.close(session)
+        false
     end
   end
 

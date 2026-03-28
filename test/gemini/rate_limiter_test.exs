@@ -401,6 +401,28 @@ defmodule Gemini.RateLimiterTest do
       assert usage.output_tokens == 50
     end
 
+    test "records usage from Gemini-style live response metadata" do
+      model = "gemini-live-usage-#{System.unique_integer()}"
+
+      response = %{
+        "usageMetadata" => %{
+          "promptTokenCount" => 90,
+          "responseTokenCount" => 45,
+          "totalTokenCount" => 135
+        }
+      }
+
+      Manager.execute_with_usage_tracking(
+        fn -> {:ok, response} end,
+        model
+      )
+
+      usage = Manager.get_usage(model)
+      assert usage != nil
+      assert usage.input_tokens == 90
+      assert usage.output_tokens == 45
+    end
+
     test "emits telemetry events" do
       prev_telemetry = Application.get_env(:gemini_ex, :telemetry_enabled)
       # Ensure telemetry is enabled for this test

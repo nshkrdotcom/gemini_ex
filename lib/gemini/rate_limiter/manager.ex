@@ -685,17 +685,25 @@ defmodule Gemini.RateLimiter.Manager do
       Map.has_key?(response, :usage_metadata) ->
         cached_tokens = Map.get(response.usage_metadata, :cached_content_token_count, 0)
 
+        output_tokens =
+          Map.get(response.usage_metadata, :candidates_token_count) ||
+            Map.get(response.usage_metadata, :response_token_count, 0)
+
         %{
           input_tokens: Map.get(response.usage_metadata, :prompt_token_count, 0) + cached_tokens,
-          output_tokens: Map.get(response.usage_metadata, :candidates_token_count, 0)
+          output_tokens: output_tokens
         }
 
       Map.has_key?(response, "usageMetadata") ->
         cached_tokens = Map.get(response["usageMetadata"], "cachedContentTokenCount", 0)
 
+        output_tokens =
+          Map.get(response["usageMetadata"], "candidatesTokenCount") ||
+            Map.get(response["usageMetadata"], "responseTokenCount", 0)
+
         %{
           input_tokens: Map.get(response["usageMetadata"], "promptTokenCount", 0) + cached_tokens,
-          output_tokens: Map.get(response["usageMetadata"], "candidatesTokenCount", 0)
+          output_tokens: output_tokens
         }
 
       true ->

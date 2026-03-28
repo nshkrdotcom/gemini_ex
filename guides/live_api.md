@@ -102,6 +102,39 @@ For Vertex AI (`auth: :vertex_ai`) connections, `gemini_ex` uses the Vertex Live
 
 This library abstracts the WebSocket connection details. You interact through the `Gemini.Live.Session` module.
 
+### Backend Schema Differences
+
+Gemini Live and Vertex Live use slightly different wire fields for response usage metadata:
+
+- Gemini Live sends `responseTokenCount` and `responseTokensDetails`
+- Vertex Live `v1` sends `candidatesTokenCount` and `candidatesTokensDetails`
+- Vertex Live may also include `turnCompleteReason` on `serverContent`
+
+`gemini_ex` normalizes both backends into the same Live types:
+
+- `Gemini.Types.Live.UsageMetadata.candidates_token_count` and `candidates_tokens_details` are the canonical output-token fields
+- `response_token_count` and `response_tokens_details` are retained as backwards-compatible aliases
+- `Gemini.Types.Live.UsageMetadata.output_token_count/1` and `output_tokens_details/1` return the normalized output view
+- `Gemini.Types.Live.ServerContent.turn_complete_reason` is parsed as a `Gemini.Types.Live.Enums.TurnCompleteReason` value when present
+
+Example callback code that works across both backends:
+
+```elixir
+on_message: fn
+  %{server_content: content, usage_metadata: usage} ->
+    output_tokens = Gemini.Types.Live.UsageMetadata.output_token_count(usage)
+    reason = if content, do: content.turn_complete_reason
+
+    IO.inspect(%{
+      output_tokens: output_tokens,
+      turn_complete_reason: reason
+    })
+
+  _ ->
+    :ok
+end
+```
+
 ### Session Configuration
 
 The initial message after establishing the WebSocket connection sets the session configuration:
@@ -1050,6 +1083,25 @@ Session.close(session)
 ### Session Resumption
 
 See `examples/13_live_session_resumption.exs` for a complete example.
+
+## Testing Live Sessions
+
+When your environment variables are already exported, run the Live integration tests directly:
+
+```bash
+# Gemini Live session coverage
+mix test --only live_gemini test/gemini/live/session_live_test.exs
+
+# Gemini Live advanced features
+mix test --only live_gemini test/gemini/live/features_live_test.exs
+
+# Vertex Live coverage (billed; requires explicit opt-in)
+RUN_BILLED_VERTEX_LIVE_TESTS=1 mix test --only live_vertex_ai test/gemini/live/session_vertex_live_test.exs
+```
+
+The default test suite excludes `:live_gemini` and `:live_vertex_ai`, so these targeted commands are the intended manual verification path for real credentials.
+
+If your Vertex project exposes only native-audio Live models, the text-only Vertex session tests will skip instead of failing. This is expected: native-audio-only Vertex models cannot satisfy `response_modalities: ["TEXT"]`.
 
 ## Further Reading
 

@@ -125,7 +125,10 @@ defmodule Gemini.Types.Live.ServerMessageTest do
 
     test "parses with usage_metadata" do
       api_data = %{
-        "serverContent" => %{"turnComplete" => true},
+        "serverContent" => %{
+          "turnComplete" => true,
+          "turnCompleteReason" => "NEED_MORE_INPUT"
+        },
         "usageMetadata" => %{
           "promptTokenCount" => 100,
           "responseTokenCount" => 50,
@@ -136,7 +139,10 @@ defmodule Gemini.Types.Live.ServerMessageTest do
       msg = ServerMessage.from_api(api_data)
 
       assert msg.server_content.turn_complete == true
+      assert msg.server_content.turn_complete_reason == :need_more_input
       assert msg.usage_metadata.prompt_token_count == 100
+      assert msg.usage_metadata.candidates_token_count == 50
+      assert msg.usage_metadata.response_token_count == 50
       assert msg.usage_metadata.total_token_count == 150
     end
 

@@ -145,4 +145,39 @@ defmodule Gemini.Types.Live.Enums do
     def from_api(nil), do: nil
     def from_api(_), do: :unspecified
   end
+
+  defmodule TurnCompleteReason do
+    @moduledoc """
+    Reasons why a Live API turn completed.
+
+    ## Values
+
+    - `:unspecified` - Unspecified completion reason
+    - `:malformed_function_call` - The model emitted an invalid function call
+    - `:response_rejected` - The response was rejected by the service
+    - `:need_more_input` - The model requires more user input to continue
+    """
+
+    @type t ::
+            :unspecified
+            | :malformed_function_call
+            | :response_rejected
+            | :need_more_input
+            | String.t()
+
+    @spec to_api(t()) :: String.t()
+    def to_api(:unspecified), do: "TURN_COMPLETE_REASON_UNSPECIFIED"
+    def to_api(:malformed_function_call), do: "MALFORMED_FUNCTION_CALL"
+    def to_api(:response_rejected), do: "RESPONSE_REJECTED"
+    def to_api(:need_more_input), do: "NEED_MORE_INPUT"
+    def to_api(value) when is_binary(value), do: value
+
+    @spec from_api(String.t() | nil) :: t() | nil
+    def from_api("TURN_COMPLETE_REASON_UNSPECIFIED"), do: :unspecified
+    def from_api("MALFORMED_FUNCTION_CALL"), do: :malformed_function_call
+    def from_api("RESPONSE_REJECTED"), do: :response_rejected
+    def from_api("NEED_MORE_INPUT"), do: :need_more_input
+    def from_api(nil), do: nil
+    def from_api(value) when is_binary(value), do: value
+  end
 end

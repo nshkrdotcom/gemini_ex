@@ -15,6 +15,7 @@ defmodule Gemini.Client.WebSocketLiveTest do
 
   alias Gemini.Client.WebSocket
   alias Gemini.Live.Models
+  alias Gemini.Test.LiveHelpers
   alias Gemini.Types.Live.Setup
 
   @has_gemini_api_key System.get_env("GEMINI_API_KEY") not in [nil, ""]
@@ -57,23 +58,17 @@ defmodule Gemini.Client.WebSocketLiveTest do
 
     test "can send and receive setup message" do
       live_model = Models.resolve(:text)
-
-      {:ok, conn} =
-        WebSocket.connect(:gemini,
-          model: live_model
-        )
-
-      # Send setup message using Setup module for proper normalization
       setup = Setup.new(live_model, generation_config: %{response_modalities: ["TEXT"]})
       setup_msg = %{"setup" => Setup.to_api(setup)}
 
-      assert :ok = WebSocket.send(conn, setup_msg)
+      case receive_setup_message(:gemini, [model: live_model], setup_msg, 2) do
+        {:ok, response} ->
+          assert Map.has_key?(response, "setupComplete")
 
-      # Should receive setupComplete
-      {:ok, response} = WebSocket.receive(conn, 10_000)
-      assert Map.has_key?(response, "setupComplete")
-
-      WebSocket.close(conn)
+        {:skip, reason} ->
+          IO.puts("\nSkipping Gemini WebSocket setup test: #{reason}")
+          assert true
+      end
     end
   end
 
@@ -139,5 +134,40 @@ defmodule Gemini.Client.WebSocketLiveTest do
       assert WebSocket.connected?(conn)
       assert :ok = WebSocket.close(conn)
     end
+  end
+
+  defp receive_setup_message(auth, opts, setup_msg, attempts_left) when attempts_left > 0 do
+    {:ok, conn} = WebSocket.connect(auth, opts)
+
+    assert :ok = WebSocket.send(conn, setup_msg)
+
+    case WebSocket.receive(conn, 10_000) do
+      {:ok, response} ->
+        WebSocket.close(conn)
+        {:ok, response}
+
+      {:error, reason} ->
+        maybe_close(conn)
+
+        case LiveHelpers.skippable_websocket_close?(reason) do
+          :transient_backend_error when attempts_left > 1 ->
+            Process.sleep(1_000)
+            receive_setup_message(auth, opts, setup_msg, attempts_left - 1)
+
+          :transient_backend_error ->
+            {:skip, "Gemini Live setup returned transient upstream error: #{inspect(reason)}"}
+
+          :quota_exceeded ->
+            {:skip, "Gemini Live setup hit quota or rate limiting: #{inspect(reason)}"}
+
+          false ->
+            flunk("WebSocket setup failed: #{inspect(reason)}")
+        end
+    end
+  end
+
+  defp maybe_close(conn) do
+    _ = WebSocket.close(conn)
+    :ok
   end
 end

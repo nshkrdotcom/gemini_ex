@@ -22,7 +22,7 @@ defmodule Gemini.Live.Models do
       image: :flash_2_0_exp_image_generation
     },
     vertex_ai: %{
-      text: :flash_2_5_native_audio_preview_12_2025,
+      text: :flash_2_0_live_001,
       audio: :flash_2_5_native_audio_preview_12_2025,
       image: :flash_2_0_preview_image_generation
     }
@@ -52,9 +52,7 @@ defmodule Gemini.Live.Models do
     },
     vertex_ai: %{
       text: [
-        :flash_2_5_native_audio_latest,
-        :flash_2_5_native_audio_preview_12_2025,
-        :flash_2_5_native_audio_preview_09_2025
+        :flash_2_0_live_001
       ],
       audio: [
         :flash_2_5_native_audio_latest,
@@ -111,6 +109,7 @@ defmodule Gemini.Live.Models do
     (registry_candidates ++ legacy_candidates)
     |> Enum.reject(&is_nil/1)
     |> Enum.uniq()
+    |> Enum.filter(&candidate_for_modality?(&1, modality, auth))
   end
 
   @doc """
@@ -205,7 +204,9 @@ defmodule Gemini.Live.Models do
   end
 
   defp live_candidate_for_modality?(model_name, :text, :vertex_ai) do
-    live_like_model_name?(model_name) and not String.contains?(model_name, "tts")
+    live_like_model_name?(model_name) and
+      not String.contains?(model_name, "tts") and
+      not String.contains?(model_name, "native-audio")
   end
 
   defp live_candidate_for_modality?(model_name, :audio, _auth) do
@@ -235,6 +236,12 @@ defmodule Gemini.Live.Models do
   end
 
   defp prioritize_models(models, _modality), do: models
+
+  defp candidate_for_modality?(model_name, modality, auth) do
+    model_name
+    |> normalize_model_name()
+    |> live_candidate_for_modality?(modality, auth)
+  end
 
   defp filter_models_by_method(models, require_method) do
     models

@@ -59,7 +59,7 @@ Add `gemini` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:gemini_ex, "~> 0.11.0"}
+    {:gemini_ex, "~> 0.11.1"}
   ]
 end
 ```
@@ -207,6 +207,8 @@ See `guides/interactions.md` for CRUD, resumption (`last_event_id`), and backgro
 ### Live API (WebSocket)
 
 Real-time bidirectional streaming for voice, video, and text interactions. For Gemini Live connections, `v1beta` is the default API version, while `v1alpha` is available for advanced native-audio features. Vertex Live connections use the Vertex `v1` WebSocket endpoint.
+
+Gemini Live and Vertex Live do not emit identical usage metadata fields. `gemini_ex` normalizes both backends into `Gemini.Types.Live.UsageMetadata.candidates_token_count` / `candidates_tokens_details`, keeps `response_*` aliases for backwards compatibility, and exposes `Gemini.Types.Live.UsageMetadata.output_token_count/1` and `output_tokens_details/1` as backend-agnostic helpers. Vertex Live may also populate `server_content.turn_complete_reason`.
 
 #### Model Resolution
 
@@ -1856,7 +1858,18 @@ mix test --cover
 
 # Run integration tests (requires API key)
 GEMINI_API_KEY="your_key" mix test --only integration
+
+# Run Gemini Live session tests when GEMINI_API_KEY is already exported
+mix test --only live_gemini test/gemini/live/session_live_test.exs
+
+# Run Gemini Live feature tests when GEMINI_API_KEY is already exported
+mix test --only live_gemini test/gemini/live/features_live_test.exs
+
+# Run billed Vertex Live tests when Vertex credentials are already exported
+RUN_BILLED_VERTEX_LIVE_TESTS=1 mix test --only live_vertex_ai test/gemini/live/session_vertex_live_test.exs
 ```
+
+If your Vertex project exposes only native-audio Live models, the text-only Vertex session tests will skip instead of failing.
 
 ## Contributing
 

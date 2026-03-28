@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-03-27
+
+### Added
+
+#### Live API Schema Compatibility Helpers
+- **`Gemini.Types.Live.Enums.TurnCompleteReason`**: typed enum for Vertex Live `turnCompleteReason`
+- **`Gemini.Types.Live.ServerContent.turn_complete_reason`**: captures the server-provided turn completion reason when present
+- **`Gemini.Types.Live.UsageMetadata.output_token_count/1`** and **`output_tokens_details/1`**: backend-agnostic helpers for normalized Live output usage
+
+### Changed
+- **Live usage metadata normalization**: Gemini Live `responseTokenCount` / `responseTokensDetails` and Vertex Live `candidatesTokenCount` / `candidatesTokensDetails` now populate the same canonical `candidates_*` fields in `Gemini.Types.Live.UsageMetadata`
+- **Backwards compatibility preserved**: `response_token_count` and `response_tokens_details` remain available as aliases for existing caller code
+- **Vertex text live model filtering**: native-audio-only models are no longer treated as text candidates during Vertex Live text model resolution
+- **Live docs and test instructions**: README and Live API guide now document the Gemini-vs-Vertex schema split and the targeted manual test commands
+
+### Fixed
+- **Rate limiter output token accounting**: usage reconciliation now falls back to Gemini-style Live `responseTokenCount` metadata instead of assuming only `candidatesTokenCount`
+- **Vertex Live server content parsing**: `turnCompleteReason` is now captured and exposed through the Live type layer
+- **Live type coverage**: unit tests now cover Gemini-style and Vertex-style usage metadata parsing plus Vertex turn completion reasons
+- **Live integration test stability**: Gemini raw WebSocket setup retries/skips transient upstream `1011` internal errors, and Vertex text-only live session tests skip cleanly when the project has no text-capable Live model
+
 ## [0.11.0] - 2026-03-05
 
 ### Added
@@ -2035,7 +2056,8 @@ config :gemini_ex,
 - Minimal latency overhead
 - Concurrent request processing
 
-[Unreleased]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.11.1...HEAD
+[0.11.1]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.9.1...v0.10.0
 [0.9.1]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.9.0...v0.9.1
