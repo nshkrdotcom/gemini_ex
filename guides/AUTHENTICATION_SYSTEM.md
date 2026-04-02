@@ -103,18 +103,16 @@ graph TD
 
 *   **Purpose**: To detect and load the *default* authentication credentials for the application.
 *   **Mechanism**: The `Gemini.Config.auth_config/0` function establishes a strict priority order for finding credentials:
-    1.  **Environment Variables**: Checks for `GEMINI_API_KEY`, `VERTEX_SERVICE_ACCOUNT`/`VERTEX_JSON_FILE`, and ADC vars such as `GOOGLE_APPLICATION_CREDENTIALS_JSON` and `GOOGLE_APPLICATION_CREDENTIALS`. This is the highest priority.
-    2.  **Application Config**: If no environment variables are found, it checks for `:gemini, :auth` or `:gemini, :api_key` in the Elixir application environment (e.g., `config/runtime.exs`).
+    1.  **Application Config**: Checks `:gemini, :auth`, `:gemini_ex, :auth`, and Gemini API keys configured via `:gemini` or `:gemini_ex`.
+    2.  **Environment Variables**: Falls back to `GEMINI_API_KEY`, `VERTEX_SERVICE_ACCOUNT`/`VERTEX_JSON_FILE`, and ADC vars such as `GOOGLE_APPLICATION_CREDENTIALS_JSON` and `GOOGLE_APPLICATION_CREDENTIALS`.
+    3.  **Per-request / per-session overrides**: Higher layers can still override the resolved defaults by passing `:api_key`, `:project_id`, or other auth opts directly on a request or Live session.
 *   **Code Example (`gemini/config.ex`):**
     ```elixir
     def auth_config do
-      cond do
-        gemini_api_key() ->
-          %{type: :gemini, credentials: %{api_key: gemini_api_key()}}
-        # ... other checks for Vertex, etc.
-        true ->
-          Application.get_env(:gemini, :auth) # ...
-      end
+      auth_config_from_app() ||
+        gemini_auth_config_from_env() ||
+        vertex_access_token_config_from_env() ||
+        vertex_service_account_config_from_env()
     end
     ```
 
@@ -239,6 +237,8 @@ The library will automatically detect and use these variables.
 
 Configure the library in your project's `config/runtime.exs` file. This is the canonical approach for managing secrets within an Elixir application.
 
+When both are present for Gemini auth, application config now takes precedence over `GEMINI_API_KEY`.
+
 *   **For Gemini API Key:**
     ```elixir
     # config/runtime.exs
@@ -275,7 +275,7 @@ When using `Gemini.Live.Session`, authentication is handled automatically using 
 ```elixir
 alias Gemini.Live.{Models, Session}
 
-# Uses environment variable or application config
+# Uses application config or environment variables
 {:ok, session} = Session.start_link(
   model: Models.resolve(:text),
   auth: :gemini,  # or :vertex_ai
@@ -283,7 +283,17 @@ alias Gemini.Live.{Models, Session}
 )
 ```
 
-The WebSocket connection URL includes the API key as a query parameter (which is automatically redacted in logs for security).
+You can also scope a Gemini API key to a single Live session:
+
+```elixir
+{:ok, session} = Gemini.Live.Session.start_link(
+  model: Gemini.Live.Models.resolve(:text),
+  api_key: "session-specific-key",
+  generation_config: %{response_modalities: ["TEXT"]}
+)
+```
+
+The WebSocket connection URL includes the API key as a query parameter when Gemini auth is used, and that query parameter is automatically redacted in logs for security.
 
 #### Client-Side Authentication with Ephemeral Tokens
 

@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-04-02
+
+### Changed
+- **Gemini API key precedence**: default Gemini auth now prefers application configuration over `GEMINI_API_KEY`, making `config :gemini_ex, api_key: ...` the explicit default when both are present
+- **Published auth docs**: README, the Live API guide, and the authentication guide now document the new precedence order and the session-scoped Live override path
+
+### Fixed
+- **Implicit Gemini override selection**: `Gemini.Client.HTTP` now treats a request-scoped `api_key:` as sufficient to select Gemini auth even when `auth:` is omitted
+- **Live session API key overrides**: `Gemini.Live.Session.start_link/1` now propagates `api_key:` through to `Gemini.Client.WebSocket`, so per-session Gemini credentials do not depend on global config
+- **WebSocket auth resolution**: Gemini Live connections now prefer a connection-scoped API key before falling back to global configuration, with redacted logging preserved
+
+### Tests
+- Added focused regression coverage for config precedence, implicit HTTP auth selection, and Live session/WebSocket API key propagation
+
 ## [0.11.1] - 2026-03-27
 
 ### Added
@@ -1671,8 +1685,6 @@ similarity = ContentEmbedding.cosine_similarity(normalized, other_normalized)
 - Added `convert_thinking_config_to_api/1` to properly convert field names to camelCase
 - `GenerationConfig.ThinkingConfig` is now a typed struct (not plain map)
 
-## [Unreleased]
-
 ## [0.2.1] - 2025-08-08
 
 ### Added
@@ -2056,7 +2068,8 @@ config :gemini_ex,
 - Minimal latency overhead
 - Concurrent request processing
 
-[Unreleased]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.11.1...HEAD
+[Unreleased]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.9.1...v0.10.0

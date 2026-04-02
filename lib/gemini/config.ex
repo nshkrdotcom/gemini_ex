@@ -229,7 +229,7 @@ defmodule Gemini.Config do
       :gemini ->
         %{
           auth_type: :gemini,
-          api_key: gemini_api_key() || Application.get_env(:gemini_ex, :api_key),
+          api_key: api_key(),
           model: default_model()
         }
 
@@ -254,11 +254,11 @@ defmodule Gemini.Config do
   end
 
   @doc """
-  Detect authentication type based on environment variables.
+  Detect authentication type based on configured Gemini or Vertex credentials.
   """
   def detect_auth_type do
     cond do
-      gemini_api_key() -> :gemini
+      api_key() -> :gemini
       vertex_project_id() && vertex_project_id() != "" -> :vertex
       # default
       true -> :gemini
@@ -291,24 +291,23 @@ defmodule Gemini.Config do
 
   Returns a map with the authentication type and credentials.
   Priority order:
-  1. Environment variables
-  2. Application configuration
-  3. Default to Gemini with API key
+  1. Application configuration
+  2. Environment variables
   """
   @spec auth_config() :: auth_config() | nil
   def auth_config do
-    gemini_auth_config_from_env() ||
+    auth_config_from_app() ||
+      gemini_auth_config_from_env() ||
       vertex_access_token_config_from_env() ||
-      vertex_service_account_config_from_env() ||
-      auth_config_from_app()
+      vertex_service_account_config_from_env()
   end
 
   @doc """
-  Get the API key from environment or application config.
+  Get the API key from application config or environment.
   (Legacy function for backward compatibility)
   """
   def api_key do
-    gemini_api_key() || Application.get_env(:gemini_ex, :api_key)
+    Application.get_env(:gemini_ex, :api_key) || gemini_api_key()
   end
 
   defp gemini_auth_config_from_env do

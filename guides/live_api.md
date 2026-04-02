@@ -286,6 +286,16 @@ model = Models.resolve(:text)
 # Session is now ready for messages
 ```
 
+For Gemini sessions, you can also pass `api_key:` directly to `Session.start_link/1`. When `api_key:` is present and `auth:` is omitted, the session uses Gemini auth for that connection only.
+
+```elixir
+{:ok, session} = Gemini.Live.Session.start_link(
+  model: Gemini.Live.Models.resolve(:text),
+  api_key: "session-specific-key",
+  generation_config: %{response_modalities: ["TEXT"]}
+)
+```
+
 ### Full Configuration Options
 
 ```elixir
@@ -297,6 +307,7 @@ alias Gemini.Live.Models
 
   # Authentication
   auth: :gemini,  # or :vertex_ai
+  api_key: "session-specific-key",  # optional per-session Gemini override when using Gemini auth
   project_id: "your-project",  # required for :vertex_ai
   location: "us-central1",     # optional, default: "us-central1"
   api_version: "v1alpha",

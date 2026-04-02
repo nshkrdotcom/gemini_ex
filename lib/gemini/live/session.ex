@@ -298,7 +298,7 @@ defmodule Gemini.Live.Session do
   @impl true
   def init(opts) do
     model = Keyword.fetch!(opts, :model)
-    auth = Keyword.get(opts, :auth, detect_auth_strategy())
+    auth = Keyword.get(opts, :auth, detect_auth_strategy(opts))
 
     state = %{
       websocket: nil,
@@ -306,6 +306,7 @@ defmodule Gemini.Live.Session do
       config: %{
         model: model,
         auth: auth,
+        api_key: Keyword.get(opts, :api_key),
         project_id: Keyword.get(opts, :project_id),
         location: Keyword.get(opts, :location, "us-central1"),
         generation_config: Keyword.get(opts, :generation_config),
@@ -476,6 +477,7 @@ defmodule Gemini.Live.Session do
   defp do_connect(state) do
     base_opts = [
       model: state.config.model,
+      api_key: state.config.api_key,
       project_id: state.config.project_id,
       location: state.config.location
     ]
@@ -941,9 +943,10 @@ defmodule Gemini.Live.Session do
   @spec default_callback(term()) :: :ok
   defp default_callback(_), do: :ok
 
-  @spec detect_auth_strategy() :: :gemini | :vertex_ai
-  defp detect_auth_strategy do
+  @spec detect_auth_strategy(keyword()) :: :gemini | :vertex_ai
+  defp detect_auth_strategy(opts) do
     cond do
+      Keyword.get(opts, :api_key) -> :gemini
       Config.api_key() -> :gemini
       Config.get_auth_config(:vertex_ai)[:project_id] -> :vertex_ai
       true -> :gemini

@@ -14,8 +14,9 @@ defmodule Gemini.Live.SessionTest do
     @moduledoc false
     import Kernel, except: [send: 2]
 
-    def connect(_auth, opts) do
+    def connect(auth, opts) do
       test_pid = Keyword.fetch!(opts, :test_pid)
+      Kernel.send(test_pid, {:websocket_connect, auth, opts})
       Kernel.send(test_pid, {:websocket_connect_opts, opts})
       {:ok, %{test_pid: test_pid}}
     end
@@ -254,6 +255,23 @@ defmodule Gemini.Live.SessionTest do
       assert_receive {:websocket_send, %{"setup" => setup}}, 1_000
       assert setup["enableAffectiveDialog"] == true
       assert setup["proactivity"]["proactiveAudio"] == true
+
+      GenServer.stop(pid)
+    end
+
+    test "passes per-session api_key override to websocket connection" do
+      {:ok, pid} =
+        Session.start_link(
+          model: "gemini-2.5-flash-native-audio-preview-12-2025",
+          api_key: "session-key",
+          websocket_module: WebSocketStub,
+          websocket_opts: [test_pid: self()]
+        )
+
+      assert :ok = Session.connect(pid)
+
+      assert_receive {:websocket_connect, :gemini, opts}, 1_000
+      assert opts[:api_key] == "session-key"
 
       GenServer.stop(pid)
     end

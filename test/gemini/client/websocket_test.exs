@@ -6,7 +6,7 @@ defmodule Gemini.Client.WebSocketTest do
   making actual network calls.
   """
 
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias Gemini.Client.WebSocket
 
@@ -241,6 +241,44 @@ defmodule Gemini.Client.WebSocketTest do
     test "returns path unchanged when no sensitive params present" do
       path = "/ws/service?project=proj&location=us-central1"
       assert WebSocket.redact_websocket_path(path) == path
+    end
+  end
+
+  describe "redacted_websocket_path/1 with per-connection api_key" do
+    setup do
+      original_app_key = Application.get_env(:gemini_ex, :api_key)
+      original_env_key = System.get_env("GEMINI_API_KEY")
+
+      Application.delete_env(:gemini_ex, :api_key)
+      System.delete_env("GEMINI_API_KEY")
+
+      on_exit(fn ->
+        case original_app_key do
+          nil -> Application.delete_env(:gemini_ex, :api_key)
+          value -> Application.put_env(:gemini_ex, :api_key, value)
+        end
+
+        case original_env_key do
+          nil -> System.delete_env("GEMINI_API_KEY")
+          value -> System.put_env("GEMINI_API_KEY", value)
+        end
+      end)
+
+      :ok
+    end
+
+    test "uses connection api_key when building gemini path" do
+      conn =
+        %WebSocket{auth_strategy: :gemini, model: "gemini-2.5-flash", api_version: "v1beta"}
+        |> Map.put(:api_key, "direct-key")
+
+      path = WebSocket.redacted_websocket_path(conn)
+
+      assert path =~
+               "/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
+
+      assert path =~ "key=[REDACTED]"
+      refute path =~ "direct-key"
     end
   end
 end

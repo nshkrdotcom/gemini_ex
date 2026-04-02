@@ -59,7 +59,7 @@ Add `gemini` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:gemini_ex, "~> 0.11.1"}
+    {:gemini_ex, "~> 0.12.0"}
   ]
 end
 ```
@@ -82,6 +82,8 @@ Or set the environment variable:
 ```bash
 export GEMINI_API_KEY="your_api_key_here"
 ```
+
+For default Gemini auth resolution, `config :gemini_ex, api_key: ...` now takes precedence over `GEMINI_API_KEY`. Narrower overrides still win: pass `api_key:` directly on a request or on `Gemini.Live.Session.start_link/1` for session-scoped credentials.
 
 ### Simple Content Generation
 
@@ -1377,15 +1379,25 @@ The examples follow a consistent pattern:
 
 ### Gemini API Key (Recommended for Development)
 
-```elixir
-# Environment variable (recommended)
-export GEMINI_API_KEY="your_api_key"
+Default Gemini key precedence is:
+- Per-request or per-session `api_key:`
+- Application config: `config :gemini_ex, api_key: ...`
+- Environment variable: `GEMINI_API_KEY`
 
-# Application config
+```bash
+export GEMINI_API_KEY="your_api_key"
+```
+
+```elixir
 config :gemini_ex, api_key: "your_api_key"
 
-# Per-request override
 Gemini.generate("Hello", api_key: "specific_key")
+
+{:ok, session} =
+  Gemini.Live.Session.start_link(
+    model: Gemini.Live.Models.resolve(:text),
+    api_key: "session_specific_key"
+  )
 ```
 
 ### Vertex AI (Recommended for Production)

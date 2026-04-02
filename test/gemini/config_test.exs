@@ -17,15 +17,32 @@ defmodule Gemini.ConfigTest do
     VERTEX_JSON_FILE
   )
 
+  @app_env_keys [
+    {:gemini, :auth},
+    {:gemini, :api_key},
+    {:gemini_ex, :auth},
+    {:gemini_ex, :api_key}
+  ]
+
   setup do
     # Save all original environment variables
     original_env = Enum.map(@env_vars, fn key -> {key, System.get_env(key)} end)
+
+    original_app_env =
+      Enum.map(@app_env_keys, fn {app, key} -> {app, key, Application.get_env(app, key)} end)
+
+    Enum.each(@app_env_keys, fn {app, key} -> Application.delete_env(app, key) end)
 
     on_exit(fn ->
       # Restore all original environment variables
       Enum.each(original_env, fn
         {key, nil} -> System.delete_env(key)
         {key, value} -> System.put_env(key, value)
+      end)
+
+      Enum.each(original_app_env, fn
+        {app, key, nil} -> Application.delete_env(app, key)
+        {app, key, value} -> Application.put_env(app, key, value)
       end)
     end)
 
@@ -56,6 +73,17 @@ defmodule Gemini.ConfigTest do
 
       assert config.auth_type == :gemini
       assert config.api_key == "test-key"
+    end
+
+    test "prefers application api_key over GEMINI_API_KEY" do
+      clear_all_auth_env_vars()
+      System.put_env("GEMINI_API_KEY", "env-key")
+      Application.put_env(:gemini_ex, :api_key, "app-key")
+
+      config = Config.get()
+
+      assert config.auth_type == :gemini
+      assert config.api_key == "app-key"
     end
 
     test "detects vertex auth type when GOOGLE_CLOUD_PROJECT is set" do
@@ -136,6 +164,24 @@ defmodule Gemini.ConfigTest do
       end)
 
       assert %{type: :gemini, credentials: %{api_key: "runtime-key"}} = Config.auth_config()
+    end
+
+    test "prefers application api_key over GEMINI_API_KEY" do
+      clear_all_auth_env_vars()
+      System.put_env("GEMINI_API_KEY", "env-key")
+      Application.put_env(:gemini_ex, :api_key, "app-key")
+
+      assert %{type: :gemini, credentials: %{api_key: "app-key"}} = Config.auth_config()
+    end
+  end
+
+  describe "api_key/0" do
+    test "prefers application config over GEMINI_API_KEY" do
+      clear_all_auth_env_vars()
+      System.put_env("GEMINI_API_KEY", "env-key")
+      Application.put_env(:gemini_ex, :api_key, "app-key")
+
+      assert Config.api_key() == "app-key"
     end
   end
 

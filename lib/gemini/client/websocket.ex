@@ -70,6 +70,7 @@ defmodule Gemini.Client.WebSocket do
           auth_strategy: auth_strategy() | nil,
           status: connection_status(),
           model: String.t() | nil,
+          api_key: String.t() | nil,
           project_id: String.t() | nil,
           location: String.t() | nil,
           api_version: String.t(),
@@ -98,6 +99,7 @@ defmodule Gemini.Client.WebSocket do
     :stream_ref,
     :auth_strategy,
     :model,
+    :api_key,
     :project_id,
     :location,
     status: :connecting,
@@ -187,6 +189,7 @@ defmodule Gemini.Client.WebSocket do
   def connect(auth_strategy, opts \\ []) do
     start_time = System.monotonic_time()
     model = Keyword.fetch!(opts, :model)
+    api_key = Keyword.get(opts, :api_key)
     project_id = Keyword.get(opts, :project_id)
     location = Keyword.get(opts, :location, "us-central1")
     api_version = Keyword.get(opts, :api_version, "v1beta")
@@ -201,6 +204,7 @@ defmodule Gemini.Client.WebSocket do
     conn = %__MODULE__{
       auth_strategy: auth_strategy,
       model: model,
+      api_key: api_key,
       project_id: project_id,
       location: location,
       api_version: api_version,
@@ -592,6 +596,11 @@ defmodule Gemini.Client.WebSocket do
   end
 
   @spec get_auth_params(t()) :: {:ok, map()} | {:error, term()}
+  defp get_auth_params(%__MODULE__{auth_strategy: :gemini, api_key: api_key})
+       when is_binary(api_key) and api_key != "" do
+    {:ok, %{api_key: api_key}}
+  end
+
   defp get_auth_params(%__MODULE__{auth_strategy: :gemini}) do
     case Config.api_key() do
       nil -> {:error, :no_api_key}

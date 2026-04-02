@@ -24,6 +24,16 @@ defmodule Gemini.Client.HTTP do
   alias Gemini.RateLimiter
   alias Gemini.Telemetry
 
+  @vertex_auth_override_keys [
+    :project_id,
+    :location,
+    :access_token,
+    :service_account_key,
+    :service_account,
+    :service_account_data,
+    :quota_project_id
+  ]
+
   @doc """
   Make a GET request using the configured authentication.
   """
@@ -142,7 +152,7 @@ defmodule Gemini.Client.HTTP do
 
   @spec resolve_auth_config(keyword()) :: Config.auth_config() | nil
   defp resolve_auth_config(opts) when is_list(opts) do
-    case normalize_auth_strategy(Keyword.get(opts, :auth)) do
+    case normalize_auth_strategy(Keyword.get(opts, :auth)) || infer_auth_strategy(opts) do
       nil ->
         Config.auth_config()
 
@@ -159,6 +169,14 @@ defmodule Gemini.Client.HTTP do
   defp normalize_auth_strategy(:gemini), do: :gemini
   defp normalize_auth_strategy(:vertex_ai), do: :vertex_ai
   defp normalize_auth_strategy(_), do: nil
+
+  defp infer_auth_strategy(opts) do
+    cond do
+      Keyword.has_key?(opts, :api_key) -> :gemini
+      Enum.any?(@vertex_auth_override_keys, &Keyword.has_key?(opts, &1)) -> :vertex_ai
+      true -> nil
+    end
+  end
 
   defp apply_auth_overrides(credentials, :gemini, opts) do
     credentials
