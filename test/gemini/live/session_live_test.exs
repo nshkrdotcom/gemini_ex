@@ -20,7 +20,7 @@ defmodule Gemini.Live.SessionLiveTest do
 
   setup_all do
     if System.get_env("GEMINI_API_KEY") do
-      {:ok, live_model: Models.resolve(:text)}
+      {:ok, live_model: Models.resolve(:audio)}
     else
       {:skip, "GEMINI_API_KEY required for live tests"}
     end
@@ -41,6 +41,18 @@ defmodule Gemini.Live.SessionLiveTest do
     end
   end
 
+  defp session_opts(live_model, opts \\ []) do
+    Keyword.merge(
+      [
+        model: live_model,
+        auth: :gemini,
+        generation_config: %{response_modalities: ["AUDIO"]},
+        output_audio_transcription: %{}
+      ],
+      opts
+    )
+  end
+
   describe "Gemini API connection" do
     @tag :live_gemini
     test "connects and receives setup complete", %{live_model: live_model} do
@@ -48,10 +60,7 @@ defmodule Gemini.Live.SessionLiveTest do
 
       {:ok, session} =
         Session.start_link(
-          model: live_model,
-          auth: :gemini,
-          generation_config: %{response_modalities: ["TEXT"]},
-          on_message: fn msg -> send(test_pid, {:msg, msg}) end
+          session_opts(live_model, on_message: fn msg -> send(test_pid, {:msg, msg}) end)
         )
 
       if connected?(session) do
@@ -70,17 +79,14 @@ defmodule Gemini.Live.SessionLiveTest do
 
       {:ok, session} =
         Session.start_link(
-          model: live_model,
-          auth: :gemini,
-          generation_config: %{response_modalities: ["TEXT"]},
-          on_message: fn msg -> send(test_pid, {:msg, msg}) end
+          session_opts(live_model, on_message: fn msg -> send(test_pid, {:msg, msg}) end)
         )
 
       if connected?(session) do
         # Clear the setup_complete message
         assert_receive {:msg, %{setup_complete: _}}, 5_000
 
-        :ok = Session.send_client_content(session, "Say hello in one word")
+        :ok = Session.send_text(session, "Say hello in one word")
 
         # Should receive server content with response
         assert_receive {:msg, %{server_content: content}}, 15_000
@@ -96,17 +102,14 @@ defmodule Gemini.Live.SessionLiveTest do
 
       {:ok, session} =
         Session.start_link(
-          model: live_model,
-          auth: :gemini,
-          generation_config: %{response_modalities: ["TEXT"]},
-          on_message: fn msg -> send(test_pid, {:msg, msg}) end
+          session_opts(live_model, on_message: fn msg -> send(test_pid, {:msg, msg}) end)
         )
 
       if connected?(session) do
         assert_receive {:msg, %{setup_complete: _}}, 5_000
 
         # Send first message
-        :ok = Session.send_client_content(session, "My name is Claude.")
+        :ok = Session.send_text(session, "My name is Claude.")
         assert_receive {:msg, %{server_content: _}}, 15_000
 
         # Drain any additional chunks
@@ -117,7 +120,7 @@ defmodule Gemini.Live.SessionLiveTest do
         end
 
         # Send follow-up
-        :ok = Session.send_client_content(session, "What is my name?")
+        :ok = Session.send_text(session, "What is my name?")
         assert_receive {:msg, %{server_content: _}}, 15_000
 
         Session.close(session)
@@ -125,27 +128,21 @@ defmodule Gemini.Live.SessionLiveTest do
     end
 
     @tag :live_gemini
-    test "handles partial turns with turn_complete: false", %{live_model: live_model} do
+    test "supports multiple text turns over the active live transport", %{live_model: live_model} do
       test_pid = self()
 
       {:ok, session} =
         Session.start_link(
-          model: live_model,
-          auth: :gemini,
-          generation_config: %{response_modalities: ["TEXT"]},
-          on_message: fn msg -> send(test_pid, {:msg, msg}) end
+          session_opts(live_model, on_message: fn msg -> send(test_pid, {:msg, msg}) end)
         )
 
       if connected?(session) do
         assert_receive {:msg, %{setup_complete: _}}, 5_000
 
-        # Send partial content
-        :ok = Session.send_client_content(session, "I want to say", turn_complete: false)
+        :ok = Session.send_text(session, "I want to say hello")
+        assert_receive {:msg, %{server_content: _}}, 15_000
 
-        # Complete the turn
-        :ok = Session.send_client_content(session, " hello!", turn_complete: true)
-
-        # Should get response
+        :ok = Session.send_text(session, "Please repeat that more briefly.")
         assert_receive {:msg, %{server_content: _}}, 15_000
 
         Session.close(session)
@@ -155,11 +152,7 @@ defmodule Gemini.Live.SessionLiveTest do
     @tag :live_gemini
     test "closes session gracefully", %{live_model: live_model} do
       {:ok, session} =
-        Session.start_link(
-          model: live_model,
-          auth: :gemini,
-          generation_config: %{response_modalities: ["TEXT"]}
-        )
+        Session.start_link(session_opts(live_model))
 
       if connected?(session) do
         assert Session.status(session) == :ready
@@ -177,8 +170,7 @@ defmodule Gemini.Live.SessionLiveTest do
           auth: :gemini
         )
 
-      assert {:error, {:not_ready, :disconnected}} =
-               Session.send_client_content(session, "test")
+      assert {:error, {:not_ready, :disconnected}} = Session.send_text(session, "test")
 
       GenServer.stop(session)
     end
@@ -191,17 +183,16 @@ defmodule Gemini.Live.SessionLiveTest do
 
       {:ok, session} =
         Session.start_link(
-          model: live_model,
-          auth: :gemini,
-          generation_config: %{response_modalities: ["TEXT"]},
-          system_instruction: "Always respond with exactly the word 'PINEAPPLE'",
-          on_message: fn msg -> send(test_pid, {:msg, msg}) end
+          session_opts(live_model,
+            system_instruction: "Always respond with exactly the word 'PINEAPPLE'",
+            on_message: fn msg -> send(test_pid, {:msg, msg}) end
+          )
         )
 
       if connected?(session) do
         assert_receive {:msg, %{setup_complete: _}}, 5_000
 
-        :ok = Session.send_client_content(session, "Say something")
+        :ok = Session.send_text(session, "Say something")
         assert_receive {:msg, %{server_content: _}}, 15_000
 
         Session.close(session)
@@ -217,18 +208,17 @@ defmodule Gemini.Live.SessionLiveTest do
 
       {:ok, session} =
         Session.start_link(
-          model: live_model,
-          auth: :gemini,
-          generation_config: %{response_modalities: ["TEXT"]},
-          session_resumption: %{handle: true},
-          on_message: fn msg -> send(test_pid, {:msg, msg}) end
+          session_opts(live_model,
+            session_resumption: %{handle: true},
+            on_message: fn msg -> send(test_pid, {:msg, msg}) end
+          )
         )
 
       if connected?(session) do
         assert_receive {:msg, %{setup_complete: _}}, 5_000
 
         # Send a message to trigger session state
-        :ok = Session.send_client_content(session, "Hello")
+        :ok = Session.send_text(session, "Hello")
         assert_receive {:msg, %{server_content: _}}, 15_000
 
         # Session handle should be available after some messages

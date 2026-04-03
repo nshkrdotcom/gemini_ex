@@ -89,7 +89,9 @@ defmodule Gemini.RateLimiter.Config do
           window_duration_ms: pos_integer(),
           max_budget_wait_ms: pos_integer() | nil,
           budget_safety_multiplier: float(),
-          permit_timeout_ms: pos_integer() | :infinity
+          permit_timeout_ms: pos_integer() | :infinity,
+          now_fn: (-> DateTime.t()),
+          sleep_fn: (non_neg_integer() -> term())
         }
 
   defstruct max_concurrency_per_model: 4,
@@ -109,7 +111,10 @@ defmodule Gemini.RateLimiter.Config do
             # Safety multiplier when reserving tokens
             budget_safety_multiplier: 1.0,
             # Max wait for concurrency permit before erroring (:infinity = no cap)
-            permit_timeout_ms: :infinity
+            permit_timeout_ms: :infinity,
+            # Injectable clock/sleeper for deterministic tests
+            now_fn: &DateTime.utc_now/0,
+            sleep_fn: &Process.sleep/1
 
   @profiles %{
     # Development profile - lower concurrency, more conservative
@@ -212,6 +217,19 @@ defmodule Gemini.RateLimiter.Config do
   @spec concurrency_enabled?(t()) :: boolean()
   def concurrency_enabled?(%__MODULE__{max_concurrency_per_model: max}) do
     is_integer(max) and max > 0
+  end
+
+  @doc false
+  @spec now(t()) :: DateTime.t()
+  def now(%__MODULE__{now_fn: now_fn}), do: now_fn.()
+
+  @doc false
+  @spec sleep(t(), integer()) :: :ok
+  def sleep(_config, ms) when not is_integer(ms) or ms <= 0, do: :ok
+
+  def sleep(%__MODULE__{sleep_fn: sleep_fn}, ms) do
+    _ = sleep_fn.(ms)
+    :ok
   end
 
   # Private helpers

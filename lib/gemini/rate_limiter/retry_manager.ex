@@ -53,7 +53,7 @@ defmodule Gemini.RateLimiter.RetryManager do
     attempt = Keyword.get(opts, :attempt, 1)
 
     # Check if we're already in a retry window
-    case State.get_retry_until(state_key) do
+    case State.get_retry_until(state_key, now: Config.now(config)) do
       nil ->
         execute_request(request_fn, state_key, config, attempt, opts)
 
@@ -159,12 +159,18 @@ defmodule Gemini.RateLimiter.RetryManager do
     retry_info = extract_retry_info(error)
 
     # Update state with retry info
-    State.set_retry_state(state_key, retry_info)
-    emit_retry_event(:set, state_key, State.get_retry_until(state_key), retry_info)
+    State.set_retry_state(state_key, retry_info, now: Config.now(config))
+
+    emit_retry_event(
+      :set,
+      state_key,
+      State.get_retry_until(state_key, now: Config.now(config)),
+      retry_info
+    )
 
     if config.non_blocking do
       # Return immediately with retry info
-      retry_until = State.get_retry_until(state_key)
+      retry_until = State.get_retry_until(state_key, now: Config.now(config))
 
       {:error,
        {:rate_limited, retry_until,
@@ -186,7 +192,7 @@ defmodule Gemini.RateLimiter.RetryManager do
       backoff = calculate_backoff(attempt, config)
 
       unless config.non_blocking do
-        Process.sleep(backoff)
+        Config.sleep(config, backoff)
       end
 
       execute_with_retry(request_fn, state_key, config, Keyword.put(opts, :attempt, attempt + 1))
@@ -211,7 +217,7 @@ defmodule Gemini.RateLimiter.RetryManager do
   end
 
   defp wait_and_retry(state_key, request_fn, config, attempt, opts) do
-    case State.get_retry_until(state_key) do
+    case State.get_retry_until(state_key, now: Config.now(config)) do
       nil ->
         # Retry window passed, execute immediately
         execute_with_retry(
@@ -222,11 +228,11 @@ defmodule Gemini.RateLimiter.RetryManager do
         )
 
       retry_until ->
-        wait_ms = DateTime.diff(retry_until, DateTime.utc_now(), :millisecond)
+        wait_ms = DateTime.diff(retry_until, Config.now(config), :millisecond)
         jittered_wait = jitter_wait(wait_ms, config)
 
         if jittered_wait > 0 do
-          Process.sleep(jittered_wait)
+          Config.sleep(config, jittered_wait)
         end
 
         emit_retry_event(:release, state_key, retry_until)

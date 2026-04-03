@@ -3,8 +3,10 @@
 # Run with: mix run examples/live_function_calling.exs
 #
 # This example demonstrates function calling (tool use) with the Live API.
-# The model can request to call functions, and we respond with results.
+# It uses an audio session with output transcription so tool interactions can
+# still be followed as text.
 
+alias Gemini.Live.Models
 alias Gemini.Live.Session
 
 IO.puts("=== Live API Function Calling Demo ===\n")
@@ -94,15 +96,9 @@ defmodule DemoFunctions do
   end
 end
 
-# We need to store the session PID to use it in the tool call handler
-# Using Process dictionary for simplicity in this demo
-Process.put(:session_pid, nil)
-
 # Tool call handler
 tool_handler = fn %{function_calls: calls} ->
   IO.puts("\n[Tool calls received]")
-
-  session = Process.get(:session_pid)
 
   responses =
     Enum.map(calls, fn call ->
@@ -137,7 +133,7 @@ tool_handler = fn %{function_calls: calls} ->
 
   # Send the responses back
   IO.puts("[Sending tool responses]")
-  Session.send_tool_response(session, responses)
+  {:tool_response, responses}
 end
 
 # Message handler
@@ -167,17 +163,15 @@ IO.puts("\nStarting Live API session with tools...")
 # Start session
 {:ok, session} =
   Session.start_link(
-    model: "gemini-2.5-flash-native-audio-preview-12-2025",
+    model: Models.resolve(:audio),
     auth: :gemini,
-    generation_config: %{response_modalities: ["TEXT"]},
+    generation_config: %{response_modalities: ["AUDIO"]},
+    output_audio_transcription: %{},
     tools: tools,
     on_message: message_handler,
     on_tool_call: tool_handler,
     on_error: fn err -> IO.puts("\n[Error: #{inspect(err)}]") end
   )
-
-# Store session PID for tool handler
-Process.put(:session_pid, session)
 
 IO.puts("[OK] Session started")
 
@@ -198,19 +192,19 @@ Process.sleep(500)
 # Test 1: Weather query
 prompt1 = "What's the weather like in Tokyo?"
 IO.puts(">>> Sending: #{prompt1}\n")
-:ok = Session.send_client_content(session, prompt1)
+:ok = Session.send_text(session, prompt1)
 Process.sleep(8000)
 
 # Test 2: Calculation
 prompt2 = "Please calculate 42 multiplied by 17."
 IO.puts("\n>>> Sending: #{prompt2}\n")
-:ok = Session.send_client_content(session, prompt2)
+:ok = Session.send_text(session, prompt2)
 Process.sleep(8000)
 
 # Test 3: Multiple tool calls
 prompt3 = "What's the weather in Paris, and what's 100 divided by 4?"
 IO.puts("\n>>> Sending: #{prompt3}\n")
-:ok = Session.send_client_content(session, prompt3)
+:ok = Session.send_text(session, prompt3)
 Process.sleep(10000)
 
 # Clean up

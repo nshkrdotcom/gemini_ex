@@ -94,13 +94,14 @@ defmodule Gemini.RateLimiter.State do
 
   Returns `nil` if no retry is needed or the timestamp has passed.
   """
-  @spec get_retry_until(state_key()) :: DateTime.t() | nil
-  def get_retry_until(key) do
+  @spec get_retry_until(state_key(), keyword()) :: DateTime.t() | nil
+  def get_retry_until(key, opts \\ []) do
     ensure_table_exists()
+    now = Keyword.get(opts, :now, DateTime.utc_now())
 
     case :ets.lookup(@ets_table, {:retry, key}) do
       [{_key, %{retry_until: retry_until}}] when not is_nil(retry_until) ->
-        if DateTime.compare(retry_until, DateTime.utc_now()) == :gt do
+        if DateTime.compare(retry_until, now) == :gt do
           retry_until
         else
           nil
@@ -128,11 +129,12 @@ defmodule Gemini.RateLimiter.State do
         "quotaDimensions" => %{...}
       }
   """
-  @spec set_retry_state(state_key(), map()) :: :ok
-  def set_retry_state(key, retry_info) do
+  @spec set_retry_state(state_key(), map(), keyword()) :: :ok
+  def set_retry_state(key, retry_info, opts \\ []) do
     ensure_table_exists()
+    now = Keyword.get(opts, :now, DateTime.utc_now())
     retry_delay_ms = parse_retry_delay(retry_info)
-    retry_until = DateTime.add(DateTime.utc_now(), retry_delay_ms, :millisecond)
+    retry_until = DateTime.add(now, retry_delay_ms, :millisecond)
 
     # ADR-0003: Capture additional quota metadata for richer diagnostics
     state = %{
@@ -141,7 +143,7 @@ defmodule Gemini.RateLimiter.State do
       quota_id: Map.get(retry_info, "quotaId"),
       quota_dimensions: Map.get(retry_info, "quotaDimensions"),
       quota_value: Map.get(retry_info, "quotaValue"),
-      last_429_at: DateTime.utc_now()
+      last_429_at: now
     }
 
     :ets.insert(@ets_table, {{:retry, key}, state})
@@ -191,7 +193,7 @@ defmodule Gemini.RateLimiter.State do
   @spec record_usage(state_key(), non_neg_integer(), non_neg_integer(), keyword()) :: :ok
   def record_usage(key, input_tokens, output_tokens, opts \\ []) do
     ensure_table_exists()
-    now = DateTime.utc_now()
+    now = Keyword.get(opts, :now, DateTime.utc_now())
     window_duration = Keyword.get(opts, :window_duration_ms, @default_window_duration_ms)
 
     with_lock({:budget, key}, fn ->
@@ -212,10 +214,10 @@ defmodule Gemini.RateLimiter.State do
   @doc """
   Get current usage within the sliding window.
   """
-  @spec get_current_usage(state_key()) :: usage_window() | nil
-  def get_current_usage(key) do
+  @spec get_current_usage(state_key(), keyword()) :: usage_window() | nil
+  def get_current_usage(key, opts \\ []) do
     ensure_table_exists()
-    now = DateTime.utc_now()
+    now = Keyword.get(opts, :now, DateTime.utc_now())
 
     case :ets.lookup(@ets_table, {:usage, key}) do
       [{_key, window}] ->
@@ -258,10 +260,10 @@ defmodule Gemini.RateLimiter.State do
     ensure_table_exists()
     multiplier = Keyword.get(opts, :safety_multiplier, 1.0)
     window_duration = Keyword.get(opts, :window_duration_ms, @default_window_duration_ms)
+    now = Keyword.get(opts, :now, DateTime.utc_now())
     reserved_tokens = scaled_tokens(estimated_total_tokens, multiplier)
 
     with_lock({:budget, key}, fn ->
-      now = DateTime.utc_now()
       window = current_or_new_window(key, now, window_duration)
       window_end = DateTime.add(window.window_start, window.window_duration_ms, :millisecond)
 
@@ -316,13 +318,13 @@ defmodule Gemini.RateLimiter.State do
   def reconcile_reservation(key, reservation_ctx, usage_map, opts \\ []) do
     ensure_table_exists()
     window_duration = Keyword.get(opts, :window_duration_ms, @default_window_duration_ms)
+    now = Keyword.get(opts, :now, DateTime.utc_now())
 
     reserved = Map.get(reservation_ctx || %{}, :reserved_tokens, 0)
     actual_input = Map.get(usage_map || %{}, :input_tokens, 0)
     actual_output = Map.get(usage_map || %{}, :output_tokens, 0)
 
     with_lock({:budget, key}, fn ->
-      now = DateTime.utc_now()
       window = current_or_new_window(key, now, window_duration)
 
       updated =

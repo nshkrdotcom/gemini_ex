@@ -239,7 +239,7 @@ Process.sleep(500)
 IO.puts("--- Demo 1: Text prompt with audio response ---")
 prompt = "Say hello in a friendly way!"
 IO.puts(">>> Sending text: #{prompt}\n")
-:ok = Session.send_client_content(session, prompt)
+:ok = Session.send_text(session, prompt)
 Process.sleep(5000)
 
 # Demo 2: Send real audio input from WAV file
@@ -297,7 +297,7 @@ Process.sleep(5000)
 IO.puts("\n--- Demo 3: Text prompt expecting audio ---")
 prompt2 = "Count from 1 to 3 slowly."
 IO.puts(">>> #{prompt2}\n")
-:ok = Session.send_client_content(session, prompt2)
+:ok = Session.send_text(session, prompt2)
 Process.sleep(5000)
 
 # Show statistics

@@ -59,7 +59,7 @@ Add `gemini` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:gemini_ex, "~> 0.12.0"}
+    {:gemini_ex, "~> 0.13.0"}
   ]
 end
 ```
@@ -220,8 +220,7 @@ Live API model availability varies by API key and regional rollout. `Gemini.Live
 alias Gemini.Live.Models
 
 # Resolve best available model for your key
-text_model = Models.resolve(:text)   # For text responses
-audio_model = Models.resolve(:audio) # For native audio responses
+audio_model = Models.resolve(:audio) # Current Gemini Live sessions
 ```
 
 #### Basic Usage
@@ -230,14 +229,15 @@ audio_model = Models.resolve(:audio) # For native audio responses
 alias Gemini.Live.{Models, Session}
 
 {:ok, session} = Session.start_link(
-  model: Models.resolve(:text),
+  model: Models.resolve(:audio),
   auth: :gemini,
-  generation_config: %{response_modalities: ["TEXT"]},
+  generation_config: %{response_modalities: ["AUDIO"]},
+  output_audio_transcription: %{},
   on_message: fn msg -> IO.inspect(msg) end
 )
 
 :ok = Session.connect(session)
-:ok = Session.send_client_content(session, "Hello!")
+:ok = Session.send_text(session, "Hello!")
 
 # Messages delivered via on_message callback
 # Close when done
@@ -280,8 +280,10 @@ tools = [
 ]
 
 {:ok, session} = Session.start_link(
-  model: Models.resolve(:text),
+  model: Models.resolve(:audio),
   tools: tools,
+  generation_config: %{response_modalities: ["AUDIO"]},
+  output_audio_transcription: %{},
   on_tool_call: fn %{function_calls: calls} ->
     responses = Enum.map(calls, &execute_function/1)
     {:tool_response, responses}  # Return to send automatically
@@ -1278,7 +1280,7 @@ mix run examples/live_api_test.exs
 ---
 
 #### 11. **`11_live_text_chat.exs`** - Live API Multi-Turn Text Chat
-**Real-time bidirectional text conversations using the Live API.**
+**Text-oriented chat UX over a Live audio session with output transcription.**
 
 ```bash
 mix run examples/11_live_text_chat.exs
@@ -1286,8 +1288,9 @@ mix run examples/11_live_text_chat.exs
 
 **Features demonstrated:**
 - Multi-turn conversations with context retention
-- Automatic model resolution via `Gemini.Live.Models.resolve(:text)`
+- Automatic model resolution via `Gemini.Live.Models.resolve(:audio)`
 - Response timing measurements
+- Output transcription for text display
 - System instructions for persona customization
 
 **Requirements:** `GEMINI_API_KEY` environment variable
@@ -1395,7 +1398,7 @@ Gemini.generate("Hello", api_key: "specific_key")
 
 {:ok, session} =
   Gemini.Live.Session.start_link(
-    model: Gemini.Live.Models.resolve(:text),
+    model: Gemini.Live.Models.resolve(:audio),
     api_key: "session_specific_key"
   )
 ```
@@ -1881,7 +1884,7 @@ mix test --only live_gemini test/gemini/live/features_live_test.exs
 RUN_BILLED_VERTEX_LIVE_TESTS=1 mix test --only live_vertex_ai test/gemini/live/session_vertex_live_test.exs
 ```
 
-If your Vertex project exposes only native-audio Live models, the text-only Vertex session tests will skip instead of failing.
+If your Vertex project does not expose a compatible Live audio model, the Vertex session tests will skip instead of failing.
 
 ## Contributing
 

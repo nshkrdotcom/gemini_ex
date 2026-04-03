@@ -49,7 +49,7 @@ mix run examples/01_basic_generation.exs
 | 08 | `08_token_counting.exs` | Token counting, cost estimation, code vs prose |
 | 09 | `09_safety_settings.exs` | Content safety filters, harm categories, thresholds |
 | 10 | `10_system_instructions.exs` | Persona setup, formatting rules, domain experts |
-| 11 | `11_live_text_chat.exs` | Live API multi-turn text conversations |
+| 11 | `11_live_text_chat.exs` | Text chat UX over a Live audio session |
 | 12 | `12_live_audio_streaming.exs` | Live API audio input/output streaming |
 | 13 | `13_live_session_resumption.exs` | Session resume across disconnections |
 | 14 | `14_live_function_calling.exs` | Tool/function calling with telemetry |
@@ -229,23 +229,24 @@ All examples follow a consistent output format:
 - Relevant metadata (tokens, timing, etc.)
 
 ### 11 - Live Text Chat
-Real-time bidirectional text conversations with the Live API:
+Real-time text UX over a Live audio session:
 - Multi-turn conversations with context retention
-- Automatic model resolution via `Gemini.Live.Models.resolve(:text)`
+- Automatic model resolution via `Gemini.Live.Models.resolve(:audio)`
 - Response timing measurements
-- System instructions for persona customization
+- Output transcription for text display
 
 ```elixir
 alias Gemini.Live.{Models, Session}
 
 {:ok, session} = Session.start_link(
-  model: Models.resolve(:text),  # Auto-selects available model
-  generation_config: %{response_modalities: ["TEXT"]},
+  model: Models.resolve(:audio),  # Auto-selects available Live model
+  generation_config: %{response_modalities: ["AUDIO"]},
+  output_audio_transcription: %{},
   system_instruction: "You are a helpful assistant.",
   on_message: fn msg -> handle_message(msg) end
 )
 :ok = Session.connect(session)
-:ok = Session.send_client_content(session, "Hello!")
+:ok = Session.send_text(session, "Hello!")
 ```
 
 ### 12 - Live Audio Streaming
@@ -277,14 +278,18 @@ alias Gemini.Live.{Models, Session}
 
 # Enable resumption
 {:ok, session} = Session.start_link(
-  model: Models.resolve(:text),
+  model: Models.resolve(:audio),
+  generation_config: %{response_modalities: ["AUDIO"]},
+  output_audio_transcription: %{},
   session_resumption: %{},
   on_session_resumption: fn %{handle: h} -> save_handle(h) end
 )
 
 # Later: resume with saved handle
 {:ok, session2} = Session.start_link(
-  model: Models.resolve(:text),
+  model: Models.resolve(:audio),
+  generation_config: %{response_modalities: ["AUDIO"]},
+  output_audio_transcription: %{},
   resume_handle: saved_handle
 )
 ```
@@ -303,7 +308,7 @@ tools = [%{function_declarations: [%{name: "get_weather", ...}]}]
   tools: tools,
   on_tool_call: fn %{function_calls: calls} ->
     responses = execute_calls(calls)
-    Session.send_tool_response(session, responses)
+    {:tool_response, responses}
   end
 )
 ```
@@ -314,7 +319,7 @@ Additional Live API examples without numbered naming:
 
 | File | Description |
 |------|-------------|
-| `live_api_demo.exs` | Basic Live API text session |
+| `live_api_demo.exs` | Basic Live API prompt/response demo |
 | `live_function_calling.exs` | Tool/function calling with Live API |
 | `simple_live_test.exs` | Simple Live API tool test |
 | `live_auto_tool_test.exs` | Automatic tool execution |
@@ -336,8 +341,7 @@ mix run examples/live_api_demo.exs
 
 **Model Resolution:**
 Use `Gemini.Live.Models.resolve/1` to automatically select an available Live model:
-- `Models.resolve(:text)` - Text-only responses
-- `Models.resolve(:audio)` - Native audio responses
+- `Models.resolve(:audio)` - Current Gemini Live sessions and transcript-driven text UX
 
 This handles regional rollout differences and API key capabilities automatically.
 

@@ -299,25 +299,24 @@ defmodule Gemini.RateLimiterTest do
     test "waits with jitter inside retry window" do
       model = "retry-jitter-#{System.unique_integer()}"
       state_key = State.build_key(model, nil, :token_count)
+      {clock, now_fn, sleep_fn} = fake_clock()
 
-      # Pre-set a longer retry window to reduce scheduler/timing flakiness.
-      # We still assert a bounded wait, but avoid tiny windows that can elapse
-      # before execute_with_retry/4 reaches the sleep branch.
-      State.set_retry_state(state_key, %{"retryDelay" => "120ms"})
+      on_exit(fn -> stop_fake_clock(clock) end)
 
-      # Use deterministic waiting for this timing assertion.
-      config = Config.build(base_backoff_ms: 5, jitter_factor: 0.0)
+      State.set_retry_state(state_key, %{"retryDelay" => "120ms"}, now: now_fn.())
 
-      start = System.monotonic_time(:millisecond)
+      config =
+        Config.build(
+          base_backoff_ms: 5,
+          jitter_factor: 0.0,
+          now_fn: now_fn,
+          sleep_fn: sleep_fn
+        )
 
       {:ok, :done} =
         RetryManager.execute_with_retry(fn -> {:ok, :done} end, state_key, config, attempt: 1)
 
-      elapsed = System.monotonic_time(:millisecond) - start
-
-      # Should wait close to the configured retry window.
-      assert elapsed >= 80
-      assert elapsed < 300
+      assert_receive {:fake_sleep, 120}, 50
     end
   end
 
@@ -656,31 +655,32 @@ defmodule Gemini.RateLimiterTest do
     test "blocks until window clears then succeeds" do
       model = "window-wait-#{System.unique_integer()}"
       key = State.build_key(model, nil, :token_count)
+      {clock, now_fn, sleep_fn} = fake_clock()
 
-      # Consume most of the budget with a short window
-      State.record_usage(key, 15, 0, window_duration_ms: 30)
+      on_exit(fn -> stop_fake_clock(clock) end)
+
+      State.record_usage(key, 15, 0, window_duration_ms: 30, now: now_fn.())
 
       parent = self()
 
       request_fn = fn ->
-        send(parent, {:executed, System.monotonic_time(:millisecond)})
+        send(parent, :executed)
         {:ok, %{text: "success"}}
       end
-
-      start = System.monotonic_time(:millisecond)
 
       result =
         Manager.execute(
           request_fn,
           model,
           estimated_input_tokens: 10,
-          token_budget_per_window: 20
+          token_budget_per_window: 20,
+          now_fn: now_fn,
+          sleep_fn: sleep_fn
         )
 
       assert {:ok, %{text: "success"}} = result
-
-      assert_receive {:executed, exec_time}, 200
-      assert exec_time - start >= 5
+      assert_receive {:fake_sleep, 30}, 50
+      assert_receive :executed, 50
     end
 
     test "non_blocking returns retry_at and does not execute request" do
@@ -754,11 +754,13 @@ defmodule Gemini.RateLimiterTest do
     test "max_budget_wait_ms caps blocking wait and returns retry_at" do
       model = "wait-cap-#{System.unique_integer()}"
       key = State.build_key(model, nil, :token_count)
+      {clock, now_fn, sleep_fn} = fake_clock()
+      initial_now = now_fn.()
+
+      on_exit(fn -> stop_fake_clock(clock) end)
 
       # Create usage with long window to force wait
-      State.record_usage(key, 15, 0, window_duration_ms: 200)
-
-      start = System.monotonic_time(:millisecond)
+      State.record_usage(key, 15, 0, window_duration_ms: 200, now: initial_now)
 
       result =
         Manager.execute(
@@ -766,15 +768,15 @@ defmodule Gemini.RateLimiterTest do
           model,
           estimated_input_tokens: 10,
           token_budget_per_window: 20,
-          max_budget_wait_ms: 10
+          max_budget_wait_ms: 10,
+          now_fn: now_fn,
+          sleep_fn: sleep_fn
         )
 
-      elapsed = System.monotonic_time(:millisecond) - start
-
       assert {:error, {:rate_limited, retry_at, details}} = result
-      assert %DateTime{} = retry_at
+      assert retry_at == DateTime.add(initial_now, 200, :millisecond)
       assert details.request_too_large == false
-      assert elapsed < 100
+      assert_receive {:fake_sleep, 10}, 50
     end
 
     test "telemetry wait event includes token estimates and wait metadata" do
@@ -792,6 +794,7 @@ defmodule Gemini.RateLimiterTest do
       key = State.build_key(model, nil, :token_count)
       test_pid = self()
       handler_id = "wait-handler-#{System.unique_integer()}"
+      {clock, now_fn, sleep_fn} = fake_clock()
 
       :telemetry.attach(
         handler_id,
@@ -802,15 +805,22 @@ defmodule Gemini.RateLimiterTest do
         nil
       )
 
+      on_exit(fn ->
+        stop_fake_clock(clock)
+        :telemetry.detach(handler_id)
+      end)
+
       # Consume budget so next request waits
-      State.record_usage(key, 15, 0, window_duration_ms: 50)
+      State.record_usage(key, 15, 0, window_duration_ms: 50, now: now_fn.())
 
       Manager.execute(
         fn -> {:ok, %{text: "success"}} end,
         model,
         estimated_input_tokens: 10,
         estimated_cached_tokens: 5,
-        token_budget_per_window: 20
+        token_budget_per_window: 20,
+        now_fn: now_fn,
+        sleep_fn: sleep_fn
       )
 
       assert_receive {:wait_event, [:gemini, :rate_limit, :wait], _,
@@ -820,12 +830,12 @@ defmodule Gemini.RateLimiterTest do
                         estimated_input_tokens: 10,
                         estimated_cached_tokens: 5,
                         estimated_total_tokens: 15,
-                        wait_ms: wait_ms
+                        wait_ms: 50,
+                        wait_capped: false
                       }},
                      200
 
-      assert is_integer(wait_ms)
-      :telemetry.detach(handler_id)
+      assert_receive {:fake_sleep, 50}, 50
     end
 
     test "atomic reservation rejects concurrent over-budget launches" do
@@ -1047,6 +1057,31 @@ defmodule Gemini.RateLimiterTest do
   end
 
   def telemetry_handler(_event, _measurements, _metadata, _config), do: :ok
+
+  defp fake_clock(initial_now \\ DateTime.utc_now()) do
+    {:ok, clock} = Agent.start_link(fn -> initial_now end)
+    test_pid = self()
+
+    now_fn = fn ->
+      Agent.get(clock, & &1)
+    end
+
+    sleep_fn = fn ms ->
+      Agent.update(clock, &DateTime.add(&1, ms, :millisecond))
+      send(test_pid, {:fake_sleep, ms})
+      :ok
+    end
+
+    {clock, now_fn, sleep_fn}
+  end
+
+  defp stop_fake_clock(clock) do
+    if Process.alive?(clock) do
+      Agent.stop(clock)
+    end
+
+    :ok
+  end
 
   defp bump_max(ref, value) do
     current = :atomics.get(ref, 1)

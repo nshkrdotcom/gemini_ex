@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-04-02
+
+### Added
+- **Explicit Live session metadata**: model registry entries can now declare supported Live session response modalities and the correct text input transport for each Live model
+- **Portable text helper for Live sessions**: `Gemini.Live.Session.send_text/3` now selects the correct wire format for the active Live model
+
+### Changed
+- **Live model resolution**: `Gemini.Live.Models` now resolves Live text/audio candidates from explicit registry metadata instead of name heuristics
+- **Current Live examples and docs**: README, guides, and Live examples now use audio sessions with output transcription for Gemini 3.1 Flash Live, matching the current model behavior
+- **Live integration coverage**: Gemini and Vertex Live tests now exercise the audio-session pattern that the current model catalog actually supports
+
+### Fixed
+- **Preflight Live config validation**: unsupported `response_modalities` are now rejected locally before opening the WebSocket, avoiding opaque upstream `1011` setup failures
+- **Live text output extraction**: terminal-oriented Live examples now surface model audio transcripts through `Gemini.Types.Live.ServerContent.extract_text/1`
+- **Legacy function-calling demo wiring**: Live tool responses no longer rely on process-local session PID state inside callbacks
+- **Live retry behavior**: repeated transient-looking `1011 "Internal error encountered."` failures on the same config now fail tests instead of being skipped indefinitely
+
+### Tests
+- Added regression coverage for Live session modality validation, metadata-driven model selection, transcript fallback extraction, and repeated-`1011` handling
+
 ## [0.12.0] - 2026-04-02
 
 ### Changed
@@ -2068,7 +2088,8 @@ config :gemini_ex,
 - Minimal latency overhead
 - Concurrent request processing
 
-[Unreleased]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.10.0...v0.11.0

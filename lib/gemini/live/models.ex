@@ -17,25 +17,22 @@ defmodule Gemini.Live.Models do
 
   @legacy_default_models %{
     gemini: %{
-      text: :flash_2_0_exp_image_generation,
-      audio: :flash_2_5_native_audio_preview_12_2025,
+      text: nil,
+      audio: :flash_3_1_live_preview,
       image: :flash_2_0_exp_image_generation
     },
     vertex_ai: %{
-      text: :flash_2_0_live_001,
-      audio: :flash_2_5_native_audio_preview_12_2025,
+      text: nil,
+      audio: :flash_3_1_live_preview,
       image: :flash_2_0_preview_image_generation
     }
   }
 
   @legacy_fallback_candidates %{
     gemini: %{
-      text: [
-        :live_2_5_flash_preview,
-        :live_2_5_flash,
-        :flash_2_0_exp_image_generation
-      ],
+      text: [],
       audio: [
+        :flash_3_1_live_preview,
         :flash_2_5_native_audio_latest,
         :flash_2_5_native_audio_preview_12_2025,
         :flash_2_5_native_audio_preview_09_2025,
@@ -51,10 +48,9 @@ defmodule Gemini.Live.Models do
       ]
     },
     vertex_ai: %{
-      text: [
-        :flash_2_0_live_001
-      ],
+      text: [],
       audio: [
+        :flash_3_1_live_preview,
         :flash_2_5_native_audio_latest,
         :flash_2_5_native_audio_preview_12_2025,
         :flash_2_5_native_audio_preview_09_2025
@@ -184,12 +180,10 @@ defmodule Gemini.Live.Models do
     fallback_from_available(modality, available_models, opts)
   end
 
-  defp fallback_from_available(modality, available_models, opts) do
-    auth = normalized_auth(Keyword.get(opts, :auth, :gemini))
-
+  defp fallback_from_available(modality, available_models, _opts) do
     available_models
     |> Enum.map(&normalize_model_name/1)
-    |> Enum.filter(&live_candidate_for_modality?(&1, modality, auth))
+    |> Enum.filter(&(modality in ModelRegistry.live_session_response_modalities(&1)))
     |> prioritize_models(modality)
     |> List.first()
     |> case do
@@ -198,29 +192,13 @@ defmodule Gemini.Live.Models do
     end
   end
 
-  defp live_candidate_for_modality?(model_name, :text, :gemini) do
-    not String.contains?(model_name, "tts") and
-      not String.contains?(model_name, "native-audio")
-  end
-
-  defp live_candidate_for_modality?(model_name, :text, :vertex_ai) do
-    live_like_model_name?(model_name) and
-      not String.contains?(model_name, "tts") and
-      not String.contains?(model_name, "native-audio")
-  end
-
-  defp live_candidate_for_modality?(model_name, :audio, _auth) do
-    live_like_model_name?(model_name) and not String.contains?(model_name, "tts")
+  defp live_candidate_for_modality?(model_name, modality, _auth)
+       when modality in [:text, :audio] do
+    modality in ModelRegistry.live_session_response_modalities(model_name)
   end
 
   defp live_candidate_for_modality?(model_name, :image, _auth) do
     String.contains?(model_name, "image")
-  end
-
-  defp live_like_model_name?(model_name) do
-    String.contains?(model_name, "native-audio") or
-      String.contains?(model_name, "-live-") or
-      String.starts_with?(model_name, "gemini-live-")
   end
 
   defp prioritize_models(models, modality) when modality in [:text, :audio] do
@@ -305,7 +283,7 @@ defmodule Gemini.Live.Models do
   defp default_fallback_key(modality, auth) do
     @legacy_default_models
     |> Map.get(auth, %{})
-    |> Map.fetch!(modality)
+    |> Map.get(modality)
   end
 
   defp normalized_auth(:vertex), do: :vertex_ai
@@ -320,6 +298,8 @@ defmodule Gemini.Live.Models do
   rescue
     ArgumentError -> nil
   end
+
+  defp safe_get_model(nil), do: nil
 
   defp normalize_model_name(name) when is_binary(name) do
     name

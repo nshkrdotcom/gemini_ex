@@ -277,9 +277,10 @@ alias Gemini.Live.{Models, Session}
 
 # Uses application config or environment variables
 {:ok, session} = Session.start_link(
-  model: Models.resolve(:text),
+  model: Models.resolve(:audio),
   auth: :gemini,  # or :vertex_ai
-  generation_config: %{response_modalities: ["TEXT"]}
+  generation_config: %{response_modalities: ["AUDIO"]},
+  output_audio_transcription: %{}
 )
 ```
 
@@ -287,9 +288,10 @@ You can also scope a Gemini API key to a single Live session:
 
 ```elixir
 {:ok, session} = Gemini.Live.Session.start_link(
-  model: Gemini.Live.Models.resolve(:text),
+  model: Gemini.Live.Models.resolve(:audio),
   api_key: "session-specific-key",
-  generation_config: %{response_modalities: ["TEXT"]}
+  generation_config: %{response_modalities: ["AUDIO"]},
+  output_audio_transcription: %{}
 )
 ```
 

@@ -134,12 +134,26 @@ defmodule Gemini.Types.Live.ServerContent do
   @spec extract_text(t()) :: String.t() | nil
   def extract_text(%__MODULE__{model_turn: nil}), do: nil
 
-  def extract_text(%__MODULE__{model_turn: %{parts: parts}}) when is_list(parts) do
-    parts
-    |> Enum.map(fn part -> part[:text] || part["text"] end)
-    |> Enum.reject(&is_nil/1)
-    |> Enum.join("")
+  def extract_text(%__MODULE__{model_turn: %{parts: parts}} = content) when is_list(parts) do
+    text =
+      parts
+      |> Enum.map(fn part -> part[:text] || part["text"] end)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.join("")
+
+    if text == "" do
+      case content.output_transcription do
+        %{text: transcript} when is_binary(transcript) and transcript != "" -> transcript
+        _ -> nil
+      end
+    else
+      text
+    end
   end
+
+  def extract_text(%__MODULE__{output_transcription: %{text: text}})
+      when is_binary(text) and text != "",
+      do: text
 
   def extract_text(_), do: nil
 

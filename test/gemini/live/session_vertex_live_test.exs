@@ -54,7 +54,7 @@ defmodule Gemini.Live.SessionVertexLiveTest do
   end
 
   setup_all do
-    {:ok, live_model_result: resolve_vertex_text_model()}
+    {:ok, live_model_result: resolve_vertex_audio_model()}
   end
 
   setup %{live_model_result: live_model_result} do
@@ -89,7 +89,7 @@ defmodule Gemini.Live.SessionVertexLiveTest do
             Session.close(session)
 
           {:skip, reason} ->
-            IO.puts("\nSkipping Vertex text live test: #{reason}")
+            IO.puts("\nSkipping Vertex audio live test: #{reason}")
             assert true
         end
       end
@@ -110,13 +110,13 @@ defmodule Gemini.Live.SessionVertexLiveTest do
           Session.close(session)
 
         {:skip, reason} ->
-          IO.puts("\nSkipping Vertex text live test: #{reason}")
+          IO.puts("\nSkipping Vertex audio live test: #{reason}")
           assert true
       end
     end
 
     @tag :live_vertex_ai
-    test "sends text and receives response", %{
+    test "sends text over the active live transport and receives response", %{
       project_id: project_id,
       location: location,
       live_model_result: live_model_result
@@ -127,13 +127,13 @@ defmodule Gemini.Live.SessionVertexLiveTest do
           {:ok, session} = start_vertex_session(test_pid, project_id, location, live_model)
           assert :ok = Session.connect(session)
           assert_receive {:msg, %{setup_complete: _}}, 10_000
-          :ok = Session.send_client_content(session, "Say hello in one word")
+          :ok = Session.send_text(session, "Say hello in one word")
           assert_receive {:msg, %{server_content: content}}, 15_000
           assert content != nil
           Session.close(session)
 
         {:skip, reason} ->
-          IO.puts("\nSkipping Vertex text live test: #{reason}")
+          IO.puts("\nSkipping Vertex audio live test: #{reason}")
           assert true
       end
     end
@@ -172,7 +172,7 @@ defmodule Gemini.Live.SessionVertexLiveTest do
           Session.close(session)
 
         {:skip, reason} ->
-          IO.puts("\nSkipping Vertex text live test: #{reason}")
+          IO.puts("\nSkipping Vertex audio live test: #{reason}")
           assert true
       end
     end
@@ -195,7 +195,8 @@ defmodule Gemini.Live.SessionVertexLiveTest do
               auth: :vertex_ai,
               project_id: project_id,
               location: location,
-              generation_config: %{response_modalities: ["TEXT"]},
+              generation_config: %{response_modalities: ["AUDIO"]},
+              output_audio_transcription: %{},
               system_instruction:
                 "You are a helpful assistant that always starts responses with 'Certainly!'",
               on_message: fn msg -> send(test_pid, {:msg, msg}) end
@@ -203,12 +204,12 @@ defmodule Gemini.Live.SessionVertexLiveTest do
 
           assert :ok = Session.connect(session)
           assert_receive {:msg, %{setup_complete: _}}, 10_000
-          :ok = Session.send_client_content(session, "Tell me a joke")
+          :ok = Session.send_text(session, "Tell me a joke")
           assert_receive {:msg, %{server_content: _}}, 15_000
           Session.close(session)
 
         {:skip, reason} ->
-          IO.puts("\nSkipping Vertex text live test: #{reason}")
+          IO.puts("\nSkipping Vertex audio live test: #{reason}")
           assert true
       end
     end
@@ -220,12 +221,13 @@ defmodule Gemini.Live.SessionVertexLiveTest do
       auth: :vertex_ai,
       project_id: project_id,
       location: location,
-      generation_config: %{response_modalities: ["TEXT"]},
+      generation_config: %{response_modalities: ["AUDIO"]},
+      output_audio_transcription: %{},
       on_message: fn msg -> send(test_pid, {:msg, msg}) end
     )
   end
 
-  defp resolve_vertex_text_model do
+  defp resolve_vertex_audio_model do
     case Coordinator.list_models(auth: :vertex_ai) do
       {:ok, response} ->
         available_models =
@@ -235,7 +237,7 @@ defmodule Gemini.Live.SessionVertexLiveTest do
           |> Enum.reject(&is_nil/1)
 
         case Models.pick_from_available(
-               Models.candidates(:text, auth: :vertex_ai),
+               Models.candidates(:audio, auth: :vertex_ai),
                available_models
              ) do
           {:ok, model} ->
@@ -243,7 +245,7 @@ defmodule Gemini.Live.SessionVertexLiveTest do
 
           :none ->
             {:skip,
-             "No text-capable Vertex Live model available for this project; skipping text-only Vertex session tests"}
+             "No audio-capable Vertex Live model available for this project; skipping Vertex audio session tests"}
         end
 
       {:error, reason} ->

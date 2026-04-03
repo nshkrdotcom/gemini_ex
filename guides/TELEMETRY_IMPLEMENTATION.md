@@ -238,14 +238,15 @@ end, nil)
 
 # Live sessions emit telemetry automatically
 {:ok, session} = Session.start_link(
-  model: Models.resolve(:text),
+  model: Models.resolve(:audio),
   auth: :gemini,
-  generation_config: %{response_modalities: ["TEXT"]},
+  generation_config: %{response_modalities: ["AUDIO"]},
+  output_audio_transcription: %{},
   on_message: fn msg -> IO.inspect(msg) end
 )
 
 :ok = Session.connect(session)  # Emits :init and :ready events
-Session.send_client_content(session, "Hello!")  # Emits :message:sent event
+Session.send_text(session, "Hello!")  # Emits :message:sent event
 # Response triggers :message:received events
 Session.close(session)  # Emits :close event
 ```

@@ -3,13 +3,12 @@
 # Run with: mix run examples/11_live_text_chat.exs
 #
 # Demonstrates a multi-turn text conversation using the Live API
-# with streaming responses and conversation context.
+# with an audio session plus output transcription for text display.
 #
 # MODEL NOTE:
-# This example uses Gemini.Live.Models.resolve(:text) to select an available
-# Live text model for your key/region. If you want to pin a model explicitly,
-# replace it with Gemini.Config.get_model(:live_2_5_flash_preview) (TEXT) or
-# Gemini.Config.get_model(:flash_2_5_native_audio_preview_12_2025) (AUDIO).
+# This example uses Gemini.Live.Models.resolve(:audio) to select an available
+# Live audio model for your key/region, then prints output transcripts so the
+# interaction still feels like a text chat.
 
 alias Gemini.Live.Models
 alias Gemini.Live.Session
@@ -71,8 +70,8 @@ end
 
 IO.puts("\nStarting Live API chat session...")
 
-# Start session with text-only responses
-live_model = Models.resolve(:text)
+# Start session with audio responses plus output transcription
+live_model = Models.resolve(:audio)
 IO.puts("[Using model: #{live_model}]")
 
 {:ok, session} =
@@ -80,9 +79,10 @@ IO.puts("[Using model: #{live_model}]")
     model: live_model,
     auth: :gemini,
     generation_config: %{
-      response_modalities: ["TEXT"],
+      response_modalities: ["AUDIO"],
       temperature: 0.7
     },
+    output_audio_transcription: %{},
     system_instruction: """
     You are a helpful, friendly assistant. Keep your responses concise
     but informative. Remember context from the conversation.
@@ -121,7 +121,7 @@ for {prompt, index} <- Enum.with_index(conversations, 1) do
   IO.puts(">>> #{prompt}\n")
 
   Process.put(:response_start, nil)
-  :ok = Session.send_client_content(session, prompt)
+  :ok = Session.send_text(session, prompt)
 
   # Wait for response
   Process.sleep(5000)

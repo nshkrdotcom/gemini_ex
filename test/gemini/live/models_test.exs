@@ -49,65 +49,57 @@ defmodule Gemini.Live.ModelsTest do
   describe "resolve/2 with available_models option" do
     test "selects candidate when available_models provided" do
       model =
-        Models.resolve(:text,
-          candidates: ["gemini-live-2.5-flash-preview", "gemini-2.0-flash-exp"],
-          available_models: ["models/gemini-2.0-flash-exp"]
-        )
-
-      assert model == "gemini-2.0-flash-exp"
-    end
-
-    test "falls back to default when no available candidates" do
-      model =
-        Models.resolve(:text,
-          candidates: ["gemini-live-2.5-flash-preview"],
-          available_models: []
-        )
-
-      assert model == Models.default(:text)
-    end
-
-    test "falls back to text-compatible model from available list when candidates miss" do
-      model =
-        Models.resolve(:text,
-          candidates: ["definitely-not-a-model"],
-          available_models: [
-            "models/gemini-2.5-flash-preview-tts",
-            "models/gemini-2.5-flash-native-audio-preview-12-2025",
-            "models/gemini-2.0-flash-exp-image-generation"
-          ]
-        )
-
-      assert model == "gemini-2.0-flash-exp-image-generation"
-    end
-
-    test "does not pick native-audio model for text fallback" do
-      model =
-        Models.resolve(:text,
-          candidates: ["definitely-not-a-model"],
+        Models.resolve(:audio,
+          candidates: [
+            "gemini-3.1-flash-live-preview",
+            "gemini-2.5-flash-native-audio-preview-12-2025"
+          ],
           available_models: ["models/gemini-2.5-flash-native-audio-preview-12-2025"]
         )
 
-      refute model == "gemini-2.5-flash-native-audio-preview-12-2025"
+      assert model == "gemini-2.5-flash-native-audio-preview-12-2025"
     end
 
-    test "uses text fallback when no candidates are available" do
+    test "prefers the latest registry-backed audio live model from availability" do
       model =
+        Models.resolve(:audio,
+          candidates: ["definitely-not-a-model"],
+          available_models: [
+            "models/gemini-2.5-flash-native-audio-preview-12-2025",
+            "models/gemini-3.1-flash-live-preview"
+          ]
+        )
+
+      assert model == "gemini-3.1-flash-live-preview"
+    end
+
+    test "does not infer audio-first Live models as text session candidates" do
+      assert_raise ArgumentError, ~r/No live default model available for modality :text/, fn ->
+        Models.resolve(:text,
+          candidates: ["definitely-not-a-model"],
+          available_models: [
+            "models/gemini-2.5-flash-native-audio-preview-12-2025",
+            "models/gemini-3.1-flash-live-preview"
+          ]
+        )
+      end
+    end
+
+    test "raises when no text-session live models are available" do
+      assert_raise ArgumentError, ~r/No live default model available for modality :text/, fn ->
         Models.resolve(:text,
           auth: :vertex_ai,
           candidates: ["definitely-not-a-model"],
           available_models: []
         )
-
-      assert model == Models.default(:text, auth: :vertex_ai)
+      end
     end
 
-    test "filters gemini-only legacy aliases for vertex candidates" do
+    test "does not expose legacy text-live aliases as current vertex candidates" do
       candidates = Models.candidates(:text, auth: :vertex_ai)
 
       refute "gemini-live-2.5-flash" in candidates
-      refute Enum.any?(candidates, &String.contains?(&1, "native-audio"))
-      assert "gemini-2.0-flash-live-001" in candidates
+      assert candidates == []
     end
   end
 end

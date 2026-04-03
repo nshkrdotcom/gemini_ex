@@ -238,7 +238,7 @@ Built-in telemetry support provides visibility into system performance and behav
 2. **Session Creation**: `Live.Session.start_link/1` initializes a GenServer with configuration
 3. **Connection**: `Session.connect/1` establishes WebSocket connection via `Client.WebSocket`
 4. **Setup Handshake**: BidiGenerateContentSetup message sent, SetupComplete received
-5. **Bidirectional Communication**: Messages sent via `send_client_content/2` or `send_realtime_input/2`
+5. **Bidirectional Communication**: Text turns typically use `send_text/2`, with `send_client_content/2` and `send_realtime_input/2` available for transport-specific flows
 6. **Callback Routing**: Responses routed to `on_message`, `on_tool_call`, `on_error` callbacks
 7. **Telemetry**: Live API events emitted for session lifecycle, messages, and tool calls
 8. **Graceful Termination**: GoAway handling and session resumption token storage

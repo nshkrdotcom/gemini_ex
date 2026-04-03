@@ -44,7 +44,7 @@ defmodule Gemini.Client.WebSocketLiveTest do
     end
 
     test "establishes connection successfully" do
-      live_model = Models.resolve(:text)
+      live_model = Models.resolve(:audio)
 
       {:ok, conn} =
         WebSocket.connect(:gemini,
@@ -57,8 +57,14 @@ defmodule Gemini.Client.WebSocketLiveTest do
     end
 
     test "can send and receive setup message" do
-      live_model = Models.resolve(:text)
-      setup = Setup.new(live_model, generation_config: %{response_modalities: ["TEXT"]})
+      live_model = Models.resolve(:audio)
+
+      setup =
+        Setup.new(live_model,
+          generation_config: %{response_modalities: ["AUDIO"]},
+          output_audio_transcription: %{}
+        )
+
       setup_msg = %{"setup" => Setup.to_api(setup)}
 
       case receive_setup_message(:gemini, [model: live_model], setup_msg, 2) do
@@ -124,7 +130,7 @@ defmodule Gemini.Client.WebSocketLiveTest do
     end
 
     test "closes connection gracefully" do
-      live_model = Models.resolve(:text)
+      live_model = Models.resolve(:audio)
 
       {:ok, conn} =
         WebSocket.connect(:gemini,
@@ -155,7 +161,9 @@ defmodule Gemini.Client.WebSocketLiveTest do
             receive_setup_message(auth, opts, setup_msg, attempts_left - 1)
 
           :transient_backend_error ->
-            {:skip, "Gemini Live setup returned transient upstream error: #{inspect(reason)}"}
+            flunk(
+              "Gemini Live setup repeatedly returned transient-looking upstream error for the same config: #{inspect(reason)}"
+            )
 
           :quota_exceeded ->
             {:skip, "Gemini Live setup hit quota or rate limiting: #{inspect(reason)}"}

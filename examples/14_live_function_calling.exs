@@ -8,11 +8,9 @@
 # - Sending tool responses back
 # - Telemetry observability
 #
-# MODEL NOTE: This example uses the canonical TEXT model from Google's docs:
-#   gemini-live-2.5-flash-preview with response_modalities: ["TEXT"]
-#
-# If this model is not yet available, see examples/12_live_audio_streaming.exs
-# for a working AUDIO example using flash_2_5_native_audio_preview_12_2025.
+# MODEL NOTE: Gemini 3.1 Flash Live is audio-first. This example uses an audio
+# session with output transcription so tool interactions can still be followed
+# as text in the terminal.
 
 alias Gemini.Live.Models
 alias Gemini.Live.Session
@@ -205,7 +203,7 @@ end
 
 IO.puts("Starting Live API session with tools...")
 
-live_model = Models.resolve(:text)
+live_model = Models.resolve(:audio)
 IO.puts("[Using model: #{live_model}]")
 
 # Start session
@@ -213,7 +211,8 @@ IO.puts("[Using model: #{live_model}]")
   Session.start_link(
     model: live_model,
     auth: :gemini,
-    generation_config: %{response_modalities: ["TEXT"]},
+    generation_config: %{response_modalities: ["AUDIO"]},
+    output_audio_transcription: %{},
     tools: tools,
     on_message: message_handler,
     on_tool_call: tool_handler,
@@ -247,7 +246,7 @@ queries = [
 for {query, index} <- Enum.with_index(queries, 1) do
   IO.puts("\n--- Query #{index} ---")
   IO.puts(">>> #{query}\n")
-  :ok = Session.send_client_content(session, query)
+  :ok = Session.send_text(session, query)
   Process.sleep(10000)
 end
 

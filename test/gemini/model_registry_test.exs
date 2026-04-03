@@ -38,9 +38,30 @@ defmodule Gemini.ModelRegistryTest do
       text_candidates = ModelRegistry.live_candidates(:text)
       audio_candidates = ModelRegistry.live_candidates(:audio)
 
-      assert hd(audio_candidates) == "gemini-2.5-flash-native-audio-preview-12-2025"
+      assert hd(audio_candidates) == "gemini-3.1-flash-live-preview"
       assert text_candidates == []
+      assert "gemini-2.5-flash-native-audio-preview-12-2025" in audio_candidates
       assert "gemini-2.5-flash-native-audio-latest" in audio_candidates
+    end
+  end
+
+  describe "live session metadata" do
+    test "returns explicit session response modalities and text input method" do
+      assert [:audio] ==
+               ModelRegistry.live_session_response_modalities("gemini-3.1-flash-live-preview")
+
+      assert :realtime_input ==
+               ModelRegistry.live_text_input_method("gemini-3.1-flash-live-preview")
+
+      assert [:audio] ==
+               ModelRegistry.live_session_response_modalities(
+                 "gemini-2.5-flash-native-audio-preview-12-2025"
+               )
+
+      assert :client_content ==
+               ModelRegistry.live_text_input_method(
+                 "gemini-2.5-flash-native-audio-preview-12-2025"
+               )
     end
   end
 end

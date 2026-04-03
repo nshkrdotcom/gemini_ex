@@ -18,8 +18,8 @@ defmodule Gemini.Live.Session do
       # Connect to the Live API
       :ok = Session.connect(pid)
 
-      # Send text content
-      :ok = Session.send_client_content(pid, "Hello!")
+      # Send a text turn using the model's preferred transport
+      :ok = Session.send_text(pid, "Hello!")
 
       # Send realtime audio
       :ok = Session.send_realtime_input(pid, audio: audio_blob)
@@ -56,6 +56,7 @@ defmodule Gemini.Live.Session do
 
   alias Gemini.Client.WebSocket
   alias Gemini.Config
+  alias Gemini.ModelRegistry
   alias Gemini.Telemetry
   alias Gemini.Types.Live.{ServerMessage, Setup, SetupComplete, ToolCall}
 
@@ -128,7 +129,8 @@ defmodule Gemini.Live.Session do
       {:ok, session} = Session.start_link(
         model: "gemini-2.5-flash-native-audio-preview-12-2025",
         auth: :gemini,
-        generation_config: %{response_modalities: ["TEXT"]},
+        generation_config: %{response_modalities: ["AUDIO"]},
+        output_audio_transcription: %{},
         on_message: fn msg -> IO.inspect(msg) end
       )
   """
@@ -171,7 +173,7 @@ defmodule Gemini.Live.Session do
   ## Examples
 
       # Simple text
-      Session.send_client_content(pid, "What is 2+2?")
+      Session.send_text(pid, "What is 2+2?")
 
       # With turn control
       Session.send_client_content(pid, "Part 1", turn_complete: false)
@@ -188,6 +190,18 @@ defmodule Gemini.Live.Session do
           :ok | {:error, term()}
   def send_client_content(session, content, opts \\ []) do
     GenServer.call(session, {:send_client_content, content, opts})
+  end
+
+  @doc """
+  Sends a text turn using the transport preferred by the active Live model.
+
+  Current Gemini Live models may require either `clientContent` or
+  `realtimeInput.text` for incremental text updates. This helper selects the
+  correct wire format from model metadata.
+  """
+  @spec send_text(GenServer.server(), String.t() | list(), keyword()) :: :ok | {:error, term()}
+  def send_text(session, content, opts \\ []) do
+    GenServer.call(session, {:send_text, content, opts})
   end
 
   @doc """
@@ -346,9 +360,17 @@ defmodule Gemini.Live.Session do
 
   @impl true
   def handle_call(:connect, _from, %{status: :disconnected} = state) do
-    case do_connect(state) do
-      {:ok, new_state} ->
-        {:reply, :ok, new_state}
+    case validate_session_config(state.config) do
+      :ok ->
+        case do_connect(state) do
+          {:ok, new_state} ->
+            {:reply, :ok, new_state}
+
+          {:error, reason} = error ->
+            emit_telemetry_error(reason)
+            invoke_callback(state.callbacks.on_error, reason)
+            {:reply, error, state}
+        end
 
       {:error, reason} = error ->
         emit_telemetry_error(reason)
@@ -362,19 +384,62 @@ defmodule Gemini.Live.Session do
   end
 
   def handle_call({:send_client_content, content, opts}, _from, %{status: :ready} = state) do
-    message = build_client_content_message(content, opts)
-
-    case state.websocket_module.send(state.websocket, message) do
+    case validate_text_input_method(state.config.model, :send_client_content) do
       :ok ->
-        emit_telemetry_message_sent(:client_content, %{model: state.config.model})
-        {:reply, :ok, state}
+        message = build_client_content_message(content, opts)
 
-      error ->
+        case state.websocket_module.send(state.websocket, message) do
+          :ok ->
+            emit_telemetry_message_sent(:client_content, %{model: state.config.model})
+            {:reply, :ok, state}
+
+          error ->
+            {:reply, error, state}
+        end
+
+      {:error, _reason} = error ->
         {:reply, error, state}
     end
   end
 
   def handle_call({:send_client_content, _, _}, _from, state) do
+    {:reply, {:error, {:not_ready, state.status}}, state}
+  end
+
+  def handle_call({:send_text, content, opts}, _from, %{status: :ready} = state) do
+    case preferred_text_input_method(state.config.model) do
+      :realtime_input when is_binary(content) ->
+        message = build_realtime_input_message(text: content)
+
+        case state.websocket_module.send(state.websocket, message) do
+          :ok ->
+            emit_telemetry_message_sent(:realtime_input, %{model: state.config.model})
+            {:reply, :ok, state}
+
+          error ->
+            {:reply, error, state}
+        end
+
+      :realtime_input ->
+        {:reply,
+         {:error,
+          {:unsupported_text_input_payload, state.config.model, :realtime_input, content}}, state}
+
+      _ ->
+        message = build_client_content_message(content, opts)
+
+        case state.websocket_module.send(state.websocket, message) do
+          :ok ->
+            emit_telemetry_message_sent(:client_content, %{model: state.config.model})
+            {:reply, :ok, state}
+
+          error ->
+            {:reply, error, state}
+        end
+    end
+  end
+
+  def handle_call({:send_text, _, _}, _from, state) do
     {:reply, {:error, {:not_ready, state.status}}, state}
   end
 
@@ -509,6 +574,68 @@ defmodule Gemini.Live.Session do
   defp do_close(%{websocket: ws} = state) do
     state.websocket_module.close(ws)
     %{state | websocket: nil, status: :disconnected}
+  end
+
+  @spec validate_session_config(map()) :: :ok | {:error, term()}
+  defp validate_session_config(config), do: validate_response_modalities(config)
+
+  defp validate_response_modalities(%{model: model, generation_config: generation_config}) do
+    requested_modalities = response_modalities(generation_config)
+    allowed_modalities = ModelRegistry.live_session_response_modalities(model)
+
+    cond do
+      requested_modalities == [] or allowed_modalities == [] ->
+        :ok
+
+      Enum.all?(requested_modalities, &(&1 in allowed_modalities)) ->
+        :ok
+
+      true ->
+        {:error,
+         {:invalid_live_session_config,
+          {:unsupported_response_modalities, model,
+           Enum.map(requested_modalities, &String.upcase(to_string(&1))),
+           Enum.map(allowed_modalities, &String.upcase(to_string(&1)))}}}
+    end
+  end
+
+  defp response_modalities(nil), do: []
+
+  defp response_modalities(%{response_modalities: modalities}) when is_list(modalities) do
+    Enum.map(modalities, &normalize_modality/1)
+  end
+
+  defp response_modalities(config) when is_map(config) do
+    modalities =
+      config[:response_modalities] || config["response_modalities"] ||
+        config["responseModalities"] || []
+
+    if is_list(modalities), do: Enum.map(modalities, &normalize_modality/1), else: []
+  end
+
+  defp normalize_modality(modality) when is_atom(modality), do: modality
+
+  defp normalize_modality(modality) when is_binary(modality) do
+    modality
+    |> String.downcase()
+    |> String.to_atom()
+  end
+
+  @spec validate_text_input_method(String.t(), atom()) :: :ok | {:error, term()}
+  defp validate_text_input_method(model, attempted_method) do
+    case preferred_text_input_method(model) do
+      :realtime_input when attempted_method == :send_client_content ->
+        {:error,
+         {:unsupported_text_input_method, model, :send_client_content, :send_realtime_input}}
+
+      _ ->
+        :ok
+    end
+  end
+
+  @spec preferred_text_input_method(String.t()) :: :client_content | :realtime_input
+  defp preferred_text_input_method(model) do
+    ModelRegistry.live_text_input_method(model) || :client_content
   end
 
   @spec send_setup(module(), WebSocket.t() | term(), Setup.t()) :: :ok | {:error, term()}

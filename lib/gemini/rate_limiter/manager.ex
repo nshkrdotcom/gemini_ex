@@ -183,7 +183,7 @@ defmodule Gemini.RateLimiter.Manager do
       not Config.enabled?(config) ->
         :ok
 
-      retry_until = State.get_retry_until(state_key) ->
+      retry_until = State.get_retry_until(state_key, now: Config.now(config)) ->
         retry_state = State.get_retry_state(state_key)
 
         {:rate_limited, retry_until,
@@ -197,7 +197,7 @@ defmodule Gemini.RateLimiter.Manager do
         {:no_permits, 0}
 
       match?({:over_budget, _}, budget_status) ->
-        {:over_budget, build_over_budget_status(budget_status, state_key)}
+        {:over_budget, build_over_budget_status(budget_status, state_key, config)}
 
       true ->
         :ok
@@ -214,12 +214,13 @@ defmodule Gemini.RateLimiter.Manager do
     State.get_retry_state(state_key)
   end
 
-  defp build_over_budget_status({:over_budget, budget_ctx}, state_key) do
+  defp build_over_budget_status({:over_budget, budget_ctx}, state_key, config) do
     budget_ctx
-    |> Map.put_new(:usage, State.get_current_usage(state_key) || %{})
+    |> Map.put_new(:usage, State.get_current_usage(state_key, now: Config.now(config)) || %{})
   end
 
-  defp build_over_budget_status(_status, state_key), do: State.get_current_usage(state_key) || %{}
+  defp build_over_budget_status(_status, state_key, config),
+    do: State.get_current_usage(state_key, now: Config.now(config)) || %{}
 
   @doc """
   Get current token usage for a model.
@@ -228,7 +229,8 @@ defmodule Gemini.RateLimiter.Manager do
   def get_usage(model, opts \\ []) do
     location = Keyword.get(opts, :location)
     state_key = State.build_key(model, location, :token_count)
-    State.get_current_usage(state_key)
+    config = Config.build(opts)
+    State.get_current_usage(state_key, now: Config.now(config))
   end
 
   @doc """
@@ -413,7 +415,8 @@ defmodule Gemini.RateLimiter.Manager do
 
   defp release_reservation(state_key, reservation_ctx, config) do
     State.release_reservation(state_key, reservation_ctx,
-      window_duration_ms: config.window_duration_ms
+      window_duration_ms: config.window_duration_ms,
+      now: Config.now(config)
     )
   end
 
@@ -456,7 +459,8 @@ defmodule Gemini.RateLimiter.Manager do
         estimate_ctx.estimated_total_tokens,
         estimate_ctx.token_budget,
         window_duration_ms: config.window_duration_ms,
-        safety_multiplier: config.budget_safety_multiplier
+        safety_multiplier: config.budget_safety_multiplier,
+        now: Config.now(config)
       )
     end
 
@@ -515,7 +519,7 @@ defmodule Gemini.RateLimiter.Manager do
          estimate_ctx,
          config
        ) do
-    maybe_wait_for_budget(state_key, retry_at, details, config.max_budget_wait_ms)
+    maybe_wait_for_budget(state_key, retry_at, details, config)
 
     case attempt_fun.() do
       {:ok, reservation_ctx} ->
@@ -529,17 +533,17 @@ defmodule Gemini.RateLimiter.Manager do
     end
   end
 
-  defp maybe_wait_for_budget(_state_key, nil, _details, _max_wait_ms), do: :ok
+  defp maybe_wait_for_budget(_state_key, nil, _details, _config), do: :ok
 
-  defp maybe_wait_for_budget(state_key, retry_at, details, max_wait_ms) do
-    wait_ms = max(0, DateTime.diff(retry_at, DateTime.utc_now(), :millisecond))
-    {actual_wait_ms, capped?} = cap_wait(wait_ms, max_wait_ms)
+  defp maybe_wait_for_budget(state_key, retry_at, details, config) do
+    wait_ms = max(0, DateTime.diff(retry_at, Config.now(config), :millisecond))
+    {actual_wait_ms, capped?} = cap_wait(wait_ms, config.max_budget_wait_ms)
 
     wait_metadata = Map.merge(details, %{wait_ms: actual_wait_ms, wait_capped: capped?})
     emit_rate_limit_wait(state_key, retry_at, :over_budget, wait_metadata)
 
     if actual_wait_ms > 0 do
-      Process.sleep(actual_wait_ms)
+      Config.sleep(config, actual_wait_ms)
     end
   end
 
@@ -563,7 +567,7 @@ defmodule Gemini.RateLimiter.Manager do
 
   defp check_token_budget(state_key, opts, config) do
     estimate_ctx = build_estimate_context(opts, config)
-    usage = State.get_current_usage(state_key)
+    usage = State.get_current_usage(state_key, now: Config.now(config))
 
     cond do
       is_nil(estimate_ctx.token_budget) ->
@@ -620,7 +624,8 @@ defmodule Gemini.RateLimiter.Manager do
       state_key,
       reservation_ctx,
       usage,
-      window_duration_ms: config.window_duration_ms
+      window_duration_ms: config.window_duration_ms,
+      now: Config.now(config)
     )
   end
 
@@ -659,13 +664,15 @@ defmodule Gemini.RateLimiter.Manager do
         state_key,
         reservation_ctx,
         usage_map,
-        window_duration_ms: config.window_duration_ms
+        window_duration_ms: config.window_duration_ms,
+        now: Config.now(config)
       )
     else
       State.release_reservation(
         state_key,
         reservation_ctx,
-        window_duration_ms: config.window_duration_ms
+        window_duration_ms: config.window_duration_ms,
+        now: Config.now(config)
       )
     end
   end

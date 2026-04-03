@@ -65,6 +65,7 @@ defmodule Gemini.Config do
     pro_3_preview: "gemini-3-pro-preview",
     flash_3_1_lite_preview: "gemini-3.1-flash-lite-preview",
     flash_3_1_image_preview: "gemini-3.1-flash-image-preview",
+    flash_3_1_live_preview: "gemini-3.1-flash-live-preview",
     pro_3_image_preview: "gemini-3-pro-image-preview",
     flash_3_preview: "gemini-3-flash-preview",
 

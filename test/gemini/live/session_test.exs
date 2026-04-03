@@ -86,7 +86,7 @@ defmodule Gemini.Live.SessionTest do
         Session.start_link(
           model: "gemini-2.5-flash-native-audio-preview-12-2025",
           auth: :gemini,
-          generation_config: %{response_modalities: ["TEXT"]}
+          generation_config: %{response_modalities: ["AUDIO"]}
         )
 
       assert Process.alive?(pid)
@@ -183,6 +183,52 @@ defmodule Gemini.Live.SessionTest do
 
       assert {:error, {:not_ready, :disconnected}} =
                Session.send_tool_response(pid, [%{id: "1", name: "test", response: %{}}])
+
+      GenServer.stop(pid)
+    end
+  end
+
+  describe "send_text/3" do
+    test "routes Gemini 3.1 live text turns through realtime input" do
+      {:ok, pid} =
+        Session.start_link(
+          model: "gemini-3.1-flash-live-preview",
+          auth: :gemini,
+          generation_config: %{response_modalities: ["AUDIO"]},
+          websocket_module: WebSocketStub,
+          websocket_opts: [test_pid: self()]
+        )
+
+      assert :ok = Session.connect(pid)
+      assert :ok = Session.send_text(pid, "hello world")
+
+      assert_receive {:websocket_send, %{"realtimeInput" => %{"text" => "hello world"}}}, 1_000
+
+      GenServer.stop(pid)
+    end
+
+    test "routes Gemini 2.5 native audio text turns through client content" do
+      {:ok, pid} =
+        Session.start_link(
+          model: "gemini-2.5-flash-native-audio-preview-12-2025",
+          auth: :gemini,
+          generation_config: %{response_modalities: ["AUDIO"]},
+          websocket_module: WebSocketStub,
+          websocket_opts: [test_pid: self()]
+        )
+
+      assert :ok = Session.connect(pid)
+      assert :ok = Session.send_text(pid, "hello world")
+
+      assert_receive {:websocket_send,
+                      %{
+                        "clientContent" => %{
+                          "turns" => [
+                            %{"parts" => [%{"text" => "hello world"}], "role" => "user"}
+                          ]
+                        }
+                      }},
+                     1_000
 
       GenServer.stop(pid)
     end
@@ -304,6 +350,49 @@ defmodule Gemini.Live.SessionTest do
       # First we need to start a connect attempt - this will fail but set status
       # Since we can't actually connect, we just verify the session is in disconnected state
       assert Session.status(pid) == :disconnected
+      GenServer.stop(pid)
+    end
+
+    test "rejects unsupported response modalities before opening websocket" do
+      {:ok, pid} =
+        Session.start_link(
+          model: "gemini-3.1-flash-live-preview",
+          auth: :gemini,
+          generation_config: %{response_modalities: ["TEXT"]},
+          websocket_module: WebSocketStub,
+          websocket_opts: [test_pid: self()]
+        )
+
+      assert {:error,
+              {:invalid_live_session_config,
+               {:unsupported_response_modalities, "gemini-3.1-flash-live-preview", ["TEXT"],
+                ["AUDIO"]}}} = Session.connect(pid)
+
+      refute_receive {:websocket_connect, _, _}, 100
+
+      GenServer.stop(pid)
+    end
+  end
+
+  describe "send_client_content/3 validation" do
+    test "rejects direct client content turns for models that require realtime text input" do
+      {:ok, pid} =
+        Session.start_link(
+          model: "gemini-3.1-flash-live-preview",
+          auth: :gemini,
+          generation_config: %{response_modalities: ["AUDIO"]},
+          websocket_module: WebSocketStub,
+          websocket_opts: [test_pid: self()]
+        )
+
+      assert :ok = Session.connect(pid)
+
+      assert {:error,
+              {:unsupported_text_input_method, "gemini-3.1-flash-live-preview",
+               :send_client_content,
+               :send_realtime_input}} =
+               Session.send_client_content(pid, "hello")
+
       GenServer.stop(pid)
     end
   end

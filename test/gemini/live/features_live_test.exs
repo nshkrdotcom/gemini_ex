@@ -20,7 +20,7 @@ defmodule Gemini.Live.FeaturesLiveTest do
 
   setup_all do
     if System.get_env("GEMINI_API_KEY") do
-      {:ok, live_model: Models.resolve(:text)}
+      {:ok, live_model: Models.resolve(:audio)}
     else
       {:skip, "GEMINI_API_KEY required for live tests"}
     end
@@ -41,6 +41,18 @@ defmodule Gemini.Live.FeaturesLiveTest do
     end
   end
 
+  defp session_opts(live_model, opts) do
+    Keyword.merge(
+      [
+        model: live_model,
+        auth: :gemini,
+        generation_config: %{response_modalities: ["AUDIO"]},
+        output_audio_transcription: %{}
+      ],
+      opts
+    )
+  end
+
   describe "function calling" do
     @tag :live_gemini
     test "receives tool call and sends response", %{live_model: live_model} do
@@ -59,19 +71,18 @@ defmodule Gemini.Live.FeaturesLiveTest do
 
       {:ok, session} =
         Session.start_link(
-          model: live_model,
-          auth: :gemini,
-          generation_config: %{response_modalities: ["TEXT"]},
-          tools: tools,
-          on_tool_call: fn tc -> send(test_pid, {:tool_call, tc}) end,
-          on_message: fn _ -> :ok end
+          session_opts(live_model,
+            tools: tools,
+            on_tool_call: fn tc -> send(test_pid, {:tool_call, tc}) end,
+            on_message: fn _ -> :ok end
+          )
         )
 
       if connected?(session) do
         Process.sleep(1000)
 
         :ok =
-          Session.send_client_content(
+          Session.send_text(
             session,
             "What time is it? Use the get_current_time function."
           )
@@ -123,22 +134,20 @@ defmodule Gemini.Live.FeaturesLiveTest do
 
       {:ok, session} =
         Session.start_link(
-          model: live_model,
-          auth: :gemini,
-          generation_config: %{response_modalities: ["TEXT"]},
-          tools: tools,
-          on_tool_call: fn tc ->
-            # Verify we receive a properly structured ToolCall
-            send(test_pid, {:tool_call_struct, tc})
-          end,
-          on_message: fn _ -> :ok end
+          session_opts(live_model,
+            tools: tools,
+            on_tool_call: fn tc ->
+              send(test_pid, {:tool_call_struct, tc})
+            end,
+            on_message: fn _ -> :ok end
+          )
         )
 
       if connected?(session) do
         Process.sleep(1000)
 
         :ok =
-          Session.send_client_content(
+          Session.send_text(
             session,
             "Please call test_function for me."
           )
@@ -178,19 +187,18 @@ defmodule Gemini.Live.FeaturesLiveTest do
 
       {:ok, session} =
         Session.start_link(
-          model: live_model,
-          auth: :gemini,
-          generation_config: %{response_modalities: ["TEXT"]},
-          tools: tools,
-          on_tool_call: fn tc -> send(test_pid, {:tool_call, tc}) end,
-          on_message: fn _ -> :ok end
+          session_opts(live_model,
+            tools: tools,
+            on_tool_call: fn tc -> send(test_pid, {:tool_call, tc}) end,
+            on_message: fn _ -> :ok end
+          )
         )
 
       if connected?(session) do
         Process.sleep(1000)
 
         :ok =
-          Session.send_client_content(
+          Session.send_text(
             session,
             "Run the slow_operation function."
           )
@@ -223,17 +231,16 @@ defmodule Gemini.Live.FeaturesLiveTest do
 
       {:ok, session} =
         Session.start_link(
-          model: live_model,
-          auth: :gemini,
-          generation_config: %{response_modalities: ["TEXT"]},
-          session_resumption: %{},
-          on_session_resumption: fn info -> send(test_pid, {:resumption, info}) end,
-          on_message: fn _ -> :ok end
+          session_opts(live_model,
+            session_resumption: %{},
+            on_session_resumption: fn info -> send(test_pid, {:resumption, info}) end,
+            on_message: fn _ -> :ok end
+          )
         )
 
       if connected?(session) do
         # Send a message to trigger session state updates
-        :ok = Session.send_client_content(session, "Remember: the secret code is 42")
+        :ok = Session.send_text(session, "Remember: the secret code is 42")
         Process.sleep(3000)
 
         # Check if we received a handle
@@ -268,17 +275,16 @@ defmodule Gemini.Live.FeaturesLiveTest do
       # Start first session with resumption enabled
       {:ok, s1} =
         Session.start_link(
-          model: live_model,
-          auth: :gemini,
-          generation_config: %{response_modalities: ["TEXT"]},
-          session_resumption: %{},
-          on_session_resumption: fn info -> send(test_pid, {:resumption, info}) end,
-          on_message: fn _ -> :ok end
+          session_opts(live_model,
+            session_resumption: %{},
+            on_session_resumption: fn info -> send(test_pid, {:resumption, info}) end,
+            on_message: fn _ -> :ok end
+          )
         )
 
       if connected?(s1) do
         # Send a message to establish context
-        :ok = Session.send_client_content(s1, "Remember: the secret code is 42")
+        :ok = Session.send_text(s1, "Remember: the secret code is 42")
         Process.sleep(3000)
 
         handle = Session.get_session_handle(s1)
@@ -289,16 +295,15 @@ defmodule Gemini.Live.FeaturesLiveTest do
           # Resume session
           {:ok, s2} =
             Session.start_link(
-              model: live_model,
-              auth: :gemini,
-              generation_config: %{response_modalities: ["TEXT"]},
-              session_resumption: %{handle: handle},
-              on_message: fn msg -> send(test_pid, {:msg, msg}) end
+              session_opts(live_model,
+                session_resumption: %{handle: handle},
+                on_message: fn msg -> send(test_pid, {:msg, msg}) end
+              )
             )
 
           if connected?(s2) do
             # Ask about the secret code to verify context was preserved
-            :ok = Session.send_client_content(s2, "What was the secret code?")
+            :ok = Session.send_text(s2, "What was the secret code?")
 
             # Wait for response
             receive do
@@ -322,14 +327,13 @@ defmodule Gemini.Live.FeaturesLiveTest do
       # We can't easily trigger a GoAway, but we can verify the callback is set up
       {:ok, session} =
         Session.start_link(
-          model: live_model,
-          auth: :gemini,
-          generation_config: %{response_modalities: ["TEXT"]},
-          on_go_away: fn info ->
-            assert Map.has_key?(info, :time_left_ms)
-            assert Map.has_key?(info, :handle)
-          end,
-          on_message: fn _ -> :ok end
+          session_opts(live_model,
+            on_go_away: fn info ->
+              assert Map.has_key?(info, :time_left_ms)
+              assert Map.has_key?(info, :handle)
+            end,
+            on_message: fn _ -> :ok end
+          )
         )
 
       if connected?(session) do
@@ -345,18 +349,17 @@ defmodule Gemini.Live.FeaturesLiveTest do
 
       {:ok, session} =
         Session.start_link(
-          model: live_model,
-          auth: :gemini,
-          generation_config: %{response_modalities: ["TEXT"]},
-          on_message: fn _ -> send(test_pid, :message) end,
-          on_error: fn _ -> send(test_pid, :error) end,
-          on_close: fn _ -> send(test_pid, :close) end,
-          on_tool_call: fn _ -> send(test_pid, :tool_call) end,
-          on_tool_call_cancellation: fn _ -> send(test_pid, :tool_call_cancellation) end,
-          on_transcription: fn _ -> send(test_pid, :transcription) end,
-          on_voice_activity: fn _ -> send(test_pid, :voice_activity) end,
-          on_session_resumption: fn _ -> send(test_pid, :session_resumption) end,
-          on_go_away: fn _ -> send(test_pid, :go_away) end
+          session_opts(live_model,
+            on_message: fn _ -> send(test_pid, :message) end,
+            on_error: fn _ -> send(test_pid, :error) end,
+            on_close: fn _ -> send(test_pid, :close) end,
+            on_tool_call: fn _ -> send(test_pid, :tool_call) end,
+            on_tool_call_cancellation: fn _ -> send(test_pid, :tool_call_cancellation) end,
+            on_transcription: fn _ -> send(test_pid, :transcription) end,
+            on_voice_activity: fn _ -> send(test_pid, :voice_activity) end,
+            on_session_resumption: fn _ -> send(test_pid, :session_resumption) end,
+            on_go_away: fn _ -> send(test_pid, :go_away) end
+          )
         )
 
       if connected?(session) do
@@ -375,18 +378,17 @@ defmodule Gemini.Live.FeaturesLiveTest do
     test "can enable context compression", %{live_model: live_model} do
       {:ok, session} =
         Session.start_link(
-          model: live_model,
-          auth: :gemini,
-          generation_config: %{response_modalities: ["TEXT"]},
-          context_window_compression: %{sliding_window: %{}},
-          on_message: fn _ -> :ok end
+          session_opts(live_model,
+            context_window_compression: %{sliding_window: %{}},
+            on_message: fn _ -> :ok end
+          )
         )
 
       if connected?(session) do
         assert Session.status(session) == :ready
 
         # Send a message to verify it works with compression enabled
-        :ok = Session.send_client_content(session, "Hello with compression enabled")
+        :ok = Session.send_text(session, "Hello with compression enabled")
         Process.sleep(2000)
 
         Session.close(session)
@@ -397,14 +399,13 @@ defmodule Gemini.Live.FeaturesLiveTest do
     test "can enable compression with trigger_tokens", %{live_model: live_model} do
       {:ok, session} =
         Session.start_link(
-          model: live_model,
-          auth: :gemini,
-          generation_config: %{response_modalities: ["TEXT"]},
-          context_window_compression: %{
-            sliding_window: %{target_tokens: 8000},
-            trigger_tokens: 16_000
-          },
-          on_message: fn _ -> :ok end
+          session_opts(live_model,
+            context_window_compression: %{
+              sliding_window: %{target_tokens: 8000},
+              trigger_tokens: 16_000
+            },
+            on_message: fn _ -> :ok end
+          )
         )
 
       if connected?(session) do

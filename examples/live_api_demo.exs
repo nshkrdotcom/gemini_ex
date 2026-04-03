@@ -2,9 +2,10 @@
 # Live API Demo
 # Run with: mix run examples/live_api_demo.exs
 #
-# This example demonstrates basic Live API usage for text-based
-# real-time conversations with Gemini models.
+# This example demonstrates basic Live API usage for real-time
+# conversations over an audio session with output transcription.
 
+alias Gemini.Live.Models
 alias Gemini.Live.Session
 
 IO.puts("=== Live API Demo ===\n")
@@ -56,9 +57,10 @@ IO.puts("\nStarting Live API session...")
 # Start session
 {:ok, session} =
   Session.start_link(
-    model: "gemini-2.5-flash-native-audio-preview-12-2025",
+    model: Models.resolve(:audio),
     auth: :gemini,
-    generation_config: %{response_modalities: ["TEXT"]},
+    generation_config: %{response_modalities: ["AUDIO"]},
+    output_audio_transcription: %{},
     on_message: handler,
     on_error: error_handler,
     on_close: close_handler
@@ -84,7 +86,7 @@ Process.sleep(500)
 # Send first message
 prompt1 = "What is 2 + 2? Please answer in one word."
 IO.puts(">>> Sending: #{prompt1}\n")
-:ok = Session.send_client_content(session, prompt1)
+:ok = Session.send_text(session, prompt1)
 
 # Wait for response
 Process.sleep(3000)
@@ -92,7 +94,7 @@ Process.sleep(3000)
 # Send a follow-up message
 prompt2 = "Now multiply that result by 10."
 IO.puts("\n>>> Sending: #{prompt2}\n")
-:ok = Session.send_client_content(session, prompt2)
+:ok = Session.send_text(session, prompt2)
 
 # Wait for response
 Process.sleep(3000)
@@ -100,7 +102,7 @@ Process.sleep(3000)
 # Send a more complex question
 prompt3 = "Tell me a very short joke (one sentence)."
 IO.puts("\n>>> Sending: #{prompt3}\n")
-:ok = Session.send_client_content(session, prompt3)
+:ok = Session.send_text(session, prompt3)
 
 # Wait for response
 Process.sleep(5000)

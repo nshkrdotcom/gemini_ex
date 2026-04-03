@@ -38,6 +38,8 @@ defmodule Gemini.ModelRegistry do
           capabilities: %{optional(capability()) => support_state()},
           aliases: [String.t()],
           live_modalities: [modality()],
+          live_session_response_modalities: [modality()],
+          live_text_input_method: :client_content | :realtime_input | nil,
           notes: String.t() | nil
         }
 
@@ -129,6 +131,30 @@ defmodule Gemini.ModelRegistry do
       aliases: [],
       live_modalities: [],
       notes: "Nano Banana 2 - high-efficiency image generation and editing"
+    },
+    %{
+      key: :gemini_3_1_flash_live_preview,
+      code: "gemini-3.1-flash-live-preview",
+      source_page: "https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-live-preview",
+      track: :preview,
+      latest_update: "March 2026",
+      input_modalities: [:text, :image, :audio, :video],
+      output_modalities: [:text, :audio],
+      capabilities: %{
+        audio_generation: :supported,
+        batch_api: :not_supported,
+        caching: :not_supported,
+        function_calling: :supported,
+        image_generation: :not_supported,
+        live_api: :supported,
+        structured_outputs: :not_supported,
+        thinking: :supported
+      },
+      aliases: [],
+      live_modalities: [:audio],
+      live_session_response_modalities: [:audio],
+      live_text_input_method: :realtime_input,
+      notes: "Current Gemini 3 Live model; use audio sessions with transcription for text UX"
     },
     %{
       key: :gemini_3_pro_preview,
@@ -264,6 +290,8 @@ defmodule Gemini.ModelRegistry do
         "gemini-2.5-flash-native-audio-latest"
       ],
       live_modalities: [:audio],
+      live_session_response_modalities: [:audio],
+      live_text_input_method: :client_content,
       notes: "Primary Live API entry from the model catalog"
     },
     %{
@@ -671,6 +699,31 @@ defmodule Gemini.ModelRegistry do
   end
 
   @doc """
+  Returns the explicitly supported Live session response modalities for a model.
+  """
+  @spec live_session_response_modalities(String.t()) :: [modality()]
+  def live_session_response_modalities(model_name) when is_binary(model_name) do
+    case get(model_name) do
+      nil -> []
+      entry -> effective_live_session_response_modalities(entry)
+    end
+  end
+
+  @doc """
+  Returns the preferred text input transport for a Live model.
+  """
+  @spec live_text_input_method(String.t()) :: :client_content | :realtime_input | nil
+  def live_text_input_method(model_name) when is_binary(model_name) do
+    case get(model_name) do
+      %{live_text_input_method: method} when method in [:client_content, :realtime_input] ->
+        method
+
+      _ ->
+        nil
+    end
+  end
+
+  @doc """
   Returns preferred Live API candidates for a modality.
   """
   @spec live_candidates(:text | :audio, keyword()) :: [String.t()]
@@ -678,22 +731,23 @@ defmodule Gemini.ModelRegistry do
     @entries
     |> Enum.filter(fn entry ->
       Map.get(entry.capabilities, :live_api, :unknown) == :supported and
-        modality in effective_live_modalities(entry)
+        modality in effective_live_session_response_modalities(entry)
     end)
     |> Enum.flat_map(fn entry -> [entry.code | entry.aliases] end)
     |> Enum.uniq()
   end
 
-  defp effective_live_modalities(%{live_modalities: modalities}) when modalities != [],
-    do: modalities
+  defp effective_live_session_response_modalities(%{
+         live_session_response_modalities: modalities
+       })
+       when is_list(modalities) and modalities != [],
+       do: modalities
 
-  defp effective_live_modalities(entry) do
-    if Map.get(entry.capabilities, :audio_generation, :unknown) == :supported do
-      [:text, :audio]
-    else
-      [:text]
-    end
-  end
+  defp effective_live_session_response_modalities(%{live_modalities: modalities})
+       when is_list(modalities) and modalities != [],
+       do: modalities
+
+  defp effective_live_session_response_modalities(_entry), do: []
 
   defp normalize_model_name(name) when is_binary(name) do
     name

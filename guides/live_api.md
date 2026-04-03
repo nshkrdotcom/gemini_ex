@@ -145,7 +145,7 @@ alias Gemini.Live.Models
 %{
   model: Models.resolve(:audio),
   generation_config: %{
-    response_modalities: ["AUDIO"],  # or ["TEXT"]
+    response_modalities: ["AUDIO"],
     temperature: 0.7,
     speech_config: %{voice_config: %{prebuilt_voice_config: %{voice_name: "Kore"}}}
   },
@@ -171,9 +171,9 @@ Configuration cannot be updated while the connection is open. However, you can c
 | Modality | Format | Notes |
 |----------|--------|-------|
 | Audio | 16-bit PCM, 24kHz | Native audio output models only |
-| Text | UTF-8 string | All Live API models |
+| Text | UTF-8 string | Model-dependent; validate against the selected model |
 
-**Important:** You can only set one response modality (`TEXT` or `AUDIO`) per session. Setting both results in a configuration error.
+**Important:** You can only set one response modality per session. Support is model-specific, and `Session.connect/1` rejects unsupported combinations before opening the WebSocket.
 
 ## Models and Response Modalities
 
@@ -194,18 +194,17 @@ Native audio models support:
 - Proactive audio responses (v1alpha)
 - Thinking capabilities
 
-### General-Purpose Live Models
+### Text UX over Live Audio Sessions
 
-For text-only responses or lower latency requirements:
+Current Gemini Live models are audio-first. To build a text-oriented terminal or
+chat UI, use an audio session and enable output transcription:
 
 ```elixir
 alias Gemini.Live.Models
 
-# Resolve a Live text model available for this key
-model = Models.resolve(:text)
+# Resolve a Live audio model available for this key
+model = Models.resolve(:audio)
 ```
-
-General-purpose Live API models have a 32k token context window.
 
 ### Model Availability and Rollout Variability
 
@@ -226,16 +225,13 @@ Use the resolver:
 ```elixir
 alias Gemini.Live.Models
 
-text_model = Models.resolve(:text)
 audio_model = Models.resolve(:audio)
 ```
 
 The resolver uses the model registry plus runtime `list_models` results for your
-credentials. If no direct match is found, it falls back to rollout-safe models:
-
-- Text fallback: `gemini-2.5-flash-native-audio-preview-12-2025`
-- Image fallback: `gemini-2.0-flash-exp-image-generation`
-- Audio fallback: `gemini-2.5-flash-native-audio-preview-12-2025`
+credentials. For current Gemini Live usage, prefer `Models.resolve(:audio)`.
+This library validates the session configuration locally so incompatible
+response modalities fail before the WebSocket opens.
 
 If the audio model is not present in your Live-capable model list, audio
 sessions will not work for that key yet.
@@ -267,14 +263,15 @@ alias Gemini.Live.Models
 alias Gemini.Live.Session
 
 # Resolve a model that is available for this API key
-model = Models.resolve(:text)
+model = Models.resolve(:audio)
 
 {:ok, session} = Session.start_link(
   model: model,
   auth: :gemini,  # or :vertex_ai
   generation_config: %{
-    response_modalities: ["TEXT"]
+    response_modalities: ["AUDIO"]
   },
+  output_audio_transcription: %{},
   on_message: fn message ->
     IO.inspect(message, label: "Received")
   end
@@ -290,9 +287,10 @@ For Gemini sessions, you can also pass `api_key:` directly to `Session.start_lin
 
 ```elixir
 {:ok, session} = Gemini.Live.Session.start_link(
-  model: Gemini.Live.Models.resolve(:text),
+  model: Gemini.Live.Models.resolve(:audio),
   api_key: "session-specific-key",
-  generation_config: %{response_modalities: ["TEXT"]}
+  generation_config: %{response_modalities: ["AUDIO"]},
+  output_audio_transcription: %{}
 )
 ```
 
@@ -314,7 +312,7 @@ alias Gemini.Live.Models
 
   # Generation configuration
   generation_config: %{
-    response_modalities: ["AUDIO"],  # or ["TEXT"]
+    response_modalities: ["AUDIO"],
     temperature: 0.7,
     top_p: 0.95,
     speech_config: %{
@@ -365,22 +363,30 @@ alias Gemini.Live.Models
 
 The Live API provides two methods for sending content, each with different semantics:
 
+### Preferred helper
+
+Use `Session.send_text/3` for text turns in portable code. It selects the
+correct transport for the connected model (`clientContent` for older models,
+`realtimeInput.text` for Gemini 3.1 Live).
+
+```elixir
+Session.send_text(session, "What is the capital of France?")
+```
+
 ### clientContent (Ordered, Explicit Turns)
 
-Use `send_client_content/3` for text input where ordering matters. This method:
+Use `send_client_content/3` only when you specifically need the `clientContent`
+wire format. This method:
 - Adds content to the conversation history in order
 - Interrupts any current model generation
 - Requires explicit turn completion signal
 
+Note: Gemini 3.1 Flash Live only supports `clientContent` for initial-history
+seeding. For ongoing text turns, use `Session.send_text/3` or
+`Session.send_realtime_input/2`.
+
 ```elixir
-# Simple text message
-Session.send_client_content(session, "What is the capital of France?")
-
-# Incremental content (turn_complete: false to continue building)
-Session.send_client_content(session, "Part 1 of my question...", turn_complete: false)
-Session.send_client_content(session, "Part 2...", turn_complete: true)
-
-# Multi-turn context restoration
+# Seed initial history before ongoing realtime turns
 Session.send_client_content(session, [
   %{role: "user", parts: [%{text: "What is the capital of France?"}]},
   %{role: "model", parts: [%{text: "Paris"}]},
@@ -686,9 +692,10 @@ tools = [
 alias Gemini.Live.Models
 
 {:ok, session} = Session.start_link(
-  model: Models.resolve(:text),
+  model: Models.resolve(:audio),
   auth: :gemini,
-  generation_config: %{response_modalities: ["TEXT"]},
+  generation_config: %{response_modalities: ["AUDIO"]},
+  output_audio_transcription: %{},
   tools: tools,
 
   on_tool_call: fn %{function_calls: calls} ->
@@ -720,7 +727,7 @@ Session.send_tool_response(session, [
 
 ### Asynchronous Function Calling
 
-For non-blocking function execution:
+For non-blocking function execution on legacy 2.5 native-audio models:
 
 ```elixir
 tools = [
@@ -772,9 +779,10 @@ alias Gemini.Live.Models
 
 # First session - enable resumption
 {:ok, session1} = Session.start_link(
-  model: Models.resolve(:text),
+  model: Models.resolve(:audio),
   auth: :gemini,
-  generation_config: %{response_modalities: ["TEXT"]},
+  generation_config: %{response_modalities: ["AUDIO"]},
+  output_audio_transcription: %{},
   session_resumption: %{},
   on_session_resumption: fn %{handle: handle, resumable: true} ->
     # Store handle for later use
@@ -783,7 +791,7 @@ alias Gemini.Live.Models
 )
 
 :ok = Session.connect(session1)
-:ok = Session.send_client_content(session1, "Remember: my name is Alice.")
+:ok = Session.send_text(session1, "Remember: my name is Alice.")
 Process.sleep(3000)
 
 # Get handle before closing
@@ -792,15 +800,16 @@ Session.close(session1)
 
 # Later - resume with saved handle
 {:ok, session2} = Session.start_link(
-  model: Models.resolve(:text),
+  model: Models.resolve(:audio),
   auth: :gemini,
-  generation_config: %{response_modalities: ["TEXT"]},
+  generation_config: %{response_modalities: ["AUDIO"]},
+  output_audio_transcription: %{},
   resume_handle: handle,
   session_resumption: %{}
 )
 
 :ok = Session.connect(session2)
-:ok = Session.send_client_content(session2, "What's my name?")
+:ok = Session.send_text(session2, "What's my name?")
 # Model should remember: Alice
 ```
 
@@ -814,9 +823,10 @@ Enable sliding window compression for long sessions:
 alias Gemini.Live.Models
 
 {:ok, session} = Session.start_link(
-  model: Models.resolve(:text),
+  model: Models.resolve(:audio),
   auth: :gemini,
-  generation_config: %{response_modalities: ["TEXT"]},
+  generation_config: %{response_modalities: ["AUDIO"]},
+  output_audio_transcription: %{},
   context_window_compression: %{
     sliding_window: %{
       target_tokens: 16000  # Target after compression
@@ -902,7 +912,7 @@ The client uses the token as if it were an API key:
 ```javascript
 // In browser/mobile client
 const session = await ai.live.connect({
-  model: 'gemini-2.5-flash-native-audio-preview-12-2025',
+  model: 'gemini-3.1-flash-live-preview',
   apiKey: ephemeralToken.name,  // Use token instead of API key
   config: { responseModalities: ['AUDIO'] }
 });
@@ -917,7 +927,7 @@ Lock tokens to specific configurations for additional security:
 token_config = %{
   uses: 1,
   live_connect_constraints: %{
-    model: "gemini-2.5-flash-native-audio-preview-12-2025",
+    model: "gemini-3.1-flash-live-preview",
     config: %{
       session_resumption: %{},
       temperature: 0.7,
@@ -938,7 +948,8 @@ token_config = %{
 
 ### Response Modalities
 
-Only one response modality (`TEXT` or `AUDIO`) per session. You cannot receive both text and audio in the same session.
+Configure only one response modality per session. For current Gemini Live
+models, use `["AUDIO"]` and enable output transcription when you need text UX.
 
 ### Session Duration
 
@@ -948,8 +959,9 @@ Without compression:
 
 ### Context Window
 
-- Native audio models: 128k tokens
-- Other Live API models: 32k tokens
+Context window limits vary by Live model generation and rollout. Check the
+selected model's current documentation or registry entry instead of assuming the
+older native-audio versus text-live split.
 
 ### Authentication
 
@@ -967,12 +979,13 @@ Native audio models automatically detect language and don't support explicit lan
 alias Gemini.Live.Session
 alias Gemini.Live.Models
 
-model = Models.resolve(:text)
+model = Models.resolve(:audio)
 
 {:ok, session} = Session.start_link(
   model: model,
   auth: :gemini,
-  generation_config: %{response_modalities: ["TEXT"]},
+  generation_config: %{response_modalities: ["AUDIO"]},
+  output_audio_transcription: %{},
   system_instruction: "You are a helpful assistant.",
   on_message: fn
     %{server_content: content} when not is_nil(content) ->
@@ -986,7 +999,7 @@ model = Models.resolve(:text)
 
 :ok = Session.connect(session)
 
-Session.send_client_content(session, "What is machine learning?")
+Session.send_text(session, "What is machine learning?")
 Process.sleep(5000)
 
 Session.close(session)
@@ -1063,9 +1076,10 @@ tools = [
 ]
 
 {:ok, session} = Session.start_link(
-  model: Models.resolve(:text),
+  model: Models.resolve(:audio),
   auth: :gemini,
-  generation_config: %{response_modalities: ["TEXT"]},
+  generation_config: %{response_modalities: ["AUDIO"]},
+  output_audio_transcription: %{},
   tools: tools,
   on_tool_call: fn %{function_calls: calls} ->
     responses = Enum.map(calls, fn call ->
@@ -1086,7 +1100,7 @@ tools = [
 )
 
 :ok = Session.connect(session)
-Session.send_client_content(session, "What's Apple's stock price?")
+Session.send_text(session, "What's Apple's stock price?")
 Process.sleep(10000)
 Session.close(session)
 ```
@@ -1112,7 +1126,7 @@ RUN_BILLED_VERTEX_LIVE_TESTS=1 mix test --only live_vertex_ai test/gemini/live/s
 
 The default test suite excludes `:live_gemini` and `:live_vertex_ai`, so these targeted commands are the intended manual verification path for real credentials.
 
-If your Vertex project exposes only native-audio Live models, the text-only Vertex session tests will skip instead of failing. This is expected: native-audio-only Vertex models cannot satisfy `response_modalities: ["TEXT"]`.
+If your Vertex project does not expose a compatible Live audio model, the Vertex session tests will skip instead of failing.
 
 ## Further Reading
 

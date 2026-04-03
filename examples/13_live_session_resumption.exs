@@ -10,11 +10,9 @@
 # - Switching between voice/text modes
 # - Long-running conversations that may need reconnection
 #
-# MODEL NOTE: This example uses the canonical TEXT model from Google's docs:
-#   gemini-live-2.5-flash-preview with response_modalities: ["TEXT"]
-#
-# If this model is not yet available, see examples/12_live_audio_streaming.exs
-# for a working AUDIO example using flash_2_5_native_audio_preview_12_2025.
+# MODEL NOTE: Gemini 3.1 Flash Live is audio-first. This example uses an audio
+# session with output transcription so prompts and responses can still be shown
+# as text in the terminal.
 
 alias Gemini.Live.Models
 alias Gemini.Live.Session
@@ -80,14 +78,15 @@ end
 IO.puts("--- Part 1: Initial Session ---\n")
 IO.puts("Starting initial session with resumption enabled...")
 
-live_model = Models.resolve(:text)
+live_model = Models.resolve(:audio)
 IO.puts("[Using model: #{live_model}]")
 
 {:ok, session1} =
   Session.start_link(
     model: live_model,
     auth: :gemini,
-    generation_config: %{response_modalities: ["TEXT"]},
+    generation_config: %{response_modalities: ["AUDIO"]},
+    output_audio_transcription: %{},
     # Enable session resumption
     session_resumption:
       %{
@@ -119,12 +118,12 @@ prompt1 =
   "Hello! I'm working on a secret project called 'Project Phoenix'. Please remember this name."
 
 IO.puts(">>> #{prompt1}\n")
-:ok = Session.send_client_content(session1, prompt1)
+:ok = Session.send_text(session1, prompt1)
 Process.sleep(5000)
 
 prompt2 = "What project did I just mention?"
 IO.puts("\n>>> #{prompt2}\n")
-:ok = Session.send_client_content(session1, prompt2)
+:ok = Session.send_text(session1, prompt2)
 Process.sleep(5000)
 
 # Get the session handle for resumption
@@ -154,7 +153,8 @@ if saved_handle do
     Session.start_link(
       model: live_model,
       auth: :gemini,
-      generation_config: %{response_modalities: ["TEXT"]},
+      generation_config: %{response_modalities: ["AUDIO"]},
+      output_audio_transcription: %{},
       # Provide the handle to resume
       resume_handle: saved_handle,
       session_resumption: %{},
@@ -182,13 +182,13 @@ if saved_handle do
   prompt3 = "Do you remember what project I mentioned earlier? What was it called?"
   IO.puts(">>> Testing context preservation...")
   IO.puts(">>> #{prompt3}\n")
-  :ok = Session.send_client_content(session2, prompt3)
+  :ok = Session.send_text(session2, prompt3)
   Process.sleep(5000)
 
   # Continue conversation
   prompt4 = "Great! Now tell me a fun fact about phoenixes in mythology."
   IO.puts("\n>>> #{prompt4}\n")
-  :ok = Session.send_client_content(session2, prompt4)
+  :ok = Session.send_text(session2, prompt4)
   Process.sleep(5000)
 
   # Get new handle
