@@ -259,7 +259,7 @@ defmodule Gemini.MixProject do
     [
       name: "gemini_ex",
       description: description(),
-      files: ~w(lib mix.exs README.md CHANGELOG.md LICENSE),
+      files: ~w(lib assets mix.exs README.md CHANGELOG.md LICENSE),
       licenses: ["MIT"],
       links: %{
         "GitHub" => @source_url,
