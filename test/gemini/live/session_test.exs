@@ -389,8 +389,7 @@ defmodule Gemini.Live.SessionTest do
 
       assert {:error,
               {:unsupported_text_input_method, "gemini-3.1-flash-live-preview",
-               :send_client_content,
-               :send_realtime_input}} =
+               :send_client_content, :send_realtime_input}} =
                Session.send_client_content(pid, "hello")
 
       GenServer.stop(pid)

@@ -36,6 +36,17 @@ defmodule Gemini.Test.FakeGemini do
     }
   }
 
+  defp expect_post(bypass, handler) do
+    Bypass.expect(bypass, fn conn -> handle_post(conn, handler) end)
+  end
+
+  defp expect_post_once(bypass, handler) do
+    Bypass.expect_once(bypass, fn conn -> handle_post(conn, handler) end)
+  end
+
+  defp handle_post(%Plug.Conn{method: "POST"} = conn, handler), do: handler.(conn)
+  defp handle_post(conn, _handler), do: Plug.Conn.resp(conn, 404, "not found")
+
   @doc """
   Setup a successful 200 response.
 
@@ -59,9 +70,9 @@ defmodule Gemini.Test.FakeGemini do
     end
 
     if times do
-      Bypass.expect_once(bypass, "POST", ~r/.*/, handler)
+      expect_post_once(bypass, handler)
     else
-      Bypass.expect(bypass, "POST", ~r/.*/, handler)
+      expect_post(bypass, handler)
     end
 
     bypass
@@ -108,7 +119,7 @@ defmodule Gemini.Test.FakeGemini do
 
     counter = :counters.new(1, [:atomics])
 
-    Bypass.expect(bypass, "POST", ~r/.*/, fn conn ->
+    expect_post(bypass, fn conn ->
       current = :counters.get(counter, 1)
       :counters.add(counter, 1, 1)
 
@@ -158,9 +169,9 @@ defmodule Gemini.Test.FakeGemini do
     if times do
       counter = :counters.new(1, [:atomics])
 
-      Bypass.expect(bypass, "POST", ~r/.*/, retry_handler(handler, counter, times))
+      expect_post(bypass, retry_handler(handler, counter, times))
     else
-      Bypass.expect(bypass, "POST", ~r/.*/, handler)
+      expect_post(bypass, handler)
     end
 
     bypass
@@ -217,7 +228,7 @@ defmodule Gemini.Test.FakeGemini do
       }
     }
 
-    Bypass.expect(bypass, "POST", ~r/.*/, fn conn ->
+    expect_post(bypass, fn conn ->
       phase = :atomics.get(state, 1)
       current = :counters.get(counter, 1)
       :counters.add(counter, 1, 1)
@@ -265,7 +276,7 @@ defmodule Gemini.Test.FakeGemini do
     response = Keyword.get(opts, :response, @default_model_response)
     counter = :counters.new(1, [:atomics])
 
-    Bypass.expect(bypass, "POST", ~r/.*/, fn conn ->
+    expect_post(bypass, fn conn ->
       :counters.add(counter, 1, 1)
 
       conn

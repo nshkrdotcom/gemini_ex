@@ -94,7 +94,7 @@ defmodule Gemini.Types.Schema do
   - `:maximum` - Maximum value for numbers
   - `:min_items` - Minimum array length
   - `:max_items` - Maximum array length
-  - `:pattern` - Regex pattern for strings
+  - `:pattern` - String pattern constraint
   - `:default` - Default value
 
   ## Examples

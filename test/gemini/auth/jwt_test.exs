@@ -158,6 +158,22 @@ defmodule Gemini.Auth.JWTTest do
       assert String.contains?(key.private_key, "BEGIN PRIVATE KEY")
     end
 
+    test "drops unknown service account keys instead of atomizing them" do
+      temp_path = "/tmp/test_service_account_unknown_key.json"
+
+      content =
+        @sample_service_account_key
+        |> Map.put("providerAuthMode", "external")
+        |> Jason.encode!()
+
+      File.write!(temp_path, content)
+      on_exit(fn -> File.rm(temp_path) end)
+
+      assert {:ok, key} = JWT.load_service_account_key(temp_path)
+      refute Map.has_key?(key, :providerAuthMode)
+      refute Map.has_key?(key, "providerAuthMode")
+    end
+
     test "returns error for non-existent file" do
       assert {:error, "Failed to read file: " <> _reason} =
                JWT.load_service_account_key("/non/existent/file.json")

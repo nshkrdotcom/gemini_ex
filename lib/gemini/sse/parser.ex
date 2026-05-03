@@ -77,8 +77,10 @@ defmodule Gemini.SSE.Parser do
 
   @spec extract_events(String.t()) :: {[String.t()], String.t()}
   defp extract_events(data) do
-    # Split by double newlines to separate events (handle both \r\n\r\n and \n\n)
-    parts = String.split(data, ~r/\r?\n\r?\n/)
+    parts =
+      data
+      |> String.replace("\r\n", "\n")
+      |> String.split("\n\n")
 
     case parts do
       [] ->
@@ -213,11 +215,7 @@ defmodule Gemini.SSE.Parser do
   defp handle_field("id", value, acc), do: Map.put(acc, :id, value)
   defp handle_field("retry", value, acc), do: maybe_put_retry(acc, value)
   defp handle_field("", _value, acc), do: acc
-
-  defp handle_field(other, value, acc) do
-    # Handle other SSE fields (keep existing behavior; assumes bounded field set).
-    Map.put(acc, String.to_atom(other), value)
-  end
+  defp handle_field(_other, _value, acc), do: acc
 
   defp maybe_put_retry(acc, value) do
     case Integer.parse(value) do

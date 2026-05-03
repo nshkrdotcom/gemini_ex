@@ -635,6 +635,16 @@ defmodule Gemini.SSE.ParserTest do
       assert event.retry == 1000
     end
 
+    test "ignores unknown SSE fields without creating atoms" do
+      parser = Parser.new()
+      chunk = "custom: provider-authored\ndata: {\"text\": \"hello\"}\n\n"
+
+      {:ok, [event], _parser} = Parser.parse_chunk(chunk, parser)
+
+      assert event.data == %{"text" => "hello"}
+      refute Map.has_key?(event, :custom)
+    end
+
     test "handles Unicode content correctly" do
       parser = Parser.new()
       chunk = "data: {\"text\": \"Hello 🌍 世界\"}\n\n"

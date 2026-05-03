@@ -72,7 +72,8 @@ defmodule Gemini.APIs.Coordinator do
     EmbedContentResponse,
     GenerateContentResponse,
     InlinedEmbedContentResponses,
-    ListModelsResponse
+    ListModelsResponse,
+    Model
   }
 
   @type auth_strategy :: :gemini | :vertex_ai
@@ -1731,12 +1732,19 @@ defmodule Gemini.APIs.Coordinator do
 
   @spec parse_models_response(map()) :: {:ok, ListModelsResponse.t()} | {:error, term()}
   defp parse_models_response(response) when is_map(response) do
-    atomized_response =
-      response
-      |> normalize_models_payload()
-      |> atomize_keys()
+    normalized_response = normalize_models_payload(response)
 
-    {:ok, struct(ListModelsResponse, atomized_response)}
+    models =
+      normalized_response
+      |> get_model_value(["models", :models], [])
+      |> Enum.map(&parse_model_data/1)
+
+    {:ok,
+     %ListModelsResponse{
+       models: models,
+       next_page_token:
+         get_model_value(normalized_response, ["nextPageToken", :next_page_token], nil)
+     }}
   end
 
   defp normalize_models_payload(%{"publisherModels" => publisher_models} = response)
@@ -1756,6 +1764,25 @@ defmodule Gemini.APIs.Coordinator do
   end
 
   defp normalize_models_payload(response), do: response
+
+  defp parse_model_data(model) when is_map(model) do
+    %Model{
+      name: get_model_value(model, ["name", :name], ""),
+      base_model_id: get_model_value(model, ["baseModelId", :base_model_id], nil),
+      version: get_model_value(model, ["version", :version], ""),
+      display_name: get_model_value(model, ["displayName", :display_name], ""),
+      description: get_model_value(model, ["description", :description], ""),
+      input_token_limit: get_model_value(model, ["inputTokenLimit", :input_token_limit], 0),
+      output_token_limit: get_model_value(model, ["outputTokenLimit", :output_token_limit], 0),
+      supported_generation_methods:
+        get_model_value(model, ["supportedGenerationMethods", :supported_generation_methods], []),
+      thinking: get_model_value(model, ["thinking", :thinking], nil),
+      temperature: get_model_value(model, ["temperature", :temperature], nil),
+      max_temperature: get_model_value(model, ["maxTemperature", :max_temperature], nil),
+      top_p: get_model_value(model, ["topP", :top_p], nil),
+      top_k: get_model_value(model, ["topK", :top_k], nil)
+    }
+  end
 
   defp normalize_publisher_model(model) when is_map(model) do
     name = get_model_value(model, ["name", :name], "")
@@ -1929,30 +1956,4 @@ defmodule Gemini.APIs.Coordinator do
         model_name
     end
   end
-
-  # Helper function to recursively convert string keys to atom keys
-  @spec atomize_keys(term()) :: term()
-  defp atomize_keys(map) when is_map(map) do
-    map
-    |> Enum.map(fn {k, v} -> {atomize_key(k), atomize_keys(v)} end)
-    |> Enum.into(%{})
-  end
-
-  defp atomize_keys(list) when is_list(list) do
-    Enum.map(list, &atomize_keys/1)
-  end
-
-  defp atomize_keys(value), do: value
-
-  @spec atomize_key(String.t() | atom()) :: atom()
-  defp atomize_key(key) when is_binary(key) do
-    # Convert camelCase to snake_case
-    key
-    |> String.replace(~r/([A-Z])/, "_\\1")
-    |> String.downcase()
-    |> String.trim_leading("_")
-    |> String.to_atom()
-  end
-
-  defp atomize_key(key) when is_atom(key), do: key
 end

@@ -250,18 +250,63 @@ defmodule Gemini.Types.Response.Model do
   @doc """
   Check if this appears to be the latest version of a model.
 
-  Heuristic based on name patterns (no version suffix, "latest" in name).
+  Heuristic based on name tokens with no version suffix, or "latest" in name.
   """
   @spec latest_version?(t()) :: boolean()
   def latest_version?(%__MODULE__{name: name}) do
     base_name = String.replace_prefix(name, "models/", "")
 
     # Check for version patterns that suggest it's NOT the latest
-    not Regex.match?(~r/-\d{3}$/, base_name) and
+    not numeric_version_suffix?(base_name) and
       not String.contains?(base_name, "preview") and
       (String.contains?(base_name, "latest") or
-         not Regex.match?(~r/-(alpha|beta|rc)\d*$/, base_name))
+         not prerelease_version_suffix?(base_name))
   end
+
+  defp numeric_version_suffix?(base_name) do
+    case last_dash_segment(base_name) do
+      <<first, second, third>> ->
+        ascii_digit?(first) and ascii_digit?(second) and ascii_digit?(third)
+
+      _ ->
+        false
+    end
+  end
+
+  defp prerelease_version_suffix?(base_name) do
+    segment =
+      base_name
+      |> last_dash_segment()
+      |> String.downcase()
+
+    prerelease_segment?(segment, "alpha") or
+      prerelease_segment?(segment, "beta") or
+      prerelease_segment?(segment, "rc")
+  end
+
+  defp prerelease_segment?(segment, prefix) do
+    if String.starts_with?(segment, prefix) do
+      segment
+      |> String.replace_prefix(prefix, "")
+      |> ascii_digits?()
+    else
+      false
+    end
+  end
+
+  defp last_dash_segment(base_name) do
+    base_name
+    |> String.split("-")
+    |> List.last()
+  end
+
+  defp ascii_digits?(""), do: true
+
+  defp ascii_digits?(<<char, rest::binary>>) do
+    ascii_digit?(char) and ascii_digits?(rest)
+  end
+
+  defp ascii_digit?(char), do: char in ?0..?9
 
   @doc """
   Determine if model is suitable for production use.

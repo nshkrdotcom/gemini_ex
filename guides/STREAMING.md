@@ -235,8 +235,10 @@ The current parser already supports stateful chunk processing, but we need to en
 ```elixir
 # lib/gemini/sse/parser.ex - Verify this works correctly
 defp extract_events(data) do
-  # Handle both \r\n\r\n and \n\n patterns (FIXED)
-  parts = String.split(data, ~r/\r?\n\r?\n/)
+  parts =
+    data
+    |> String.replace("\r\n", "\n")
+    |> String.split("\n\n")
   
   case parts do
     [] -> {[], ""}

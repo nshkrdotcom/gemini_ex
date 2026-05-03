@@ -59,6 +59,7 @@ defmodule Gemini.Live.Session do
   alias Gemini.ModelRegistry
   alias Gemini.Telemetry
   alias Gemini.Types.Live.{ServerMessage, Setup, SetupComplete, ToolCall}
+  alias Gemini.Types.Modality
 
   @type session_status :: :disconnected | :connecting | :setup_pending | :ready | :closing
 
@@ -617,8 +618,8 @@ defmodule Gemini.Live.Session do
 
   defp normalize_modality(modality) when is_binary(modality) do
     modality
-    |> String.downcase()
-    |> String.to_atom()
+    |> String.upcase()
+    |> Modality.from_api()
   end
 
   @spec validate_text_input_method(String.t(), atom()) :: :ok | {:error, term()}

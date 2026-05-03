@@ -150,7 +150,7 @@ defmodule TokenCountingExample do
         {:ok, result} ->
           total = result.total_tokens || result["totalTokens"] || 0
           char_count = String.length(text)
-          word_count = text |> String.split(~r/\s+/) |> length()
+          word_count = text |> String.split() |> length()
 
           IO.puts("  Characters: #{char_count}")
           IO.puts("  Words: #{word_count}")

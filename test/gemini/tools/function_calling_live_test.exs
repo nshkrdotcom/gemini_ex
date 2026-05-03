@@ -142,7 +142,7 @@ defmodule Gemini.Tools.FunctionCallingLiveTest do
       calls = Coordinator.extract_function_calls(response)
       [call | _] = calls
       assert call.name == "get_weather"
-      assert call.args["location"] =~ ~r/tokyo/i
+      assert call.args["location"] |> String.downcase() |> String.contains?("tokyo")
     end
 
     test "model does not generate function call for simple greeting" do

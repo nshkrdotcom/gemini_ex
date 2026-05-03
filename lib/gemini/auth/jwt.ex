@@ -36,6 +36,20 @@ defmodule Gemini.Auth.JWT do
           optional(atom()) => any()
         }
 
+  @service_account_key_map %{
+    "type" => :type,
+    "project_id" => :project_id,
+    "private_key_id" => :private_key_id,
+    "private_key" => :private_key,
+    "client_email" => :client_email,
+    "client_id" => :client_id,
+    "auth_uri" => :auth_uri,
+    "token_uri" => :token_uri,
+    "auth_provider_x509_cert_url" => :auth_provider_x509_cert_url,
+    "client_x509_cert_url" => :client_x509_cert_url,
+    "universe_domain" => :universe_domain
+  }
+
   @doc """
   Create a JWT payload for Vertex AI authentication.
 
@@ -156,13 +170,7 @@ defmodule Gemini.Auth.JWT do
       {:ok, content} ->
         case Jason.decode(content) do
           {:ok, key_data} ->
-            # Convert string keys to atom keys for easier access
-            parsed_key =
-              for {key, val} <- key_data, into: %{} do
-                {String.to_atom(key), val}
-              end
-
-            {:ok, parsed_key}
+            {:ok, parse_service_account_key(key_data)}
 
           {:error, %Jason.DecodeError{} = reason} ->
             {:error, "Failed to parse JSON: #{Exception.message(reason)}"}
@@ -171,6 +179,15 @@ defmodule Gemini.Auth.JWT do
       {:error, reason} ->
         {:error, "Failed to read file: #{reason}"}
     end
+  end
+
+  defp parse_service_account_key(key_data) when is_map(key_data) do
+    Enum.reduce(key_data, %{}, fn {key, val}, acc ->
+      case Map.get(@service_account_key_map, key) do
+        nil -> acc
+        field -> Map.put(acc, field, val)
+      end
+    end)
   end
 
   @doc """

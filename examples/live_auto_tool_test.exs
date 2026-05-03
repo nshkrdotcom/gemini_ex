@@ -15,6 +15,15 @@ defmodule LiveTestTools do
   Real tool implementations for live testing automatic tool execution.
   """
 
+  @doc_modules %{
+    "Enum" => Enum,
+    "GenServer" => GenServer,
+    "Kernel" => Kernel,
+    "List" => List,
+    "Map" => Map,
+    "String" => String
+  }
+
   @doc """
   Gets comprehensive information about an Elixir module using built-in reflection.
 
@@ -44,11 +53,10 @@ defmodule LiveTestTools do
     IO.puts("🔧 Using module_name: #{inspect(module_name)}")
 
     try do
-      # Convert string to atom and ensure module is loaded
-      module_atom = String.to_atom("Elixir.#{module_name}")
-
-      case Code.ensure_loaded(module_atom) do
-        {:module, ^module_atom} ->
+      case Map.fetch(@doc_modules, module_name) do
+        {:ok, module_atom} ->
+          case Code.ensure_loaded(module_atom) do
+            {:module, ^module_atom} ->
           # Get module documentation
           {docstring, _metadata} =
             case Code.fetch_docs(module_atom) do
@@ -125,11 +133,25 @@ defmodule LiveTestTools do
           IO.puts("🔧 Tool returning success result: #{inspect(result)}")
           result
 
-        {:error, reason} ->
+            {:error, reason} ->
+              result = %{
+                module: module_name,
+                status: "not_found",
+                error: "Module could not be loaded: #{inspect(reason)}",
+                suggestion:
+                  "Make sure the module name is correct (e.g., 'Enum', 'String', 'GenServer')",
+                introspection_timestamp: DateTime.utc_now() |> DateTime.to_iso8601()
+              }
+
+              IO.puts("🔧 Tool returning error result: #{inspect(result)}")
+              result
+          end
+
+        :error ->
           result = %{
             module: module_name,
             status: "not_found",
-            error: "Module could not be loaded: #{inspect(reason)}",
+            error: "Module is not allowed for live introspection",
             suggestion:
               "Make sure the module name is correct (e.g., 'Enum', 'String', 'GenServer')",
             introspection_timestamp: DateTime.utc_now() |> DateTime.to_iso8601()

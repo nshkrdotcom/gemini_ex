@@ -74,25 +74,31 @@ defmodule Gemini.Live.ModelsTest do
     end
 
     test "does not infer audio-first Live models as text session candidates" do
-      assert_raise ArgumentError, ~r/No live default model available for modality :text/, fn ->
-        Models.resolve(:text,
-          candidates: ["definitely-not-a-model"],
-          available_models: [
-            "models/gemini-2.5-flash-native-audio-preview-12-2025",
-            "models/gemini-3.1-flash-live-preview"
-          ]
-        )
-      end
+      error =
+        assert_raise ArgumentError, fn ->
+          Models.resolve(:text,
+            candidates: ["definitely-not-a-model"],
+            available_models: [
+              "models/gemini-2.5-flash-native-audio-preview-12-2025",
+              "models/gemini-3.1-flash-live-preview"
+            ]
+          )
+        end
+
+      assert String.contains?(error.message, "No live default model available for modality :text")
     end
 
     test "raises when no text-session live models are available" do
-      assert_raise ArgumentError, ~r/No live default model available for modality :text/, fn ->
-        Models.resolve(:text,
-          auth: :vertex_ai,
-          candidates: ["definitely-not-a-model"],
-          available_models: []
-        )
-      end
+      error =
+        assert_raise ArgumentError, fn ->
+          Models.resolve(:text,
+            auth: :vertex_ai,
+            candidates: ["definitely-not-a-model"],
+            available_models: []
+          )
+        end
+
+      assert String.contains?(error.message, "No live default model available for modality :text")
     end
 
     test "does not expose legacy text-live aliases as current vertex candidates" do

@@ -44,23 +44,35 @@ defmodule Gemini.Types.Interactions.ImageConfigTest do
     end
 
     test "rejects invalid aspect ratio" do
-      assert_raise ArgumentError, ~r/Invalid aspect_ratio/, fn ->
-        ImageConfig.new(aspect_ratio: "invalid")
-      end
+      error =
+        assert_raise ArgumentError, fn ->
+          ImageConfig.new(aspect_ratio: "invalid")
+        end
 
-      assert_raise ArgumentError, ~r/Invalid aspect_ratio/, fn ->
-        ImageConfig.new(aspect_ratio: "7:5")
-      end
+      assert String.contains?(error.message, "Invalid aspect_ratio")
+
+      error =
+        assert_raise ArgumentError, fn ->
+          ImageConfig.new(aspect_ratio: "7:5")
+        end
+
+      assert String.contains?(error.message, "Invalid aspect_ratio")
     end
 
     test "rejects invalid image size" do
-      assert_raise ArgumentError, ~r/Invalid image_size/, fn ->
-        ImageConfig.new(image_size: "8K")
-      end
+      error =
+        assert_raise ArgumentError, fn ->
+          ImageConfig.new(image_size: "8K")
+        end
 
-      assert_raise ArgumentError, ~r/Invalid image_size/, fn ->
-        ImageConfig.new(image_size: "HD")
-      end
+      assert String.contains?(error.message, "Invalid image_size")
+
+      error =
+        assert_raise ArgumentError, fn ->
+          ImageConfig.new(image_size: "HD")
+        end
+
+      assert String.contains?(error.message, "Invalid image_size")
     end
   end
 

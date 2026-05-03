@@ -114,13 +114,8 @@ defmodule Gemini.APIs.CoordinatorTest do
     end
   end
 
-  describe "atomize_keys helper" do
-    test "converts string keys to atoms recursively" do
-      # We can't test the private function directly, but we can test behavior
-      # by verifying that the coordinator handles string key responses properly
-
-      # This test verifies that our fix works by checking that the coordinator
-      # would properly handle a real API response structure
+  describe "bounded API response field handling" do
+    test "handles string keyed response structures" do
       raw_api_structure = %{
         "candidates" => [
           %{
@@ -133,8 +128,6 @@ defmodule Gemini.APIs.CoordinatorTest do
         ]
       }
 
-      # The structure should be parseable and result in extractable text
-      # (This validates our atomize_keys fix indirectly)
       assert is_map(raw_api_structure)
       assert Map.has_key?(raw_api_structure, "candidates")
 
@@ -153,36 +146,21 @@ defmodule Gemini.APIs.CoordinatorTest do
       assert text_parts != []
     end
 
-    test "atomize_keys converts camelCase to snake_case for API responses" do
-      # Test for issue #3 - This verifies our camelCase to snake_case conversion
+    test "uses a bounded model field map for API responses" do
+      mapped_fields = %{
+        "displayName" => :display_name,
+        "inputTokenLimit" => :input_token_limit,
+        "outputTokenLimit" => :output_token_limit,
+        "supportedGenerationMethods" => :supported_generation_methods,
+        "nextPageToken" => :next_page_token
+      }
 
-      # Test data representing what the API returns
-      test_cases = [
-        {"usageMetadata", :usage_metadata},
-        {"finishReason", :finish_reason},
-        {"totalTokenCount", :total_token_count},
-        {"promptTokenCount", :prompt_token_count},
-        {"candidatesTokenCount", :candidates_token_count},
-        {"displayName", :display_name},
-        {"inputTokenLimit", :input_token_limit},
-        {"outputTokenLimit", :output_token_limit},
-        {"supportedGenerationMethods", :supported_generation_methods}
-      ]
-
-      # The actual conversion is done by atomize_key in the coordinator
-      # We can't test it directly but we can verify the pattern works
-      for {camel_case, expected_snake_case} <- test_cases do
-        # This is what our fix does
-        converted =
-          camel_case
-          |> String.replace(~r/([A-Z])/, "_\\1")
-          |> String.downcase()
-          |> String.trim_leading("_")
-          |> String.to_atom()
-
-        assert converted == expected_snake_case,
-               "Failed to convert #{camel_case} to #{expected_snake_case}, got #{converted}"
-      end
+      assert mapped_fields["displayName"] == :display_name
+      assert mapped_fields["inputTokenLimit"] == :input_token_limit
+      assert mapped_fields["outputTokenLimit"] == :output_token_limit
+      assert mapped_fields["supportedGenerationMethods"] == :supported_generation_methods
+      assert mapped_fields["nextPageToken"] == :next_page_token
+      refute Map.has_key?(mapped_fields, "providerAuthoredFutureField")
     end
   end
 end

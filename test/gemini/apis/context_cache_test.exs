@@ -40,9 +40,12 @@ defmodule Gemini.APIs.ContextCacheTest do
 
   describe "create/2" do
     test "raises when display_name is missing" do
-      assert_raise ArgumentError, ~r/display_name is required/, fn ->
-        ContextCache.create([Content.text("Hello")])
-      end
+      error =
+        assert_raise ArgumentError, fn ->
+          ContextCache.create([Content.text("Hello")])
+        end
+
+      assert String.contains?(error.message, "display_name is required")
     end
 
     test "accepts content structs" do

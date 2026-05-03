@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Provider payload parsing**: service account keys, SSE fields, model list payloads, Live response modalities, and WebSocket redaction now use bounded field maps and deterministic string parsing.
+
+### Tests
+- Added focused regression coverage for provider-authored service account keys and unknown SSE fields to ensure they are ignored instead of interned as new atoms.
+
 ## [0.13.0] - 2026-04-02
 
 ### Added

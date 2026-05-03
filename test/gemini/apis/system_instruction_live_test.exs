@@ -42,12 +42,10 @@ defmodule Gemini.APIs.SystemInstructionLiveTest do
 
       {:ok, french_text} = Gemini.extract_text(response_french)
 
-      # French response should contain "Bonjour" or similar French greeting
-      assert french_text =~ ~r/bonjour|salut|coucou/i,
+      assert contains_any?(french_text, ["bonjour", "salut", "coucou"]),
              "Expected French greeting, got: #{french_text}"
 
-      # Default should be different (likely English)
-      refute default_text =~ ~r/bonjour|salut|coucou/i,
+      refute contains_any?(default_text, ["bonjour", "salut", "coucou"]),
              "Default response should not be French"
     end
 
@@ -65,8 +63,7 @@ defmodule Gemini.APIs.SystemInstructionLiveTest do
 
       {:ok, text} = Gemini.extract_text(response)
 
-      # Should contain dashes for bullet points
-      assert text =~ ~r/^-\s/m, "Expected bullet point format with dashes, got: #{text}"
+      assert dash_bullet_line?(text), "Expected bullet point format with dashes, got: #{text}"
 
       # Count bullet points - should be at least 3
       bullet_count = text |> String.split("\n") |> Enum.count(&String.starts_with?(&1, "-"))
@@ -93,8 +90,7 @@ defmodule Gemini.APIs.SystemInstructionLiveTest do
 
       {:ok, text} = Gemini.extract_text(response)
 
-      # Should include the greeting
-      assert text =~ ~r/greetings|earthling/i,
+      assert contains_any?(text, ["greetings", "earthling"]),
              "Expected space captain greeting, got: #{text}"
     end
 
@@ -116,9 +112,19 @@ defmodule Gemini.APIs.SystemInstructionLiveTest do
 
       {:ok, text} = Gemini.extract_text(response)
 
-      # Should include technical terminology
-      assert text =~
-               ~r/pattern|architecture|config|environment|dependency|injection|singleton|module/i,
+      assert contains_any?(
+               text,
+               [
+                 "pattern",
+                 "architecture",
+                 "config",
+                 "environment",
+                 "dependency",
+                 "injection",
+                 "singleton",
+                 "module"
+               ]
+             ),
              "Expected technical response, got: #{text}"
     end
   end
@@ -164,14 +170,13 @@ defmodule Gemini.APIs.SystemInstructionLiveTest do
                  "Expected JSON with name/location keys"
 
         {:error, _} ->
-          # Some models wrap in markdown code blocks, try to extract
-          json_match = Regex.run(~r/\{.*\}/s, text)
+          case json_candidate(text) do
+            {:ok, candidate} ->
+              assert {:ok, _} = Jason.decode(candidate),
+                     "Expected valid JSON, got: #{text}"
 
-          if json_match do
-            assert {:ok, _} = Jason.decode(List.first(json_match)),
-                   "Expected valid JSON, got: #{text}"
-          else
-            flunk("Expected valid JSON response, got: #{text}")
+            :error ->
+              flunk("Expected valid JSON response, got: #{text}")
           end
       end
     end
@@ -254,7 +259,7 @@ defmodule Gemini.APIs.SystemInstructionLiveTest do
         )
 
       {:ok, text} = Gemini.extract_text(response)
-      assert text =~ ~r/rainbow/i, "Expected 'RAINBOW' in response, got: #{text}"
+      assert contains_any?(text, ["rainbow"]), "Expected 'RAINBOW' in response, got: #{text}"
     end
 
     test "system instruction works as Content struct" do
@@ -268,7 +273,7 @@ defmodule Gemini.APIs.SystemInstructionLiveTest do
         )
 
       {:ok, text} = Gemini.extract_text(response)
-      assert text =~ ~r/banana/i, "Expected 'BANANA:' in response, got: #{text}"
+      assert contains_any?(text, ["banana"]), "Expected 'BANANA:' in response, got: #{text}"
     end
 
     test "system instruction works as map with parts" do
@@ -284,7 +289,7 @@ defmodule Gemini.APIs.SystemInstructionLiveTest do
       {:ok, raw_text} = Gemini.extract_text(response)
       text = String.trim(raw_text)
 
-      assert text =~ ~r/magenta/i, "Expected 'MAGENTA' in response, got: #{text}"
+      assert contains_any?(text, ["magenta"]), "Expected 'MAGENTA' in response, got: #{text}"
     end
   end
 
@@ -300,7 +305,9 @@ defmodule Gemini.APIs.SystemInstructionLiveTest do
         )
 
       {:ok, text} = Gemini.extract_text(response)
-      assert text =~ ~r/violet banana/i, "Expected 'VIOLET BANANA' in response, got: #{text}"
+
+      assert contains_any?(text, ["violet banana"]),
+             "Expected 'VIOLET BANANA' in response, got: #{text}"
     end
 
     test "system instruction works with max_output_tokens" do
@@ -317,6 +324,27 @@ defmodule Gemini.APIs.SystemInstructionLiveTest do
       # Should be short due to both system instruction and max_output_tokens
       word_count = text |> String.split() |> length()
       assert word_count <= 30, "Expected brief response, got #{word_count} words"
+    end
+  end
+
+  defp contains_any?(text, tokens) do
+    text = String.downcase(text)
+    Enum.any?(tokens, &String.contains?(text, &1))
+  end
+
+  defp dash_bullet_line?(text) do
+    text
+    |> String.split("\n")
+    |> Enum.any?(fn line -> String.starts_with?(String.trim_leading(line), "- ") end)
+  end
+
+  defp json_candidate(text) do
+    with {start, 1} <- :binary.match(text, "{"),
+         matches when matches != [] <- :binary.matches(text, "}") do
+      {last, 1} = List.last(matches)
+      {:ok, binary_part(text, start, last - start + 1)}
+    else
+      _ -> :error
     end
   end
 end

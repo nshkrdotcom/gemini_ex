@@ -567,8 +567,26 @@ defmodule Gemini.Client.WebSocket do
   end
 
   defp redact_query_param(param, path) do
-    regex = Regex.compile!("([?&]#{Regex.escape(param)}=)[^&]+", "i")
-    Regex.replace(regex, path, "\\1[REDACTED]")
+    case String.split(path, "?", parts: 2) do
+      [base, query] -> base <> "?" <> redact_query(query, param)
+      [_base] -> path
+    end
+  end
+
+  defp redact_query(query, param) do
+    query
+    |> String.split("&")
+    |> Enum.map_join("&", &redact_query_pair(&1, param))
+  end
+
+  defp redact_query_pair(pair, param) do
+    case String.split(pair, "=", parts: 2) do
+      [key, _value] ->
+        if String.downcase(key) == param, do: key <> "=[REDACTED]", else: pair
+
+      [key] ->
+        if String.downcase(key) == param, do: key <> "=[REDACTED]", else: pair
+    end
   end
 
   defp gemini_path(api_version) when is_binary(api_version) do

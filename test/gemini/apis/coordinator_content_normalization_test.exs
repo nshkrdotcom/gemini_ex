@@ -590,10 +590,13 @@ defmodule Gemini.APIs.CoordinatorContentNormalizationTest do
   describe "Finding #7: error message mentions file formats" do
     test "ArgumentError message includes file_uri format hint" do
       # The raise happens before HTTP.post, so no meck expect needed here.
-      assert_raise ArgumentError, ~r/file_uri/i, fn ->
-        # Pass something that should never be valid: an integer
-        Coordinator.generate_content([42], [])
-      end
+      error =
+        assert_raise ArgumentError, fn ->
+          # Pass something that should never be valid: an integer
+          Coordinator.generate_content([42], [])
+        end
+
+      assert error.message |> String.downcase() |> String.contains?("file_uri")
     end
   end
 
