@@ -21,8 +21,23 @@ defmodule Gemini.Client.HTTP do
   alias Gemini.Auth
   alias Gemini.Config
   alias Gemini.Error
+  alias Gemini.GovernedAuthority
   alias Gemini.RateLimiter
   alias Gemini.Telemetry
+
+  @governed_forbidden_options [
+    :auth,
+    :api_key,
+    :project_id,
+    :location,
+    :access_token,
+    :service_account,
+    :service_account_key,
+    :service_account_data,
+    :quota_project_id,
+    :base_url,
+    :headers
+  ]
 
   @vertex_auth_override_keys [
     :project_id,
@@ -84,11 +99,12 @@ defmodule Gemini.Client.HTTP do
   - `:max_concurrency_per_model` - Override concurrency limit
   """
   def request(method, path, body, auth_config, opts \\ []) do
-    Config.validate!()
-
     case auth_config do
       nil ->
         {:error, Error.config_error("No authentication configured")}
+
+      %{type: :governed_authority, credentials: %GovernedAuthority{} = authority} ->
+        execute_governed_request(method, path, body, authority, opts)
 
       %{type: auth_type, credentials: credentials} ->
         execute_authenticated_request(method, path, body, auth_type, credentials, opts)
@@ -96,7 +112,11 @@ defmodule Gemini.Client.HTTP do
   end
 
   # Execute the actual HTTP request with telemetry
-  defp execute_request(method, url, headers, body, opts) do
+  defp execute_request(method, url, headers, body, opts, validate_config? \\ true) do
+    if validate_config? do
+      Config.validate!()
+    end
+
     start_time = System.monotonic_time()
     metadata = Telemetry.build_request_metadata(url, method, opts)
     measurements = %{system_time: System.system_time()}
@@ -152,16 +172,27 @@ defmodule Gemini.Client.HTTP do
 
   @spec resolve_auth_config(keyword()) :: Config.auth_config() | nil
   defp resolve_auth_config(opts) when is_list(opts) do
-    case normalize_auth_strategy(Keyword.get(opts, :auth)) || infer_auth_strategy(opts) do
+    case Keyword.get(opts, :governed_authority) do
       nil ->
-        Config.auth_config()
+        case normalize_auth_strategy(Keyword.get(opts, :auth)) || infer_auth_strategy(opts) do
+          nil ->
+            Config.auth_config()
 
-      strategy ->
-        credentials =
-          Config.get_auth_config(strategy)
-          |> apply_auth_overrides(strategy, opts)
+          strategy ->
+            credentials =
+              Config.get_auth_config(strategy)
+              |> apply_auth_overrides(strategy, opts)
 
-        %{type: strategy, credentials: credentials}
+            %{type: strategy, credentials: credentials}
+        end
+
+      authority ->
+        validate_governed_request_opts!(opts)
+
+        %{
+          type: :governed_authority,
+          credentials: GovernedAuthority.new!(authority)
+        }
     end
   end
 
@@ -197,6 +228,28 @@ defmodule Gemini.Client.HTTP do
   defp maybe_put_cred(credentials, _key, nil), do: credentials
   defp maybe_put_cred(credentials, _key, ""), do: credentials
   defp maybe_put_cred(credentials, key, value), do: Map.put(credentials, key, value)
+
+  defp validate_governed_request_opts!(opts) do
+    case Enum.find(@governed_forbidden_options, &Keyword.has_key?(opts, &1)) do
+      nil ->
+        :ok
+
+      key ->
+        raise ArgumentError, "governed authority forbids unmanaged #{key}"
+    end
+  end
+
+  defp execute_governed_request(method, path, body, authority, opts) do
+    url = build_governed_url(path, authority)
+    headers = GovernedAuthority.headers(authority)
+    model = extract_model_from_path(path)
+
+    request_fn = fn ->
+      execute_request(method, url, headers, body, opts, false)
+    end
+
+    maybe_rate_limited_request(request_fn, model, opts)
+  end
 
   defp execute_authenticated_request(method, path, body, auth_type, credentials, opts) do
     url = build_authenticated_url(auth_type, path, credentials)
@@ -247,6 +300,20 @@ defmodule Gemini.Client.HTTP do
 
       true ->
         "#{base_url}/#{path}"
+    end
+  end
+
+  defp build_governed_url(path, %GovernedAuthority{base_url: base_url}) do
+    if String.starts_with?(path, "https://") or String.starts_with?(path, "http://") do
+      raise ArgumentError, "governed authority forbids unmanaged absolute request URLs"
+    end
+
+    normalized_base = String.trim_trailing(base_url, "/")
+
+    if String.starts_with?(path, "/") do
+      normalized_base <> path
+    else
+      normalized_base <> "/" <> path
     end
   end
 

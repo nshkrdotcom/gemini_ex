@@ -283,7 +283,7 @@ model = Models.resolve(:audio)
 # Session is now ready for messages
 ```
 
-For Gemini sessions, you can also pass `api_key:` directly to `Session.start_link/1`. When `api_key:` is present and `auth:` is omitted, the session uses Gemini auth for that connection only.
+For standalone Gemini sessions, you can also pass `api_key:` directly to `Session.start_link/1`. When `api_key:` is present and `auth:` is omitted, the session uses Gemini auth for that connection only. Governed sessions use `Gemini.GovernedAuthority` instead and reject direct per-session credentials.
 
 ```elixir
 {:ok, session} = Gemini.Live.Session.start_link(

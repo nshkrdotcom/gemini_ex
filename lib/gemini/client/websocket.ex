@@ -59,9 +59,10 @@ defmodule Gemini.Client.WebSocket do
 
   alias Gemini.Auth.MultiAuthCoordinator
   alias Gemini.Config
+  alias Gemini.GovernedAuthority
   alias Gemini.Telemetry
 
-  @type auth_strategy :: :gemini | :vertex_ai
+  @type auth_strategy :: :gemini | :vertex_ai | :governed_authority
   @type connection_status :: :connecting | :connected | :closing | :closed
 
   @type t :: %__MODULE__{
@@ -73,6 +74,7 @@ defmodule Gemini.Client.WebSocket do
           api_key: String.t() | nil,
           project_id: String.t() | nil,
           location: String.t() | nil,
+          governed_authority: GovernedAuthority.t() | nil,
           api_version: String.t(),
           retry_config: retry_config()
         }
@@ -86,6 +88,8 @@ defmodule Gemini.Client.WebSocket do
   @type connection_error ::
           :project_id_required_for_vertex_ai
           | :no_api_key
+          | :governed_authority_required
+          | {:governed_authority_forbidden_option, atom()}
           | {:open_failed, term()}
           | {:connection_failed, term()}
           | {:upgrade_failed, integer(), list()}
@@ -102,6 +106,7 @@ defmodule Gemini.Client.WebSocket do
     :api_key,
     :project_id,
     :location,
+    :governed_authority,
     status: :connecting,
     api_version: "v1beta",
     retry_config: %{attempts: 3, delay: 1000, backoff: 2.0}
@@ -127,6 +132,17 @@ defmodule Gemini.Client.WebSocket do
   @retryable_errors [:timeout, :closed, :econnrefused, :econnreset, :etimedout]
 
   @redact_query_params ~w(key access_token token)
+
+  @governed_forbidden_options [
+    :api_key,
+    :project_id,
+    :location,
+    :access_token,
+    :service_account,
+    :service_account_key,
+    :service_account_data,
+    :quota_project_id
+  ]
 
   # Build gun options at runtime to avoid compile-time function capture issue
   # WebSocket connections require HTTP/1.1 for the upgrade handshake
@@ -187,6 +203,12 @@ defmodule Gemini.Client.WebSocket do
   """
   @spec connect(auth_strategy(), keyword()) :: {:ok, t()} | {:error, connection_error()}
   def connect(auth_strategy, opts \\ []) do
+    with :ok <- validate_governed_connection_opts(auth_strategy, opts) do
+      do_connect_entry(auth_strategy, opts)
+    end
+  end
+
+  defp do_connect_entry(auth_strategy, opts) do
     start_time = System.monotonic_time()
     model = Keyword.fetch!(opts, :model)
     api_key = Keyword.get(opts, :api_key)
@@ -194,6 +216,7 @@ defmodule Gemini.Client.WebSocket do
     location = Keyword.get(opts, :location, "us-central1")
     api_version = Keyword.get(opts, :api_version, "v1beta")
     timeout = Keyword.get(opts, :timeout, @connect_timeout)
+    governed_authority = normalize_governed_authority(Keyword.get(opts, :governed_authority))
 
     retry_config = %{
       attempts: Keyword.get(opts, :retry_attempts, @default_retry_attempts),
@@ -207,6 +230,7 @@ defmodule Gemini.Client.WebSocket do
       api_key: api_key,
       project_id: project_id,
       location: location,
+      governed_authority: governed_authority,
       api_version: api_version,
       retry_config: retry_config
     }
@@ -431,11 +455,28 @@ defmodule Gemini.Client.WebSocket do
   # Private Functions
 
   @spec validate_config(t()) :: {:ok, t()} | {:error, atom()}
+  defp validate_config(%__MODULE__{auth_strategy: :governed_authority, governed_authority: nil}) do
+    {:error, :governed_authority_required}
+  end
+
   defp validate_config(%__MODULE__{auth_strategy: :vertex_ai, project_id: nil}) do
     {:error, :project_id_required_for_vertex_ai}
   end
 
   defp validate_config(conn), do: {:ok, conn}
+
+  defp validate_governed_connection_opts(:governed_authority, opts) do
+    case Enum.find(@governed_forbidden_options, &Keyword.has_key?(opts, &1)) do
+      nil -> :ok
+      key -> {:error, {:governed_authority_forbidden_option, key}}
+    end
+  end
+
+  defp validate_governed_connection_opts(_auth_strategy, _opts), do: :ok
+
+  defp normalize_governed_authority(nil), do: nil
+  defp normalize_governed_authority(%GovernedAuthority{} = authority), do: authority
+  defp normalize_governed_authority(authority), do: GovernedAuthority.new!(authority)
 
   @spec connect_with_retry(t(), timeout(), non_neg_integer(), non_neg_integer()) ::
           {:ok, t()} | {:error, connection_error()}
@@ -487,6 +528,20 @@ defmodule Gemini.Client.WebSocket do
     host = "#{location}-aiplatform.googleapis.com"
     Logger.debug("Opening connection to Vertex AI Live endpoint: #{host}")
     do_open_connection(conn, host, 443, timeout)
+  end
+
+  defp open_connection(
+         %__MODULE__{
+           auth_strategy: :governed_authority,
+           governed_authority: %GovernedAuthority{} = authority
+         } = conn,
+         timeout
+       ) do
+    uri = URI.parse(authority.base_url)
+    host = uri.host || authority.base_url
+    port = uri.port || 443
+    Logger.debug("Opening governed Live endpoint")
+    do_open_connection(conn, host, port, timeout)
   end
 
   @spec do_open_connection(t(), String.t(), pos_integer(), timeout()) ::
@@ -552,6 +607,15 @@ defmodule Gemini.Client.WebSocket do
     @vertex_path
   end
 
+  defp build_websocket_path(%__MODULE__{
+         auth_strategy: :governed_authority,
+         governed_authority: %GovernedAuthority{} = authority
+       }) do
+    authority
+    |> governed_websocket_path()
+    |> append_query_params(authority.credential_query_params)
+  end
+
   @doc false
   @spec redact_websocket_path(String.t()) :: String.t()
   def redact_websocket_path(path) when is_binary(path) do
@@ -593,6 +657,31 @@ defmodule Gemini.Client.WebSocket do
     "/ws/google.ai.generativelanguage.#{api_version}.GenerativeService.BidiGenerateContent"
   end
 
+  defp governed_websocket_path(%GovernedAuthority{websocket_path: path})
+       when is_binary(path) and path != "" do
+    path
+  end
+
+  defp governed_websocket_path(%GovernedAuthority{base_url: base_url}) do
+    case URI.parse(base_url) do
+      %URI{path: path} when is_binary(path) and path != "" -> path
+      _other -> "/"
+    end
+  end
+
+  defp append_query_params(path, []), do: path
+
+  defp append_query_params(path, params) do
+    separator = if String.contains?(path, "?"), do: "&", else: "?"
+    path <> separator <> encode_query_params(params)
+  end
+
+  defp encode_query_params(params) do
+    Enum.map_join(params, "&", fn {key, value} ->
+      URI.encode_www_form(key) <> "=" <> URI.encode_www_form(value)
+    end)
+  end
+
   @spec build_upgrade_headers(t()) :: [{String.t(), String.t()}]
   defp build_upgrade_headers(%__MODULE__{auth_strategy: :gemini}) do
     [
@@ -611,6 +700,13 @@ defmodule Gemini.Client.WebSocket do
       {:error, _} ->
         [{"content-type", "application/json"}]
     end
+  end
+
+  defp build_upgrade_headers(%__MODULE__{
+         auth_strategy: :governed_authority,
+         governed_authority: %GovernedAuthority{} = authority
+       }) do
+    [{"content-type", "application/json"} | GovernedAuthority.headers(authority)]
   end
 
   @spec get_auth_params(t()) :: {:ok, map()} | {:error, term()}

@@ -13,7 +13,13 @@ The system is built on two core principles:
 1.  **Dual-Strategy Support:** It natively supports both the simple **Gemini API Key** (`:gemini`) and the more complex **Vertex AI OAuth/JWT** (`:vertex_ai`) authentication methods.
 2.  **Hierarchical Configuration:** It provides a clear and predictable order of precedence for sourcing credentials, prioritizing per-request overrides, then environment variables, and finally Elixir application configuration.
 
-This design makes the library easy to use for simple scripts while being powerful enough for complex, multi-tenant production applications.
+This design makes the library easy to use for standalone scripts while keeping
+governed runtime effects separate. Env, app config, ADC, native Google
+credential discovery, and direct request/session overrides are standalone
+compatibility only. Governed execution passes `Gemini.GovernedAuthority`, which
+contains the authority-selected base URL, credential reference, lease reference,
+target reference, redaction reference, and materialized credential headers or
+query params for one bounded effect.
 
 ### 2. Core Concepts: Authentication Strategies
 
@@ -207,9 +213,11 @@ opts = [
 {:ok, stream_id} = Gemini.APIs.Coordinator.stream_generate_content("Hello", opts)
 ```
 
-#### Method 2: Environment Variables (Recommended for Production)
+#### Method 2: Environment Variables (Standalone Compatibility)
 
-This is the most secure and standard way to provide credentials in production, staging, and CI/CD environments.
+This is the standard standalone way to provide credentials in development,
+staging, CI, and direct SDK deployments. It is not governed authority and cannot
+satisfy governed runtime claims.
 
 *   **For Gemini API Key:**
     ```bash
@@ -231,11 +239,13 @@ This is the most secure and standard way to provide credentials in production, s
     export VERTEX_QUOTA_PROJECT_ID="your-quota-project-id"
     ```
 
-The library will automatically detect and use these variables.
+The library will automatically detect and use these variables only in
+standalone mode.
 
 #### Method 3: Application Configuration (Standard Elixir Way)
 
-Configure the library in your project's `config/runtime.exs` file. This is the canonical approach for managing secrets within an Elixir application.
+Configure the library in your project's `config/runtime.exs` file for
+standalone application defaults. This path is not governed authority.
 
 When both are present for Gemini auth, application config now takes precedence over `GEMINI_API_KEY`.
 
@@ -263,6 +273,32 @@ When both are present for Gemini auth, application config now takes precedence o
         quota_project_id: System.get_env("VERTEX_QUOTA_PROJECT_ID")
       }
     ```
+
+#### Governed Authority
+
+Governed callers do not pass `api_key:`, `access_token:`, `service_account:`,
+`project_id:`, `location:`, app env, env vars, ADC, or native credential files
+as authority. They pass a `Gemini.GovernedAuthority` value:
+
+```elixir
+authority =
+  Gemini.GovernedAuthority.new!(
+    base_url: "https://generativelanguage.googleapis.com/v1beta",
+    credential_ref: "credential-123",
+    credential_lease_ref: "lease-123",
+    target_ref: "target-123",
+    redaction_ref: "redaction-123",
+    credential_headers: %{"x-goog-api-key" => "materialized-key"}
+  )
+
+Gemini.Client.HTTP.post("models/gemini-2.5-flash:generateContent", %{contents: []},
+  governed_authority: authority
+)
+```
+
+For Live WebSocket calls, authority can materialize the query credential and
+the WebSocket path. GeminiEx redacts `key`, `access_token`, and `token` query
+params in path logs and test helpers.
 
 ### 6. Live API Authentication (New in v0.9.0)
 

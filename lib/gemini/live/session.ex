@@ -324,6 +324,7 @@ defmodule Gemini.Live.Session do
         api_key: Keyword.get(opts, :api_key),
         project_id: Keyword.get(opts, :project_id),
         location: Keyword.get(opts, :location, "us-central1"),
+        governed_authority: Keyword.get(opts, :governed_authority),
         generation_config: Keyword.get(opts, :generation_config),
         system_instruction: Keyword.get(opts, :system_instruction),
         tools: Keyword.get(opts, :tools),
@@ -541,12 +542,20 @@ defmodule Gemini.Live.Session do
 
   @spec do_connect(state()) :: {:ok, state()} | {:error, term()}
   defp do_connect(state) do
-    base_opts = [
-      model: state.config.model,
-      api_key: state.config.api_key,
-      project_id: state.config.project_id,
-      location: state.config.location
-    ]
+    base_opts =
+      if state.config.auth == :governed_authority do
+        [
+          model: state.config.model,
+          governed_authority: state.config.governed_authority
+        ]
+      else
+        [
+          model: state.config.model,
+          api_key: state.config.api_key,
+          project_id: state.config.project_id,
+          location: state.config.location
+        ]
+      end
 
     base_opts =
       if state.config.api_version do
@@ -1071,9 +1080,10 @@ defmodule Gemini.Live.Session do
   @spec default_callback(term()) :: :ok
   defp default_callback(_), do: :ok
 
-  @spec detect_auth_strategy(keyword()) :: :gemini | :vertex_ai
+  @spec detect_auth_strategy(keyword()) :: :gemini | :vertex_ai | :governed_authority
   defp detect_auth_strategy(opts) do
     cond do
+      Keyword.get(opts, :governed_authority) -> :governed_authority
       Keyword.get(opts, :api_key) -> :gemini
       Config.api_key() -> :gemini
       Config.get_auth_config(:vertex_ai)[:project_id] -> :vertex_ai

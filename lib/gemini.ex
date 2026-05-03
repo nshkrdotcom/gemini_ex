@@ -78,10 +78,10 @@ defmodule Gemini do
 
   ### 1. Gemini API Key (Simple)
 
-  Best for development and simple applications:
+  Standalone compatibility for development and simple applications:
 
   ```elixir
-  # Environment variable (recommended)
+  # Environment variable for standalone use
   export GEMINI_API_KEY="your_api_key"
 
   # Application config
@@ -91,9 +91,9 @@ defmodule Gemini do
   Gemini.generate("Hello", api_key: "specific_key")
   ```
 
-  ### 2. Vertex AI (Production)
+  ### 2. Vertex AI (Standalone)
 
-  Best for production Google Cloud applications:
+  Standalone compatibility for Google Cloud applications:
 
   ```elixir
   # Service Account JSON file
@@ -110,6 +110,13 @@ defmodule Gemini do
       location: "us-central1"
     }
   ```
+
+  ### Governed Authority
+
+  Governed execution does not use env, app config, ADC, native Google
+  credential files, or direct request/session credential overrides as
+  authority. Pass `Gemini.GovernedAuthority` with the authority-selected base
+  URL and materialized credential headers or query params instead.
 
   ## Error Handling
 

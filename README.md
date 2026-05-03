@@ -83,7 +83,7 @@ Or set the environment variable:
 export GEMINI_API_KEY="your_api_key_here"
 ```
 
-For default Gemini auth resolution, `config :gemini_ex, api_key: ...` now takes precedence over `GEMINI_API_KEY`. Narrower overrides still win: pass `api_key:` directly on a request or on `Gemini.Live.Session.start_link/1` for session-scoped credentials.
+For default Gemini auth resolution, `config :gemini_ex, api_key: ...` now takes precedence over `GEMINI_API_KEY`. Narrower overrides still win in standalone mode: pass `api_key:` directly on a request or on `Gemini.Live.Session.start_link/1` for session-scoped credentials. Governed mode does not use these standalone sources; pass `Gemini.GovernedAuthority` so credentials and targets come from the selected authority materializer.
 
 ### Simple Content Generation
 
@@ -1380,12 +1380,18 @@ The examples follow a consistent pattern:
 
 ## Authentication
 
-### Gemini API Key (Recommended for Development)
+### Gemini API Key (Standalone Compatibility)
 
 Default Gemini key precedence is:
 - Per-request or per-session `api_key:`
 - Application config: `config :gemini_ex, api_key: ...`
 - Environment variable: `GEMINI_API_KEY`
+
+These sources are the standalone SDK compatibility path. They are not governed
+authority. In governed runtime calls, pass a `Gemini.GovernedAuthority` instead;
+the HTTP and Live WebSocket clients reject unmanaged `api_key`, Vertex token,
+service account, project, location, ADC, and base URL overrides whenever a
+governed authority is present.
 
 ```bash
 export GEMINI_API_KEY="your_api_key"
@@ -1400,10 +1406,51 @@ Gemini.generate("Hello", api_key: "specific_key")
   Gemini.Live.Session.start_link(
     model: Gemini.Live.Models.resolve(:audio),
     api_key: "session_specific_key"
-  )
+)
 ```
 
-### Vertex AI (Recommended for Production)
+### Governed Authority
+
+Governed execution uses authority-materialized values selected outside the SDK:
+
+```elixir
+authority =
+  Gemini.GovernedAuthority.new!(
+    base_url: "https://generativelanguage.googleapis.com/v1beta",
+    credential_ref: "credential-123",
+    credential_lease_ref: "lease-123",
+    target_ref: "target-123",
+    redaction_ref: "redaction-123",
+    credential_headers: %{"x-goog-api-key" => "materialized-key"}
+  )
+
+Gemini.Client.HTTP.post("models/gemini-2.5-flash:generateContent", %{contents: []},
+  governed_authority: authority
+)
+```
+
+For Live WebSocket sessions, authority can materialize a redacted query
+credential instead of a raw session `api_key:`:
+
+```elixir
+authority =
+  Gemini.GovernedAuthority.new!(
+    base_url: "wss://generativelanguage.googleapis.com",
+    websocket_path:
+      "/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent",
+    credential_ref: "credential-123",
+    credential_lease_ref: "lease-123",
+    target_ref: "target-123",
+    credential_query_params: [{"key", "materialized-key"}]
+  )
+
+Gemini.Live.Session.start_link(
+  model: Gemini.Live.Models.resolve(:audio),
+  governed_authority: authority
+)
+```
+
+### Vertex AI (Standalone Compatibility)
 
 ```elixir
 # Service Account JSON file
@@ -1424,6 +1471,7 @@ config :gemini_ex, :auth,
 ### Application Default Credentials (ADC)
 
 Zero-config GCP authentication with automatic credential discovery and token refresh.
+ADC remains standalone compatibility only and cannot satisfy governed authority.
 
 ```bash
 # Configure ADC explicitly (optional)

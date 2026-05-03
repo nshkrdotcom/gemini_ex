@@ -23,13 +23,28 @@ defmodule Gemini.Streaming.UnifiedManager do
   alias Gemini.Chat
   alias Gemini.Client.HTTPStreaming
   alias Gemini.Config
+  alias Gemini.GovernedAuthority
   alias Gemini.RateLimiter
   alias Gemini.Streaming.ToolOrchestrator
   alias Gemini.Types.{Content, Part}
 
   @type stream_id :: String.t()
   @type subscriber_ref :: {pid(), reference()}
-  @type auth_strategy :: :gemini | :vertex_ai
+  @type auth_strategy :: :gemini | :vertex_ai | :governed_authority
+
+  @governed_forbidden_options [
+    :auth,
+    :api_key,
+    :project_id,
+    :location,
+    :access_token,
+    :service_account,
+    :service_account_key,
+    :service_account_data,
+    :quota_project_id,
+    :base_url,
+    :headers
+  ]
 
   @type stream_state :: %{
           stream_id: stream_id(),
@@ -463,7 +478,12 @@ defmodule Gemini.Streaming.UnifiedManager do
   # Private helper functions
 
   defp start_stream_with_opts(model, request_body, opts, state) do
-    auth_strategy = Keyword.get(opts, :auth, Gemini.Config.current_api_type())
+    auth_strategy =
+      if Keyword.has_key?(opts, :governed_authority) do
+        :governed_authority
+      else
+        Keyword.get(opts, :auth, Gemini.Config.current_api_type())
+      end
 
     case validate_auth_strategy(auth_strategy) do
       :ok ->
@@ -530,6 +550,7 @@ defmodule Gemini.Streaming.UnifiedManager do
   @spec validate_auth_strategy(term()) :: :ok | {:error, String.t()}
   defp validate_auth_strategy(:gemini), do: :ok
   defp validate_auth_strategy(:vertex_ai), do: :ok
+  defp validate_auth_strategy(:governed_authority), do: :ok
 
   defp validate_auth_strategy(strategy),
     do: {:error, "Invalid auth strategy: #{inspect(strategy)}"}
@@ -652,7 +673,38 @@ defmodule Gemini.Streaming.UnifiedManager do
   end
 
   defp stream_request_with_auth(stream_state) do
-    case MultiAuthCoordinator.coordinate_auth(stream_state.auth_strategy, stream_state.config) do
+    case stream_state.auth_strategy do
+      :governed_authority -> stream_request_with_governed_authority(stream_state)
+      auth_strategy -> stream_request_with_auth_strategy(stream_state, auth_strategy)
+    end
+  end
+
+  defp stream_request_with_governed_authority(stream_state) do
+    with :ok <- validate_governed_stream_opts(stream_state.config),
+         authority <-
+           GovernedAuthority.new!(Keyword.fetch!(stream_state.config, :governed_authority)),
+         url <- governed_streaming_url(authority, stream_state.model) do
+      streaming_opts =
+        Keyword.take(stream_state.config, [
+          :timeout,
+          :max_retries,
+          :max_backoff_ms,
+          :connect_timeout,
+          :method,
+          :add_sse_params
+        ])
+
+      start_stream_to_process(
+        url,
+        ensure_content_type_header(GovernedAuthority.headers(authority)),
+        stream_state,
+        streaming_opts
+      )
+    end
+  end
+
+  defp stream_request_with_auth_strategy(stream_state, auth_strategy) do
+    case MultiAuthCoordinator.coordinate_auth(auth_strategy, stream_state.config) do
       {:ok, auth_strategy, headers} ->
         case get_streaming_url_and_headers(stream_state, auth_strategy, headers) do
           {:ok, url, final_headers} ->
@@ -675,6 +727,20 @@ defmodule Gemini.Streaming.UnifiedManager do
       {:error, reason} ->
         {:error, "Auth failed: #{reason}"}
     end
+  end
+
+  defp validate_governed_stream_opts(opts) do
+    case Enum.find(@governed_forbidden_options, &Keyword.has_key?(opts, &1)) do
+      nil -> :ok
+      key -> {:error, {:governed_authority_forbidden_option, key}}
+    end
+  end
+
+  defp governed_streaming_url(%GovernedAuthority{base_url: base_url}, model) do
+    normalized_model =
+      if String.starts_with?(model, "models/"), do: model, else: "models/#{model}"
+
+    String.trim_trailing(base_url, "/") <> "/" <> normalized_model <> ":streamGenerateContent"
   end
 
   defp start_stream_to_process(url, final_headers, stream_state, []) do

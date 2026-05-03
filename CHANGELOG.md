@@ -8,9 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
+- **Governed authority mode**: HTTP and Live WebSocket calls can now use a `Gemini.GovernedAuthority` value that supplies authority-selected base URLs and materialized credential headers/query params while rejecting unmanaged request credentials in governed mode.
 - **Provider payload parsing**: service account keys, SSE fields, model list payloads, Live response modalities, and WebSocket redaction now use bounded field maps and deterministic string parsing.
 
 ### Tests
+- Added governed authority regression coverage for HTTP auth materialization, request override rejection, WebSocket query redaction, and standalone auth compatibility.
 - Added focused regression coverage for provider-authored service account keys and unknown SSE fields to ensure they are ignored instead of interned as new atoms.
 
 ## [0.13.0] - 2026-04-02
