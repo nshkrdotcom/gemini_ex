@@ -135,7 +135,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New ADC credential source for containerized environments (Heroku, Fly.io, Railway, Docker) where mounting credential files is impractical
 - Set `GOOGLE_APPLICATION_CREDENTIALS_JSON='{"type":"service_account",...}'` with full JSON content
 - Parsed before the standard file-path `GOOGLE_APPLICATION_CREDENTIALS` in the credential discovery chain
-- Service account JSON parsing now uses an explicit key allowlist instead of `String.to_atom/1`
+- Service account JSON parsing now uses an explicit key allowlist instead of runtime atom conversion
 
 #### Vertex AI Model Endpoints
 - **`list_models/1`** uses the correct Vertex publisher models endpoint (`/v1beta1/publishers/google/models`) with `pageSize`/`pageToken` query params
