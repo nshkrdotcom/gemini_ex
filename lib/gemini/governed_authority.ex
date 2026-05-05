@@ -15,9 +15,14 @@ defmodule Gemini.GovernedAuthority do
   @type t :: %__MODULE__{
           base_url: String.t(),
           websocket_path: String.t() | nil,
+          provider_ref: String.t(),
+          provider_account_ref: String.t(),
+          model_account_ref: String.t(),
+          endpoint_ref: String.t(),
           credential_ref: String.t(),
           credential_lease_ref: String.t(),
           target_ref: String.t(),
+          operation_policy_ref: String.t(),
           redaction_ref: String.t() | nil,
           headers: header_map(),
           credential_headers: header_map(),
@@ -26,15 +31,25 @@ defmodule Gemini.GovernedAuthority do
 
   @enforce_keys [
     :base_url,
+    :provider_ref,
+    :provider_account_ref,
+    :model_account_ref,
+    :endpoint_ref,
     :credential_ref,
     :credential_lease_ref,
-    :target_ref
+    :target_ref,
+    :operation_policy_ref
   ]
   defstruct base_url: nil,
             websocket_path: nil,
+            provider_ref: nil,
+            provider_account_ref: nil,
+            model_account_ref: nil,
+            endpoint_ref: nil,
             credential_ref: nil,
             credential_lease_ref: nil,
             target_ref: nil,
+            operation_policy_ref: nil,
             redaction_ref: nil,
             headers: %{},
             credential_headers: %{},
@@ -53,9 +68,14 @@ defmodule Gemini.GovernedAuthority do
     authority = %__MODULE__{
       base_url: required_string!(opts, :base_url),
       websocket_path: optional_string(opts, :websocket_path),
+      provider_ref: required_string!(opts, :provider_ref),
+      provider_account_ref: required_string!(opts, :provider_account_ref),
+      model_account_ref: required_string!(opts, :model_account_ref),
+      endpoint_ref: required_string!(opts, :endpoint_ref),
       credential_ref: required_string!(opts, :credential_ref),
       credential_lease_ref: required_string!(opts, :credential_lease_ref),
       target_ref: required_string!(opts, :target_ref),
+      operation_policy_ref: required_string!(opts, :operation_policy_ref),
       redaction_ref: optional_string(opts, :redaction_ref),
       headers: normalize_headers(fetch_value(opts, :headers, %{})),
       credential_headers: normalize_headers(fetch_value(opts, :credential_headers, %{})),
@@ -71,6 +91,23 @@ defmodule Gemini.GovernedAuthority do
     authority.headers
     |> Map.merge(authority.credential_headers)
     |> Enum.map(fn {name, value} -> {name, value} end)
+  end
+
+  @spec refs(t()) :: map()
+  def refs(%__MODULE__{} = authority) do
+    %{
+      provider_ref: authority.provider_ref,
+      provider_account_ref: authority.provider_account_ref,
+      model_account_ref: authority.model_account_ref,
+      endpoint_ref: authority.endpoint_ref,
+      credential_ref: authority.credential_ref,
+      credential_lease_ref: authority.credential_lease_ref,
+      target_ref: authority.target_ref,
+      operation_policy_ref: authority.operation_policy_ref,
+      redaction_ref: authority.redaction_ref
+    }
+    |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+    |> Map.new()
   end
 
   @spec credential_materialized?(t()) :: boolean()
@@ -98,9 +135,9 @@ defmodule Gemini.GovernedAuthority do
 
   defp optional_string(opts, key) do
     case fetch_value(opts, key, nil) do
+      nil -> nil
       value when is_binary(value) -> value
       value when is_atom(value) -> Atom.to_string(value)
-      nil -> nil
       value -> to_string(value)
     end
   end

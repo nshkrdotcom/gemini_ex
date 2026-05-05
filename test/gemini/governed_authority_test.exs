@@ -74,6 +74,35 @@ defmodule Gemini.GovernedAuthorityTest do
              )
   end
 
+  test "governed authority requires provider endpoint account and operation refs" do
+    required_refs = [
+      :provider_ref,
+      :provider_account_ref,
+      :model_account_ref,
+      :endpoint_ref,
+      :operation_policy_ref
+    ]
+
+    for ref <- required_refs do
+      error =
+        assert_raise ArgumentError, fn ->
+          ref
+          |> missing_authority()
+          |> GovernedAuthority.new!()
+        end
+
+      assert error.message =~ to_string(ref)
+    end
+
+    refs = authority() |> GovernedAuthority.refs()
+    assert refs.provider_ref == "provider://google/gemini"
+    assert refs.provider_account_ref == "provider-account://google/gemini/test"
+    assert refs.model_account_ref == "model-account://google/gemini/flash"
+    assert refs.endpoint_ref == "endpoint://google/gemini/v1beta"
+    assert refs.operation_policy_ref == "operation-policy://gemini/generate"
+    refute inspect(refs) =~ "authority-token"
+  end
+
   test "governed HTTP rejects unmanaged env, app env, request credentials, and absolute URLs" do
     System.put_env("GEMINI_API_KEY", "env-key")
     System.put_env("VERTEX_ACCESS_TOKEN", "env-token")
@@ -146,9 +175,14 @@ defmodule Gemini.GovernedAuthorityTest do
     [
       base_url: "wss://governed.example.test",
       websocket_path: "/ws/governed",
+      provider_ref: "provider://google/gemini",
+      provider_account_ref: "provider-account://google/gemini/test",
+      model_account_ref: "model-account://google/gemini/flash",
+      endpoint_ref: "endpoint://google/gemini/v1beta",
       credential_ref: "credential-123",
       credential_lease_ref: "lease-123",
       target_ref: "target-123",
+      operation_policy_ref: "operation-policy://gemini/generate",
       redaction_ref: "redaction-123",
       headers: %{"x-governed-target" => "target-123"},
       credential_headers: %{"authorization" => "Bearer authority-token"},
@@ -156,5 +190,11 @@ defmodule Gemini.GovernedAuthorityTest do
     ]
     |> Keyword.merge(overrides)
     |> GovernedAuthority.new!()
+  end
+
+  defp missing_authority(ref) do
+    authority()
+    |> Map.from_struct()
+    |> Map.delete(ref)
   end
 end
