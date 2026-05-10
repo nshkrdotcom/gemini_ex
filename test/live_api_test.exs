@@ -51,7 +51,7 @@ defmodule LiveAPITest do
       IO.puts("\n🔑 Testing Gemini API Authentication")
       IO.puts("-" |> String.duplicate(40))
 
-      api_key = System.get_env("GEMINI_API_KEY")
+      api_key = Gemini.Env.get("GEMINI_API_KEY")
 
       if api_key do
         Gemini.configure(:gemini, %{api_key: api_key})
@@ -89,7 +89,7 @@ defmodule LiveAPITest do
       IO.puts("\n  📝 Testing model listing with Gemini API")
       IO.puts("-" |> String.duplicate(40))
 
-      api_key = System.get_env("GEMINI_API_KEY")
+      api_key = Gemini.Env.get("GEMINI_API_KEY")
 
       if api_key do
         Gemini.configure(:gemini, %{api_key: api_key})

@@ -22,20 +22,20 @@ defmodule Gemini.Live.SessionVertexLiveTest do
 
   @moduletag :live_vertex_ai
 
-  @run_billed_live_tests System.get_env("RUN_BILLED_VERTEX_LIVE_TESTS") in [
+  @run_billed_live_tests Gemini.Env.get("RUN_BILLED_VERTEX_LIVE_TESTS") in [
                            "1",
                            "true",
                            "TRUE",
                            "yes",
                            "YES"
                          ]
-  @project_id System.get_env("VERTEX_PROJECT_ID")
-  @location System.get_env("VERTEX_LOCATION") || "us-central1"
+  @project_id Gemini.Env.get("VERTEX_PROJECT_ID")
+  @location Gemini.Env.get("VERTEX_LOCATION") || "us-central1"
   @has_auth Enum.any?(
               [
-                System.get_env("VERTEX_SERVICE_ACCOUNT"),
-                System.get_env("VERTEX_ACCESS_TOKEN"),
-                System.get_env("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+                Gemini.Env.get("VERTEX_SERVICE_ACCOUNT"),
+                Gemini.Env.get("VERTEX_ACCESS_TOKEN"),
+                Gemini.Env.get("GOOGLE_APPLICATION_CREDENTIALS_JSON")
               ],
               fn value -> is_binary(value) and value != "" end
             )
@@ -59,13 +59,13 @@ defmodule Gemini.Live.SessionVertexLiveTest do
 
   setup %{live_model_result: live_model_result} do
     {:ok,
-     project_id: System.fetch_env!("VERTEX_PROJECT_ID"),
+     project_id: Gemini.Env.fetch!("VERTEX_PROJECT_ID"),
      location: @location,
      live_model_result: live_model_result}
   end
 
   describe "Vertex AI connection" do
-    if System.get_env("GOOGLE_APPLICATION_CREDENTIALS_JSON") in [nil, ""] do
+    if Gemini.Env.get("GOOGLE_APPLICATION_CREDENTIALS_JSON") in [nil, ""] do
       @tag :adc_json
       @tag skip: "GOOGLE_APPLICATION_CREDENTIALS_JSON not set"
       @tag :live_vertex_ai

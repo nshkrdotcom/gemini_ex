@@ -1,5 +1,5 @@
 defmodule Gemini.APIs.ContextCacheTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias Gemini.APIs.ContextCache
   alias Gemini.Types.Content
@@ -11,12 +11,12 @@ defmodule Gemini.APIs.ContextCacheTest do
     original_envs =
       Enum.map(
         ~w(GEMINI_API_KEY VERTEX_SERVICE_ACCOUNT VERTEX_JSON_FILE VERTEX_ACCESS_TOKEN VERTEX_PROJECT_ID VERTEX_LOCATION GOOGLE_CLOUD_PROJECT GOOGLE_CLOUD_LOCATION),
-        fn key -> {key, System.get_env(key)} end
+        fn key -> {key, Gemini.Env.get(key)} end
       )
 
     Enum.each(original_envs, fn
-      {"GEMINI_API_KEY", _} -> System.put_env("GEMINI_API_KEY", "test-key")
-      {key, _} -> System.delete_env(key)
+      {"GEMINI_API_KEY", _} -> Gemini.Env.put("GEMINI_API_KEY", "test-key")
+      {key, _} -> Gemini.Env.delete(key)
     end)
 
     original_app_auth = Application.get_env(:gemini, :auth)
@@ -24,8 +24,8 @@ defmodule Gemini.APIs.ContextCacheTest do
 
     on_exit(fn ->
       Enum.each(original_envs, fn
-        {key, nil} -> System.delete_env(key)
-        {key, value} -> System.put_env(key, value)
+        {key, nil} -> Gemini.Env.delete(key)
+        {key, value} -> Gemini.Env.put(key, value)
       end)
 
       if original_app_auth do

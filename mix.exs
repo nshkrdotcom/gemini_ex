@@ -1,3 +1,7 @@
+unless Code.ensure_loaded?(DependencySources) do
+  Code.require_file("build_support/dependency_sources.exs", __DIR__)
+end
+
 defmodule Gemini.MixProject do
   use Mix.Project
 
@@ -39,27 +43,28 @@ defmodule Gemini.MixProject do
   end
 
   defp deps do
-    [
-      # Core dependencies
-      {:req, "~> 0.5.10"},
-      {:jason, "~> 1.4.4"},
-      {:typed_struct, "~> 0.3.0"},
-      {:joken, "~> 2.6.2"},
-      {:telemetry, "~> 1.3.0"},
-      {:gun, "~> 2.1"},
+    DependencySources.deps() ++
+      [
+        # Core dependencies
+        {:req, "~> 0.5.10"},
+        {:jason, "~> 1.4.4"},
+        {:typed_struct, "~> 0.3.0"},
+        {:joken, "~> 2.6.2"},
+        {:telemetry, "~> 1.3.0"},
+        {:gun, "~> 2.1"},
 
-      # ALTAR ADM - tool contract dependency
-      {:altar, "~> 0.2.0"},
+        # ALTAR ADM - tool contract dependency
+        {:altar, "~> 0.2.0"},
 
-      # Development and testing
-      {:ex_doc, "~> 0.40.0", only: :dev, runtime: false},
-      {:credo, "~> 1.7.12", only: [:dev, :test], runtime: false},
-      {:dialyxir, "~> 1.4.5", only: [:dev], runtime: false},
-      {:mox, "~> 1.0", only: :test},
-      {:meck, "~> 1.1.0", only: :test},
-      {:supertester, "~> 0.5.1", only: :test},
-      {:bypass, "~> 2.1", only: :test}
-    ]
+        # Development and testing
+        {:ex_doc, "~> 0.40.0", only: :dev, runtime: false},
+        {:credo, "~> 1.7.12", only: [:dev, :test], runtime: false},
+        {:dialyxir, "~> 1.4.5", only: [:dev], runtime: false},
+        {:mox, "~> 1.0", only: :test},
+        {:meck, "~> 1.1.0", only: :test},
+        {:supertester, "~> 0.5.1", only: :test},
+        {:bypass, "~> 2.1", only: :test}
+      ]
   end
 
   defp description do
@@ -283,7 +288,7 @@ defmodule Gemini.MixProject do
     [
       name: "gemini_ex",
       description: description(),
-      files: ~w(lib assets mix.exs README.md CHANGELOG.md LICENSE guides),
+      files: ~w(lib assets build_support mix.exs README.md CHANGELOG.md LICENSE guides),
       licenses: ["MIT"],
       links: %{
         "GitHub" => @source_url,

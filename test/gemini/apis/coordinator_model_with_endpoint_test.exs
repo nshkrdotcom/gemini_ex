@@ -11,10 +11,10 @@ defmodule Gemini.APIs.CoordinatorModelWithEndpointTest do
   alias Gemini.Config
 
   setup do
-    original_key = System.get_env("GEMINI_API_KEY")
+    original_key = Gemini.Env.get("GEMINI_API_KEY")
     original_auth = Application.get_env(:gemini_ex, :auth)
 
-    System.put_env("GEMINI_API_KEY", "dummy-key")
+    Gemini.Env.put("GEMINI_API_KEY", "dummy-key")
 
     Application.put_env(:gemini_ex, :auth, %{
       type: :gemini,
@@ -32,9 +32,9 @@ defmodule Gemini.APIs.CoordinatorModelWithEndpointTest do
 
     on_exit(fn ->
       if is_nil(original_key) do
-        System.delete_env("GEMINI_API_KEY")
+        Gemini.Env.delete("GEMINI_API_KEY")
       else
-        System.put_env("GEMINI_API_KEY", original_key)
+        Gemini.Env.put("GEMINI_API_KEY", original_key)
       end
 
       if is_nil(original_auth) do

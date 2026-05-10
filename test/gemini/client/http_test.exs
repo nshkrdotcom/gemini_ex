@@ -22,18 +22,18 @@ defmodule Gemini.Client.HTTPTest do
   ]
 
   setup do
-    original_env = Enum.map(@env_vars, fn key -> {key, System.get_env(key)} end)
+    original_env = Enum.map(@env_vars, fn key -> {key, Gemini.Env.get(key)} end)
 
     original_app_env =
       Enum.map(@app_env_keys, fn {app, key} -> {app, key, Application.get_env(app, key)} end)
 
-    Enum.each(@env_vars, &System.delete_env/1)
+    Enum.each(@env_vars, &Gemini.Env.delete/1)
     Enum.each(@app_env_keys, fn {app, key} -> Application.delete_env(app, key) end)
 
     on_exit(fn ->
       Enum.each(original_env, fn
-        {key, nil} -> System.delete_env(key)
-        {key, value} -> System.put_env(key, value)
+        {key, nil} -> Gemini.Env.delete(key)
+        {key, value} -> Gemini.Env.put(key, value)
       end)
 
       Enum.each(original_app_env, fn
@@ -47,10 +47,10 @@ defmodule Gemini.Client.HTTPTest do
 
   describe "auth_config_for_request/1" do
     test "honors auth: :vertex_ai even when gemini key is present" do
-      System.put_env("GEMINI_API_KEY", "gemini-key")
-      System.put_env("VERTEX_PROJECT_ID", "vertex-proj")
-      System.put_env("VERTEX_LOCATION", "us-central1")
-      System.put_env("VERTEX_ACCESS_TOKEN", "vertex-token")
+      Gemini.Env.put("GEMINI_API_KEY", "gemini-key")
+      Gemini.Env.put("VERTEX_PROJECT_ID", "vertex-proj")
+      Gemini.Env.put("VERTEX_LOCATION", "us-central1")
+      Gemini.Env.put("VERTEX_ACCESS_TOKEN", "vertex-token")
 
       auth_config = HTTP.auth_config_for_request(auth: :vertex_ai)
 
@@ -61,9 +61,9 @@ defmodule Gemini.Client.HTTPTest do
     end
 
     test "supports auth: :vertex alias" do
-      System.put_env("VERTEX_PROJECT_ID", "vertex-proj")
-      System.put_env("VERTEX_LOCATION", "us-central1")
-      System.put_env("VERTEX_ACCESS_TOKEN", "vertex-token")
+      Gemini.Env.put("VERTEX_PROJECT_ID", "vertex-proj")
+      Gemini.Env.put("VERTEX_LOCATION", "us-central1")
+      Gemini.Env.put("VERTEX_ACCESS_TOKEN", "vertex-token")
 
       auth_config = HTTP.auth_config_for_request(auth: :vertex)
 
@@ -72,7 +72,7 @@ defmodule Gemini.Client.HTTPTest do
     end
 
     test "applies per-request gemini api_key override" do
-      System.put_env("GEMINI_API_KEY", "env-key")
+      Gemini.Env.put("GEMINI_API_KEY", "env-key")
 
       auth_config = HTTP.auth_config_for_request(auth: :gemini, api_key: "override-key")
 
@@ -81,9 +81,9 @@ defmodule Gemini.Client.HTTPTest do
     end
 
     test "infers gemini auth when only api_key override is provided" do
-      System.put_env("VERTEX_PROJECT_ID", "vertex-proj")
-      System.put_env("VERTEX_LOCATION", "us-central1")
-      System.put_env("VERTEX_ACCESS_TOKEN", "vertex-token")
+      Gemini.Env.put("VERTEX_PROJECT_ID", "vertex-proj")
+      Gemini.Env.put("VERTEX_LOCATION", "us-central1")
+      Gemini.Env.put("VERTEX_ACCESS_TOKEN", "vertex-token")
 
       auth_config = HTTP.auth_config_for_request(api_key: "override-key")
 
@@ -92,9 +92,9 @@ defmodule Gemini.Client.HTTPTest do
     end
 
     test "applies per-request vertex overrides" do
-      System.put_env("VERTEX_PROJECT_ID", "env-proj")
-      System.put_env("VERTEX_LOCATION", "us-central1")
-      System.put_env("VERTEX_ACCESS_TOKEN", "env-token")
+      Gemini.Env.put("VERTEX_PROJECT_ID", "env-proj")
+      Gemini.Env.put("VERTEX_LOCATION", "us-central1")
+      Gemini.Env.put("VERTEX_ACCESS_TOKEN", "env-token")
 
       auth_config =
         HTTP.auth_config_for_request(
@@ -113,7 +113,7 @@ defmodule Gemini.Client.HTTPTest do
     end
 
     test "infers vertex auth when only a vertex override is provided" do
-      System.put_env("GEMINI_API_KEY", "gemini-key")
+      Gemini.Env.put("GEMINI_API_KEY", "gemini-key")
 
       auth_config = HTTP.auth_config_for_request(project_id: "override-proj")
 

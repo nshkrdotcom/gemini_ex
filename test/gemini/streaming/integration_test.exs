@@ -144,23 +144,23 @@ defmodule Gemini.StreamingIntegrationTest do
       original_gemini_auth = Application.get_env(:gemini, :auth)
       original_config = Application.get_env(:gemini_ex, :auth)
       original_api_key = Application.get_env(:gemini_ex, :api_key)
-      original_gemini_key = System.get_env("GEMINI_API_KEY")
-      original_vertex_token = System.get_env("VERTEX_ACCESS_TOKEN")
-      original_vertex_service = System.get_env("VERTEX_SERVICE_ACCOUNT")
-      original_vertex_json = System.get_env("VERTEX_JSON_FILE")
-      original_vertex_project = System.get_env("VERTEX_PROJECT_ID")
-      original_google_project = System.get_env("GOOGLE_CLOUD_PROJECT")
+      original_gemini_key = Gemini.Env.get("GEMINI_API_KEY")
+      original_vertex_token = Gemini.Env.get("VERTEX_ACCESS_TOKEN")
+      original_vertex_service = Gemini.Env.get("VERTEX_SERVICE_ACCOUNT")
+      original_vertex_json = Gemini.Env.get("VERTEX_JSON_FILE")
+      original_vertex_project = Gemini.Env.get("VERTEX_PROJECT_ID")
+      original_google_project = Gemini.Env.get("GOOGLE_CLOUD_PROJECT")
 
       # Clear all auth sources - BOTH namespaces
       Application.delete_env(:gemini, :auth)
       Application.delete_env(:gemini_ex, :auth)
       Application.delete_env(:gemini_ex, :api_key)
-      System.delete_env("GEMINI_API_KEY")
-      System.delete_env("VERTEX_ACCESS_TOKEN")
-      System.delete_env("VERTEX_SERVICE_ACCOUNT")
-      System.delete_env("VERTEX_JSON_FILE")
-      System.delete_env("VERTEX_PROJECT_ID")
-      System.delete_env("GOOGLE_CLOUD_PROJECT")
+      Gemini.Env.delete("GEMINI_API_KEY")
+      Gemini.Env.delete("VERTEX_ACCESS_TOKEN")
+      Gemini.Env.delete("VERTEX_SERVICE_ACCOUNT")
+      Gemini.Env.delete("VERTEX_JSON_FILE")
+      Gemini.Env.delete("VERTEX_PROJECT_ID")
+      Gemini.Env.delete("GOOGLE_CLOUD_PROJECT")
 
       try do
         contents = "Hello, world!"
@@ -176,19 +176,19 @@ defmodule Gemini.StreamingIntegrationTest do
         if original_gemini_auth, do: Application.put_env(:gemini, :auth, original_gemini_auth)
         if original_config, do: Application.put_env(:gemini_ex, :auth, original_config)
         if original_api_key, do: Application.put_env(:gemini_ex, :api_key, original_api_key)
-        if original_gemini_key, do: System.put_env("GEMINI_API_KEY", original_gemini_key)
-        if original_vertex_token, do: System.put_env("VERTEX_ACCESS_TOKEN", original_vertex_token)
+        if original_gemini_key, do: Gemini.Env.put("GEMINI_API_KEY", original_gemini_key)
+        if original_vertex_token, do: Gemini.Env.put("VERTEX_ACCESS_TOKEN", original_vertex_token)
 
         if original_vertex_service,
-          do: System.put_env("VERTEX_SERVICE_ACCOUNT", original_vertex_service)
+          do: Gemini.Env.put("VERTEX_SERVICE_ACCOUNT", original_vertex_service)
 
-        if original_vertex_json, do: System.put_env("VERTEX_JSON_FILE", original_vertex_json)
+        if original_vertex_json, do: Gemini.Env.put("VERTEX_JSON_FILE", original_vertex_json)
 
         if original_vertex_project,
-          do: System.put_env("VERTEX_PROJECT_ID", original_vertex_project)
+          do: Gemini.Env.put("VERTEX_PROJECT_ID", original_vertex_project)
 
         if original_google_project,
-          do: System.put_env("GOOGLE_CLOUD_PROJECT", original_google_project)
+          do: Gemini.Env.put("GOOGLE_CLOUD_PROJECT", original_google_project)
       end
     end
 
@@ -240,23 +240,23 @@ defmodule Gemini.StreamingIntegrationTest do
       original_gemini_auth = Application.get_env(:gemini, :auth)
       original_config = Application.get_env(:gemini_ex, :auth)
       original_api_key = Application.get_env(:gemini_ex, :api_key)
-      original_gemini_key = System.get_env("GEMINI_API_KEY")
-      original_vertex_token = System.get_env("VERTEX_ACCESS_TOKEN")
-      original_vertex_service = System.get_env("VERTEX_SERVICE_ACCOUNT")
-      original_vertex_json = System.get_env("VERTEX_JSON_FILE")
-      original_vertex_project = System.get_env("VERTEX_PROJECT_ID")
-      original_google_project = System.get_env("GOOGLE_CLOUD_PROJECT")
+      original_gemini_key = Gemini.Env.get("GEMINI_API_KEY")
+      original_vertex_token = Gemini.Env.get("VERTEX_ACCESS_TOKEN")
+      original_vertex_service = Gemini.Env.get("VERTEX_SERVICE_ACCOUNT")
+      original_vertex_json = Gemini.Env.get("VERTEX_JSON_FILE")
+      original_vertex_project = Gemini.Env.get("VERTEX_PROJECT_ID")
+      original_google_project = Gemini.Env.get("GOOGLE_CLOUD_PROJECT")
 
       # Clear all auth sources - BOTH namespaces
       Application.delete_env(:gemini, :auth)
       Application.delete_env(:gemini_ex, :auth)
       Application.delete_env(:gemini_ex, :api_key)
-      System.delete_env("GEMINI_API_KEY")
-      System.delete_env("VERTEX_ACCESS_TOKEN")
-      System.delete_env("VERTEX_SERVICE_ACCOUNT")
-      System.delete_env("VERTEX_JSON_FILE")
-      System.delete_env("VERTEX_PROJECT_ID")
-      System.delete_env("GOOGLE_CLOUD_PROJECT")
+      Gemini.Env.delete("GEMINI_API_KEY")
+      Gemini.Env.delete("VERTEX_ACCESS_TOKEN")
+      Gemini.Env.delete("VERTEX_SERVICE_ACCOUNT")
+      Gemini.Env.delete("VERTEX_JSON_FILE")
+      Gemini.Env.delete("VERTEX_PROJECT_ID")
+      Gemini.Env.delete("GOOGLE_CLOUD_PROJECT")
 
       try do
         contents = "Test content"
@@ -270,19 +270,19 @@ defmodule Gemini.StreamingIntegrationTest do
         if original_gemini_auth, do: Application.put_env(:gemini, :auth, original_gemini_auth)
         if original_config, do: Application.put_env(:gemini_ex, :auth, original_config)
         if original_api_key, do: Application.put_env(:gemini_ex, :api_key, original_api_key)
-        if original_gemini_key, do: System.put_env("GEMINI_API_KEY", original_gemini_key)
-        if original_vertex_token, do: System.put_env("VERTEX_ACCESS_TOKEN", original_vertex_token)
+        if original_gemini_key, do: Gemini.Env.put("GEMINI_API_KEY", original_gemini_key)
+        if original_vertex_token, do: Gemini.Env.put("VERTEX_ACCESS_TOKEN", original_vertex_token)
 
         if original_vertex_service,
-          do: System.put_env("VERTEX_SERVICE_ACCOUNT", original_vertex_service)
+          do: Gemini.Env.put("VERTEX_SERVICE_ACCOUNT", original_vertex_service)
 
-        if original_vertex_json, do: System.put_env("VERTEX_JSON_FILE", original_vertex_json)
+        if original_vertex_json, do: Gemini.Env.put("VERTEX_JSON_FILE", original_vertex_json)
 
         if original_vertex_project,
-          do: System.put_env("VERTEX_PROJECT_ID", original_vertex_project)
+          do: Gemini.Env.put("VERTEX_PROJECT_ID", original_vertex_project)
 
         if original_google_project,
-          do: System.put_env("GOOGLE_CLOUD_PROJECT", original_google_project)
+          do: Gemini.Env.put("GOOGLE_CLOUD_PROJECT", original_google_project)
       end
     end
 
@@ -462,7 +462,7 @@ defmodule Gemini.StreamingIntegrationTest do
     @tag :live_api
     test "end-to-end streaming with real API" do
       # This test requires GEMINI_API_KEY environment variable
-      case System.get_env("GEMINI_API_KEY") do
+      case Gemini.Env.get("GEMINI_API_KEY") do
         nil ->
           IO.puts("Skipping integration test - no API key")
           :ok
@@ -501,7 +501,7 @@ defmodule Gemini.StreamingIntegrationTest do
 
     @tag :live_api
     test "streaming with error handling" do
-      case System.get_env("GEMINI_API_KEY") do
+      case Gemini.Env.get("GEMINI_API_KEY") do
         nil ->
           :ok
 

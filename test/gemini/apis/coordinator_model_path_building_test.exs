@@ -12,7 +12,7 @@ defmodule Gemini.APIs.CoordinatorModelPathBuildingTest do
     original_env =
       Map.new(
         ["GEMINI_API_KEY", "VERTEX_PROJECT_ID", "VERTEX_LOCATION", "VERTEX_ACCESS_TOKEN"],
-        fn key -> {key, System.get_env(key)} end
+        fn key -> {key, Gemini.Env.get(key)} end
       )
 
     :meck.new(Gemini.Auth, [:passthrough])
@@ -27,8 +27,8 @@ defmodule Gemini.APIs.CoordinatorModelPathBuildingTest do
       end
 
       Enum.each(original_env, fn
-        {key, nil} -> System.delete_env(key)
-        {key, value} -> System.put_env(key, value)
+        {key, nil} -> Gemini.Env.delete(key)
+        {key, value} -> Gemini.Env.put(key, value)
       end)
     end)
 
@@ -40,10 +40,10 @@ defmodule Gemini.APIs.CoordinatorModelPathBuildingTest do
       "http://localhost:#{bypass.port}"
     end)
 
-    System.put_env("GEMINI_API_KEY", "test-key")
-    System.delete_env("VERTEX_PROJECT_ID")
-    System.delete_env("VERTEX_LOCATION")
-    System.delete_env("VERTEX_ACCESS_TOKEN")
+    Gemini.Env.put("GEMINI_API_KEY", "test-key")
+    Gemini.Env.delete("VERTEX_PROJECT_ID")
+    Gemini.Env.delete("VERTEX_LOCATION")
+    Gemini.Env.delete("VERTEX_ACCESS_TOKEN")
 
     Application.put_env(:gemini_ex, :auth, %{type: :gemini, credentials: %{api_key: "test"}})
 
@@ -69,10 +69,10 @@ defmodule Gemini.APIs.CoordinatorModelPathBuildingTest do
       "http://localhost:#{bypass.port}"
     end)
 
-    System.delete_env("GEMINI_API_KEY")
-    System.put_env("VERTEX_PROJECT_ID", "proj")
-    System.put_env("VERTEX_LOCATION", "loc")
-    System.put_env("VERTEX_ACCESS_TOKEN", "token")
+    Gemini.Env.delete("GEMINI_API_KEY")
+    Gemini.Env.put("VERTEX_PROJECT_ID", "proj")
+    Gemini.Env.put("VERTEX_LOCATION", "loc")
+    Gemini.Env.put("VERTEX_ACCESS_TOKEN", "token")
 
     Application.put_env(:gemini_ex, :auth, %{
       type: :vertex_ai,
@@ -101,10 +101,10 @@ defmodule Gemini.APIs.CoordinatorModelPathBuildingTest do
       "http://localhost:#{bypass.port}/v1"
     end)
 
-    System.delete_env("GEMINI_API_KEY")
-    System.put_env("VERTEX_PROJECT_ID", "proj")
-    System.put_env("VERTEX_LOCATION", "loc")
-    System.put_env("VERTEX_ACCESS_TOKEN", "token")
+    Gemini.Env.delete("GEMINI_API_KEY")
+    Gemini.Env.put("VERTEX_PROJECT_ID", "proj")
+    Gemini.Env.put("VERTEX_LOCATION", "loc")
+    Gemini.Env.put("VERTEX_ACCESS_TOKEN", "token")
 
     Application.put_env(:gemini_ex, :auth, %{
       type: :vertex_ai,
@@ -146,10 +146,10 @@ defmodule Gemini.APIs.CoordinatorModelPathBuildingTest do
       "http://localhost:#{bypass.port}/v1"
     end)
 
-    System.delete_env("GEMINI_API_KEY")
-    System.put_env("VERTEX_PROJECT_ID", "proj")
-    System.put_env("VERTEX_LOCATION", "loc")
-    System.put_env("VERTEX_ACCESS_TOKEN", "token")
+    Gemini.Env.delete("GEMINI_API_KEY")
+    Gemini.Env.put("VERTEX_PROJECT_ID", "proj")
+    Gemini.Env.put("VERTEX_LOCATION", "loc")
+    Gemini.Env.put("VERTEX_ACCESS_TOKEN", "token")
 
     Application.put_env(:gemini_ex, :auth, %{
       type: :vertex_ai,

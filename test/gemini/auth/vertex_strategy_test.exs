@@ -50,24 +50,24 @@ defmodule Gemini.Auth.VertexStrategyTest do
   }
 
   setup do
-    original_google_creds = System.get_env("GOOGLE_APPLICATION_CREDENTIALS")
-    original_google_creds_json = System.get_env("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+    original_google_creds = Gemini.Env.get("GOOGLE_APPLICATION_CREDENTIALS")
+    original_google_creds_json = Gemini.Env.get("GOOGLE_APPLICATION_CREDENTIALS_JSON")
 
     # Isolate tests from developer machine credentials
-    System.delete_env("GOOGLE_APPLICATION_CREDENTIALS")
-    System.delete_env("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+    Gemini.Env.delete("GOOGLE_APPLICATION_CREDENTIALS")
+    Gemini.Env.delete("GOOGLE_APPLICATION_CREDENTIALS_JSON")
 
     on_exit(fn ->
       if original_google_creds do
-        System.put_env("GOOGLE_APPLICATION_CREDENTIALS", original_google_creds)
+        Gemini.Env.put("GOOGLE_APPLICATION_CREDENTIALS", original_google_creds)
       else
-        System.delete_env("GOOGLE_APPLICATION_CREDENTIALS")
+        Gemini.Env.delete("GOOGLE_APPLICATION_CREDENTIALS")
       end
 
       if original_google_creds_json do
-        System.put_env("GOOGLE_APPLICATION_CREDENTIALS_JSON", original_google_creds_json)
+        Gemini.Env.put("GOOGLE_APPLICATION_CREDENTIALS_JSON", original_google_creds_json)
       else
-        System.delete_env("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+        Gemini.Env.delete("GOOGLE_APPLICATION_CREDENTIALS_JSON")
       end
     end)
 

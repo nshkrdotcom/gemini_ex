@@ -328,8 +328,8 @@ defmodule Gemini.APIs.Tunings do
     project_id =
       Keyword.get(opts, :project_id) ||
         Config.get_auth_config(:vertex_ai)[:project_id] ||
-        System.get_env("VERTEX_PROJECT_ID") ||
-        System.get_env("GOOGLE_CLOUD_PROJECT")
+        Gemini.Env.get("VERTEX_PROJECT_ID") ||
+        Gemini.Env.get("GOOGLE_CLOUD_PROJECT")
 
     case project_id do
       nil -> {:error, :project_id_required}

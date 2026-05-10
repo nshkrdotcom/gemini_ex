@@ -19,7 +19,7 @@ defmodule Gemini.APIs.FilesContractTest do
   ]
 
   setup do
-    original_env = Map.new(@auth_env_vars, &{&1, System.get_env(&1)})
+    original_env = Map.new(@auth_env_vars, &{&1, Gemini.Env.get(&1)})
     original_auth = Application.get_env(:gemini_ex, :auth)
     original_legacy_auth = Application.get_env(:gemini, :auth)
 
@@ -45,7 +45,7 @@ defmodule Gemini.APIs.FilesContractTest do
   end
 
   test "upload/2 uses the resolved Gemini API key and omits output-only mimeType metadata" do
-    System.put_env("GEMINI_API_KEY", "env-api-key")
+    Gemini.Env.put("GEMINI_API_KEY", "env-api-key")
     Application.delete_env(:gemini_ex, :auth)
 
     :meck.new(Req, [:non_strict, :passthrough])
@@ -128,7 +128,7 @@ defmodule Gemini.APIs.FilesContractTest do
   end
 
   test "upload_data/2 returns a config error when no auth is configured" do
-    Enum.each(@auth_env_vars, &System.delete_env/1)
+    Enum.each(@auth_env_vars, &Gemini.Env.delete/1)
     Application.delete_env(:gemini_ex, :auth)
     Application.delete_env(:gemini, :auth)
 
@@ -176,6 +176,6 @@ defmodule Gemini.APIs.FilesContractTest do
     |> List.flatten()
   end
 
-  defp restore_env(var, nil), do: System.delete_env(var)
-  defp restore_env(var, value), do: System.put_env(var, value)
+  defp restore_env(var, nil), do: Gemini.Env.delete(var)
+  defp restore_env(var, value), do: Gemini.Env.put(var, value)
 end

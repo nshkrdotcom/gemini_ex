@@ -67,7 +67,7 @@ defmodule Gemini.LiveAPI.ADCLiveTest do
 
   describe "ADC with service account file" do
     test "loads service account from GOOGLE_APPLICATION_CREDENTIALS" do
-      case System.get_env("GOOGLE_APPLICATION_CREDENTIALS") do
+      case Gemini.Env.get("GOOGLE_APPLICATION_CREDENTIALS") do
         nil ->
           IO.puts("⊘ GOOGLE_APPLICATION_CREDENTIALS not set")
 
@@ -95,7 +95,7 @@ defmodule Gemini.LiveAPI.ADCLiveTest do
     end
 
     test "generates access token from service account" do
-      case System.get_env("GOOGLE_APPLICATION_CREDENTIALS") do
+      case Gemini.Env.get("GOOGLE_APPLICATION_CREDENTIALS") do
         path when is_binary(path) and path != "" ->
           if File.exists?(path) do
             case ADC.load_credentials() do
@@ -175,13 +175,13 @@ defmodule Gemini.LiveAPI.ADCLiveTest do
   describe "ADC with service account JSON env var" do
     @tag :adc_json
     test "loads service account from GOOGLE_APPLICATION_CREDENTIALS_JSON" do
-      case System.get_env("GOOGLE_APPLICATION_CREDENTIALS_JSON") do
+      case Gemini.Env.get("GOOGLE_APPLICATION_CREDENTIALS_JSON") do
         json when is_binary(json) and json != "" ->
-          original_file_path = System.get_env("GOOGLE_APPLICATION_CREDENTIALS")
+          original_file_path = Gemini.Env.get("GOOGLE_APPLICATION_CREDENTIALS")
 
           try do
             # Ensure this test specifically validates JSON-content flow.
-            System.delete_env("GOOGLE_APPLICATION_CREDENTIALS")
+            Gemini.Env.delete("GOOGLE_APPLICATION_CREDENTIALS")
 
             case ADC.load_credentials() do
               {:ok, {:service_account, creds}} ->
@@ -197,7 +197,7 @@ defmodule Gemini.LiveAPI.ADCLiveTest do
             end
           after
             if original_file_path do
-              System.put_env("GOOGLE_APPLICATION_CREDENTIALS", original_file_path)
+              Gemini.Env.put("GOOGLE_APPLICATION_CREDENTIALS", original_file_path)
             end
           end
 
@@ -208,12 +208,12 @@ defmodule Gemini.LiveAPI.ADCLiveTest do
 
     @tag :adc_json
     test "generates access token from GOOGLE_APPLICATION_CREDENTIALS_JSON credentials" do
-      case System.get_env("GOOGLE_APPLICATION_CREDENTIALS_JSON") do
+      case Gemini.Env.get("GOOGLE_APPLICATION_CREDENTIALS_JSON") do
         json when is_binary(json) and json != "" ->
-          original_file_path = System.get_env("GOOGLE_APPLICATION_CREDENTIALS")
+          original_file_path = Gemini.Env.get("GOOGLE_APPLICATION_CREDENTIALS")
 
           try do
-            System.delete_env("GOOGLE_APPLICATION_CREDENTIALS")
+            Gemini.Env.delete("GOOGLE_APPLICATION_CREDENTIALS")
 
             case ADC.load_credentials() do
               {:ok, {:service_account, _} = creds} ->
@@ -235,7 +235,7 @@ defmodule Gemini.LiveAPI.ADCLiveTest do
             end
           after
             if original_file_path do
-              System.put_env("GOOGLE_APPLICATION_CREDENTIALS", original_file_path)
+              Gemini.Env.put("GOOGLE_APPLICATION_CREDENTIALS", original_file_path)
             end
           end
 
@@ -347,10 +347,10 @@ defmodule Gemini.LiveAPI.ADCLiveTest do
   describe "error handling and edge cases" do
     test "handles missing credentials gracefully" do
       # Temporarily clear GOOGLE_APPLICATION_CREDENTIALS
-      original = System.get_env("GOOGLE_APPLICATION_CREDENTIALS")
+      original = Gemini.Env.get("GOOGLE_APPLICATION_CREDENTIALS")
 
       try do
-        System.delete_env("GOOGLE_APPLICATION_CREDENTIALS")
+        Gemini.Env.delete("GOOGLE_APPLICATION_CREDENTIALS")
 
         case ADC.load_credentials() do
           {:ok, {source, _}} ->
@@ -362,16 +362,16 @@ defmodule Gemini.LiveAPI.ADCLiveTest do
         end
       after
         if original do
-          System.put_env("GOOGLE_APPLICATION_CREDENTIALS", original)
+          Gemini.Env.put("GOOGLE_APPLICATION_CREDENTIALS", original)
         end
       end
     end
 
     test "handles invalid service account file path" do
-      original = System.get_env("GOOGLE_APPLICATION_CREDENTIALS")
+      original = Gemini.Env.get("GOOGLE_APPLICATION_CREDENTIALS")
 
       try do
-        System.put_env("GOOGLE_APPLICATION_CREDENTIALS", "/nonexistent/path/to/file.json")
+        Gemini.Env.put("GOOGLE_APPLICATION_CREDENTIALS", "/nonexistent/path/to/file.json")
 
         case ADC.load_credentials() do
           {:ok, {source, _}} ->
@@ -382,9 +382,9 @@ defmodule Gemini.LiveAPI.ADCLiveTest do
         end
       after
         if original do
-          System.put_env("GOOGLE_APPLICATION_CREDENTIALS", original)
+          Gemini.Env.put("GOOGLE_APPLICATION_CREDENTIALS", original)
         else
-          System.delete_env("GOOGLE_APPLICATION_CREDENTIALS")
+          Gemini.Env.delete("GOOGLE_APPLICATION_CREDENTIALS")
         end
       end
     end

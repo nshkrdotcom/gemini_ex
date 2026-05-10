@@ -18,20 +18,20 @@ defmodule Gemini.Client.WebSocketLiveTest do
   alias Gemini.Test.LiveHelpers
   alias Gemini.Types.Live.Setup
 
-  @has_gemini_api_key System.get_env("GEMINI_API_KEY") not in [nil, ""]
-  @run_billed_vertex_live_tests System.get_env("RUN_BILLED_VERTEX_LIVE_TESTS") in [
+  @has_gemini_api_key Gemini.Env.get("GEMINI_API_KEY") not in [nil, ""]
+  @run_billed_vertex_live_tests Gemini.Env.get("RUN_BILLED_VERTEX_LIVE_TESTS") in [
                                   "1",
                                   "true",
                                   "TRUE",
                                   "yes",
                                   "YES"
                                 ]
-  @vertex_project_id System.get_env("VERTEX_PROJECT_ID")
+  @vertex_project_id Gemini.Env.get("VERTEX_PROJECT_ID")
   @has_vertex_auth Enum.any?(
                      [
-                       System.get_env("VERTEX_SERVICE_ACCOUNT"),
-                       System.get_env("VERTEX_ACCESS_TOKEN"),
-                       System.get_env("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+                       Gemini.Env.get("VERTEX_SERVICE_ACCOUNT"),
+                       Gemini.Env.get("VERTEX_ACCESS_TOKEN"),
+                       Gemini.Env.get("GOOGLE_APPLICATION_CREDENTIALS_JSON")
                      ],
                      fn value -> is_binary(value) and value != "" end
                    )
@@ -97,7 +97,7 @@ defmodule Gemini.Client.WebSocketLiveTest do
     @tag :live_vertex_ai
     test "establishes connection successfully" do
       live_model = Models.default(:audio)
-      project_id = System.fetch_env!("VERTEX_PROJECT_ID")
+      project_id = Gemini.Env.fetch!("VERTEX_PROJECT_ID")
 
       {:ok, conn} =
         WebSocket.connect(:vertex_ai,

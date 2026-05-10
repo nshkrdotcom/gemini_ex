@@ -28,18 +28,18 @@ defmodule Gemini.GovernedAuthorityTest do
   ]
 
   setup do
-    original_env = Enum.map(@env_vars, fn key -> {key, System.get_env(key)} end)
+    original_env = Enum.map(@env_vars, fn key -> {key, Gemini.Env.get(key)} end)
 
     original_app_env =
       Enum.map(@app_env_keys, fn {app, key} -> {app, key, Application.get_env(app, key)} end)
 
-    Enum.each(@env_vars, &System.delete_env/1)
+    Enum.each(@env_vars, &Gemini.Env.delete/1)
     Enum.each(@app_env_keys, fn {app, key} -> Application.delete_env(app, key) end)
 
     on_exit(fn ->
       Enum.each(original_env, fn
-        {key, nil} -> System.delete_env(key)
-        {key, value} -> System.put_env(key, value)
+        {key, nil} -> Gemini.Env.delete(key)
+        {key, value} -> Gemini.Env.put(key, value)
       end)
 
       Enum.each(original_app_env, fn
@@ -104,8 +104,8 @@ defmodule Gemini.GovernedAuthorityTest do
   end
 
   test "governed HTTP rejects unmanaged env, app env, request credentials, and absolute URLs" do
-    System.put_env("GEMINI_API_KEY", "env-key")
-    System.put_env("VERTEX_ACCESS_TOKEN", "env-token")
+    Gemini.Env.put("GEMINI_API_KEY", "env-key")
+    Gemini.Env.put("VERTEX_ACCESS_TOKEN", "env-token")
     Application.put_env(:gemini_ex, :api_key, "app-key")
 
     for {key, value} <- forbidden_http_options() do
@@ -124,7 +124,7 @@ defmodule Gemini.GovernedAuthorityTest do
   end
 
   test "standalone direct auth remains compatible outside governed mode" do
-    System.put_env("GEMINI_API_KEY", "env-key")
+    Gemini.Env.put("GEMINI_API_KEY", "env-key")
 
     assert %{type: :gemini, credentials: %{api_key: "request-key"}} =
              HTTP.auth_config_for_request(api_key: "request-key")

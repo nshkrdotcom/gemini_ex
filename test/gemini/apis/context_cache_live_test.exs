@@ -22,7 +22,7 @@ defmodule Gemini.APIs.ContextCacheLiveTest do
   setup_all do
     Application.ensure_all_started(:gemini)
 
-    case System.get_env("GEMINI_API_KEY") do
+    case Gemini.Env.get("GEMINI_API_KEY") do
       nil ->
         {:ok, skip: true}
 

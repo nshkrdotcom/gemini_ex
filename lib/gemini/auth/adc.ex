@@ -163,7 +163,7 @@ defmodule Gemini.Auth.ADC do
     Logger.debug("[ADC] Starting credential discovery")
 
     # 1. Check GOOGLE_APPLICATION_CREDENTIALS_JSON environment variable (JSON content)
-    case System.get_env("GOOGLE_APPLICATION_CREDENTIALS_JSON") do
+    case Gemini.Env.get("GOOGLE_APPLICATION_CREDENTIALS_JSON") do
       nil ->
         Logger.debug("[ADC] GOOGLE_APPLICATION_CREDENTIALS_JSON not set")
         load_credentials_from_file_or_fallback()
@@ -180,7 +180,7 @@ defmodule Gemini.Auth.ADC do
 
   defp load_credentials_from_file_or_fallback do
     # 2. Check GOOGLE_APPLICATION_CREDENTIALS environment variable (file path)
-    case System.get_env("GOOGLE_APPLICATION_CREDENTIALS") do
+    case Gemini.Env.get("GOOGLE_APPLICATION_CREDENTIALS") do
       nil ->
         Logger.debug("[ADC] GOOGLE_APPLICATION_CREDENTIALS not set")
         load_user_credentials_or_metadata()
@@ -328,8 +328,7 @@ defmodule Gemini.Auth.ADC do
           %{project_id: project_id, location: "us-central1"}
 
         {:error, _} ->
-          # Prompt user or use environment variable
-          System.get_env("VERTEX_PROJECT_ID")
+          # Prompt user or use explicit application config/caller options.
       end
   """
   @spec get_project_id(credentials()) :: {:ok, String.t()} | {:error, error_reason()}

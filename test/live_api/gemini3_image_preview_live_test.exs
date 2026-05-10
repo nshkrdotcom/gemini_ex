@@ -16,7 +16,7 @@ defmodule Gemini.LiveAPI.Gemini3ImagePreviewLiveTest do
   @moduletag timeout: 180_000
 
   setup do
-    api_key = System.get_env("GEMINI_API_KEY")
+    api_key = Gemini.Env.get("GEMINI_API_KEY")
 
     if is_nil(api_key) or api_key == "" do
       {:ok, skip: true}

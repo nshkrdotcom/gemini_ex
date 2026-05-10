@@ -1228,7 +1228,7 @@ defmodule Gemini.Config do
 
   # Returns nil for empty strings, so "" is treated as "not set"
   defp get_env_non_empty(var) do
-    case System.get_env(var) do
+    case Gemini.Env.get(var) do
       nil -> nil
       "" -> nil
       value -> value

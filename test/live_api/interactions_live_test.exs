@@ -57,7 +57,7 @@ defmodule Gemini.APIs.InteractionsLiveTest do
 
   defp model_candidates do
     [
-      System.get_env("INTERACTIONS_MODEL"),
+      Gemini.Env.get("INTERACTIONS_MODEL"),
       "gemini-2.5-flash",
       "gemini-2.5-flash-lite"
     ]
@@ -67,7 +67,7 @@ defmodule Gemini.APIs.InteractionsLiveTest do
 
   defp agent_candidates do
     [
-      System.get_env("INTERACTIONS_AGENT"),
+      Gemini.Env.get("INTERACTIONS_AGENT"),
       "deep-research-pro-preview-12-2025"
     ]
     |> Enum.reject(&(&1 in [nil, ""]))

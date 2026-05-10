@@ -35,7 +35,7 @@ defmodule Gemini.APIs.CoordinatorMultimodalLiveTest do
   @fixtures_dir Path.join([__DIR__, "..", "..", "fixtures", "multimodal"])
 
   setup do
-    api_key = System.get_env("GEMINI_API_KEY")
+    api_key = Gemini.Env.get("GEMINI_API_KEY")
 
     if api_key do
       Gemini.configure(:gemini, %{api_key: api_key})

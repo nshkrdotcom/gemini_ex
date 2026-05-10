@@ -37,7 +37,7 @@ defmodule Gemini do
   import Config
 
   config :gemini,
-    api_key: System.get_env("GEMINI_API_KEY")
+    api_key: "your_api_key"
   ```
 
   Or set the environment variable:
@@ -105,8 +105,8 @@ defmodule Gemini do
   config :gemini, :auth,
     type: :vertex_ai,
     credentials: %{
-      service_account_key: System.get_env("VERTEX_SERVICE_ACCOUNT"),
-      project_id: System.get_env("VERTEX_PROJECT_ID"),
+      service_account_key: "/path/to/service-account.json",
+      project_id: "your-gcp-project",
       location: "us-central1"
     }
   ```

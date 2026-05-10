@@ -19,7 +19,7 @@ defmodule Gemini.Live.SessionLiveTest do
   @moduletag :live_gemini
 
   setup_all do
-    if System.get_env("GEMINI_API_KEY") do
+    if Gemini.Env.get("GEMINI_API_KEY") do
       {:ok, live_model: Models.resolve(:audio)}
     else
       {:skip, "GEMINI_API_KEY required for live tests"}

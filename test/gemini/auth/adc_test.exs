@@ -40,25 +40,25 @@ defmodule Gemini.Auth.ADCTest do
     test_id = :erlang.unique_integer([:positive])
 
     # Save original env vars
-    original_google_creds = System.get_env("GOOGLE_APPLICATION_CREDENTIALS")
-    original_google_creds_json = System.get_env("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+    original_google_creds = Gemini.Env.get("GOOGLE_APPLICATION_CREDENTIALS")
+    original_google_creds_json = Gemini.Env.get("GOOGLE_APPLICATION_CREDENTIALS_JSON")
 
     # Isolate tests from developer machine credentials
-    System.delete_env("GOOGLE_APPLICATION_CREDENTIALS")
-    System.delete_env("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+    Gemini.Env.delete("GOOGLE_APPLICATION_CREDENTIALS")
+    Gemini.Env.delete("GOOGLE_APPLICATION_CREDENTIALS_JSON")
 
     on_exit(fn ->
       # Restore original env vars
       if original_google_creds do
-        System.put_env("GOOGLE_APPLICATION_CREDENTIALS", original_google_creds)
+        Gemini.Env.put("GOOGLE_APPLICATION_CREDENTIALS", original_google_creds)
       else
-        System.delete_env("GOOGLE_APPLICATION_CREDENTIALS")
+        Gemini.Env.delete("GOOGLE_APPLICATION_CREDENTIALS")
       end
 
       if original_google_creds_json do
-        System.put_env("GOOGLE_APPLICATION_CREDENTIALS_JSON", original_google_creds_json)
+        Gemini.Env.put("GOOGLE_APPLICATION_CREDENTIALS_JSON", original_google_creds_json)
       else
-        System.delete_env("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+        Gemini.Env.delete("GOOGLE_APPLICATION_CREDENTIALS_JSON")
       end
 
       # DO NOT call TokenCache.clear() - it races with other async tests
@@ -72,8 +72,8 @@ defmodule Gemini.Auth.ADCTest do
 
   describe "load_credentials/0" do
     test "loads service account from GOOGLE_APPLICATION_CREDENTIALS_JSON" do
-      System.put_env("GOOGLE_APPLICATION_CREDENTIALS_JSON", Jason.encode!(@service_account_creds))
-      System.delete_env("GOOGLE_APPLICATION_CREDENTIALS")
+      Gemini.Env.put("GOOGLE_APPLICATION_CREDENTIALS_JSON", Jason.encode!(@service_account_creds))
+      Gemini.Env.delete("GOOGLE_APPLICATION_CREDENTIALS")
 
       assert {:ok, {:service_account, creds}} = ADC.load_credentials()
       assert creds.type == "service_account"
@@ -82,8 +82,8 @@ defmodule Gemini.Auth.ADCTest do
     end
 
     test "returns error for invalid GOOGLE_APPLICATION_CREDENTIALS_JSON" do
-      System.put_env("GOOGLE_APPLICATION_CREDENTIALS_JSON", "{not-valid-json")
-      System.delete_env("GOOGLE_APPLICATION_CREDENTIALS")
+      Gemini.Env.put("GOOGLE_APPLICATION_CREDENTIALS_JSON", "{not-valid-json")
+      Gemini.Env.delete("GOOGLE_APPLICATION_CREDENTIALS")
 
       assert {:error, reason} = ADC.load_credentials()
       assert reason =~ "GOOGLE_APPLICATION_CREDENTIALS_JSON"
@@ -93,8 +93,8 @@ defmodule Gemini.Auth.ADCTest do
       temp_file = create_temp_service_account_file()
 
       try do
-        System.put_env("GOOGLE_APPLICATION_CREDENTIALS_JSON", "")
-        System.put_env("GOOGLE_APPLICATION_CREDENTIALS", temp_file)
+        Gemini.Env.put("GOOGLE_APPLICATION_CREDENTIALS_JSON", "")
+        Gemini.Env.put("GOOGLE_APPLICATION_CREDENTIALS", temp_file)
 
         assert {:ok, {:service_account, creds}} = ADC.load_credentials()
         assert creds.project_id == "test-project-123"
@@ -108,7 +108,7 @@ defmodule Gemini.Auth.ADCTest do
       temp_file = create_temp_service_account_file()
 
       try do
-        System.put_env("GOOGLE_APPLICATION_CREDENTIALS", temp_file)
+        Gemini.Env.put("GOOGLE_APPLICATION_CREDENTIALS", temp_file)
 
         assert {:ok, {:service_account, creds}} = ADC.load_credentials()
         assert creds.type == "service_account"
@@ -116,12 +116,12 @@ defmodule Gemini.Auth.ADCTest do
         assert creds.client_email == "test@test-project.iam.gserviceaccount.com"
       after
         File.rm(temp_file)
-        System.delete_env("GOOGLE_APPLICATION_CREDENTIALS")
+        Gemini.Env.delete("GOOGLE_APPLICATION_CREDENTIALS")
       end
     end
 
     test "returns error when GOOGLE_APPLICATION_CREDENTIALS file doesn't exist" do
-      System.put_env("GOOGLE_APPLICATION_CREDENTIALS", "/non/existent/file.json")
+      Gemini.Env.put("GOOGLE_APPLICATION_CREDENTIALS", "/non/existent/file.json")
 
       # Should fall through to other credential sources
       result = ADC.load_credentials()
@@ -129,7 +129,7 @@ defmodule Gemini.Auth.ADCTest do
       # Will either find user creds or metadata server, or fail
       assert match?({:ok, _}, result) or match?({:error, _}, result)
 
-      System.delete_env("GOOGLE_APPLICATION_CREDENTIALS")
+      Gemini.Env.delete("GOOGLE_APPLICATION_CREDENTIALS")
     end
 
     test "returns error when GOOGLE_APPLICATION_CREDENTIALS file has invalid JSON" do
@@ -137,21 +137,21 @@ defmodule Gemini.Auth.ADCTest do
       File.write!(temp_file, "invalid json content")
 
       try do
-        System.put_env("GOOGLE_APPLICATION_CREDENTIALS", temp_file)
+        Gemini.Env.put("GOOGLE_APPLICATION_CREDENTIALS", temp_file)
 
         # Should fall through to other credential sources
         result = ADC.load_credentials()
         assert match?({:ok, _}, result) or match?({:error, _}, result)
       after
         File.rm(temp_file)
-        System.delete_env("GOOGLE_APPLICATION_CREDENTIALS")
+        Gemini.Env.delete("GOOGLE_APPLICATION_CREDENTIALS")
       end
     end
 
     test "loads user credentials from default path if available" do
       # This test would require mocking the file system or having actual user creds
       # For now, we just verify the function handles missing user creds gracefully
-      System.delete_env("GOOGLE_APPLICATION_CREDENTIALS")
+      Gemini.Env.delete("GOOGLE_APPLICATION_CREDENTIALS")
 
       result = ADC.load_credentials()
 
@@ -160,7 +160,7 @@ defmodule Gemini.Auth.ADCTest do
     end
 
     test "returns error when no credentials are available" do
-      System.delete_env("GOOGLE_APPLICATION_CREDENTIALS")
+      Gemini.Env.delete("GOOGLE_APPLICATION_CREDENTIALS")
 
       # If metadata server is not available and no user creds exist
       # This will vary based on test environment, so we just check it doesn't crash
@@ -298,18 +298,18 @@ defmodule Gemini.Auth.ADCTest do
       temp_file = create_temp_service_account_file()
 
       try do
-        System.put_env("GOOGLE_APPLICATION_CREDENTIALS", temp_file)
+        Gemini.Env.put("GOOGLE_APPLICATION_CREDENTIALS", temp_file)
 
         assert ADC.available?() == true
       after
         File.rm(temp_file)
-        System.delete_env("GOOGLE_APPLICATION_CREDENTIALS")
+        Gemini.Env.delete("GOOGLE_APPLICATION_CREDENTIALS")
       end
     end
 
     test "returns true when GOOGLE_APPLICATION_CREDENTIALS_JSON is set" do
-      System.delete_env("GOOGLE_APPLICATION_CREDENTIALS")
-      System.put_env("GOOGLE_APPLICATION_CREDENTIALS_JSON", Jason.encode!(@service_account_creds))
+      Gemini.Env.delete("GOOGLE_APPLICATION_CREDENTIALS")
+      Gemini.Env.put("GOOGLE_APPLICATION_CREDENTIALS_JSON", Jason.encode!(@service_account_creds))
 
       assert ADC.available?() == true
     end
@@ -389,8 +389,8 @@ defmodule Gemini.Auth.ADCTest do
     end
 
     test "provides helpful error messages" do
-      System.delete_env("GOOGLE_APPLICATION_CREDENTIALS")
-      System.delete_env("GOOGLE_APPLICATION_CREDENTIALS_JSON")
+      Gemini.Env.delete("GOOGLE_APPLICATION_CREDENTIALS")
+      Gemini.Env.delete("GOOGLE_APPLICATION_CREDENTIALS_JSON")
 
       case ADC.load_credentials() do
         {:error, reason} ->

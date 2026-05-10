@@ -26,7 +26,7 @@ defmodule Gemini.ConfigTest do
 
   setup do
     # Save all original environment variables
-    original_env = Enum.map(@env_vars, fn key -> {key, System.get_env(key)} end)
+    original_env = Enum.map(@env_vars, fn key -> {key, Gemini.Env.get(key)} end)
 
     original_app_env =
       Enum.map(@app_env_keys, fn {app, key} -> {app, key, Application.get_env(app, key)} end)
@@ -36,8 +36,8 @@ defmodule Gemini.ConfigTest do
     on_exit(fn ->
       # Restore all original environment variables
       Enum.each(original_env, fn
-        {key, nil} -> System.delete_env(key)
-        {key, value} -> System.put_env(key, value)
+        {key, nil} -> Gemini.Env.delete(key)
+        {key, value} -> Gemini.Env.put(key, value)
       end)
 
       Enum.each(original_app_env, fn
@@ -51,7 +51,7 @@ defmodule Gemini.ConfigTest do
 
   # Helper to clear all config-related env vars for isolated tests
   defp clear_all_auth_env_vars do
-    Enum.each(@env_vars, &System.delete_env/1)
+    Enum.each(@env_vars, &Gemini.Env.delete/1)
   end
 
   describe "get/0" do
@@ -67,7 +67,7 @@ defmodule Gemini.ConfigTest do
 
     test "detects gemini auth type when GEMINI_API_KEY is set" do
       clear_all_auth_env_vars()
-      System.put_env("GEMINI_API_KEY", "test-key")
+      Gemini.Env.put("GEMINI_API_KEY", "test-key")
 
       config = Config.get()
 
@@ -77,7 +77,7 @@ defmodule Gemini.ConfigTest do
 
     test "prefers application api_key over GEMINI_API_KEY" do
       clear_all_auth_env_vars()
-      System.put_env("GEMINI_API_KEY", "env-key")
+      Gemini.Env.put("GEMINI_API_KEY", "env-key")
       Application.put_env(:gemini_ex, :api_key, "app-key")
 
       config = Config.get()
@@ -88,8 +88,8 @@ defmodule Gemini.ConfigTest do
 
     test "detects vertex auth type when GOOGLE_CLOUD_PROJECT is set" do
       clear_all_auth_env_vars()
-      System.put_env("GOOGLE_CLOUD_PROJECT", "test-project")
-      System.put_env("GOOGLE_CLOUD_LOCATION", "us-central1")
+      Gemini.Env.put("GOOGLE_CLOUD_PROJECT", "test-project")
+      Gemini.Env.put("GOOGLE_CLOUD_LOCATION", "us-central1")
 
       config = Config.get()
 
@@ -100,9 +100,9 @@ defmodule Gemini.ConfigTest do
 
     test "gemini takes priority when both auth types are available" do
       clear_all_auth_env_vars()
-      System.put_env("GEMINI_API_KEY", "test-key")
-      System.put_env("GOOGLE_CLOUD_PROJECT", "test-project")
-      System.put_env("GOOGLE_CLOUD_LOCATION", "us-central1")
+      Gemini.Env.put("GEMINI_API_KEY", "test-key")
+      Gemini.Env.put("GOOGLE_CLOUD_PROJECT", "test-project")
+      Gemini.Env.put("GOOGLE_CLOUD_LOCATION", "us-central1")
 
       config = Config.get()
 
@@ -114,7 +114,7 @@ defmodule Gemini.ConfigTest do
   describe "get/1" do
     test "allows overriding auth_type" do
       clear_all_auth_env_vars()
-      System.put_env("GEMINI_API_KEY", "test-key")
+      Gemini.Env.put("GEMINI_API_KEY", "test-key")
 
       config =
         Config.get(auth_type: :vertex, project_id: "override-project", location: "us-west1")
@@ -126,7 +126,7 @@ defmodule Gemini.ConfigTest do
 
     test "allows overriding specific fields while keeping detection" do
       clear_all_auth_env_vars()
-      System.put_env("GEMINI_API_KEY", "test-key")
+      Gemini.Env.put("GEMINI_API_KEY", "test-key")
 
       config = Config.get(model: default_model())
 
@@ -147,10 +147,10 @@ defmodule Gemini.ConfigTest do
       original_env =
         Enum.map(
           ~w(GEMINI_API_KEY GOOGLE_CLOUD_PROJECT GOOGLE_CLOUD_LOCATION VERTEX_SERVICE_ACCOUNT VERTEX_JSON_FILE VERTEX_ACCESS_TOKEN VERTEX_PROJECT_ID VERTEX_LOCATION),
-          fn key -> {key, System.get_env(key)} end
+          fn key -> {key, Gemini.Env.get(key)} end
         )
 
-      Enum.each(original_env, fn {key, _} -> System.delete_env(key) end)
+      Enum.each(original_env, fn {key, _} -> Gemini.Env.delete(key) end)
 
       Application.put_env(:gemini, :auth, %{type: :gemini, credentials: %{api_key: "runtime-key"}})
 
@@ -158,8 +158,8 @@ defmodule Gemini.ConfigTest do
         Application.delete_env(:gemini, :auth)
 
         Enum.each(original_env, fn
-          {key, nil} -> System.delete_env(key)
-          {key, value} -> System.put_env(key, value)
+          {key, nil} -> Gemini.Env.delete(key)
+          {key, value} -> Gemini.Env.put(key, value)
         end)
       end)
 
@@ -168,7 +168,7 @@ defmodule Gemini.ConfigTest do
 
     test "prefers application api_key over GEMINI_API_KEY" do
       clear_all_auth_env_vars()
-      System.put_env("GEMINI_API_KEY", "env-key")
+      Gemini.Env.put("GEMINI_API_KEY", "env-key")
       Application.put_env(:gemini_ex, :api_key, "app-key")
 
       assert %{type: :gemini, credentials: %{api_key: "app-key"}} = Config.auth_config()
@@ -178,7 +178,7 @@ defmodule Gemini.ConfigTest do
   describe "api_key/0" do
     test "prefers application config over GEMINI_API_KEY" do
       clear_all_auth_env_vars()
-      System.put_env("GEMINI_API_KEY", "env-key")
+      Gemini.Env.put("GEMINI_API_KEY", "env-key")
       Application.put_env(:gemini_ex, :api_key, "app-key")
 
       assert Config.api_key() == "app-key"

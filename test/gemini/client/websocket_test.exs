@@ -247,10 +247,10 @@ defmodule Gemini.Client.WebSocketTest do
   describe "redacted_websocket_path/1 with per-connection api_key" do
     setup do
       original_app_key = Application.get_env(:gemini_ex, :api_key)
-      original_env_key = System.get_env("GEMINI_API_KEY")
+      original_env_key = Gemini.Env.get("GEMINI_API_KEY")
 
       Application.delete_env(:gemini_ex, :api_key)
-      System.delete_env("GEMINI_API_KEY")
+      Gemini.Env.delete("GEMINI_API_KEY")
 
       on_exit(fn ->
         case original_app_key do
@@ -259,8 +259,8 @@ defmodule Gemini.Client.WebSocketTest do
         end
 
         case original_env_key do
-          nil -> System.delete_env("GEMINI_API_KEY")
-          value -> System.put_env("GEMINI_API_KEY", value)
+          nil -> Gemini.Env.delete("GEMINI_API_KEY")
+          value -> Gemini.Env.put("GEMINI_API_KEY", value)
         end
       end)
 
