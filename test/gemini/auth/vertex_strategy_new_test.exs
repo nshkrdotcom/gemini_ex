@@ -114,11 +114,32 @@ defmodule Gemini.Auth.VertexStrategyTestNew do
       assert error =~ "Missing required fields: project_id and location"
     end
 
-    test "defaults to oauth2 auth method when not specified" do
-      config = %{project_id: "test-project", location: "us-central1"}
+    test "uses oauth2 auth method when explicitly requested" do
+      config = %{
+        project_id: "test-project",
+        location: "us-central1",
+        auth_method: :oauth2
+      }
 
       assert {:ok, credentials} = VertexStrategy.authenticate(config)
+
+      assert credentials.project_id == "test-project"
+      assert credentials.location == "us-central1"
       assert credentials.access_token == "oauth2-placeholder-token"
+    end
+
+    test "defaults to ADC when available and otherwise falls back to oauth2" do
+      config = %{
+        project_id: "test-project",
+        location: "us-central1"
+      }
+
+      assert {:ok, credentials} = VertexStrategy.authenticate(config)
+
+      assert credentials.project_id == "test-project"
+      assert credentials.location == "us-central1"
+      assert is_binary(credentials.access_token)
+      assert credentials.access_token != ""
     end
 
     test "returns error for invalid configuration" do
@@ -181,10 +202,29 @@ defmodule Gemini.Auth.VertexStrategyTestNew do
     end
 
     test "returns error for unknown credentials" do
-      credentials = %{}
+      credentials = %{unknown_credentials: "not-valid"}
 
       assert {:error, reason} = VertexStrategy.headers(credentials)
+
       assert reason =~ "No valid Vertex AI credentials found"
+      assert reason =~ "unknown_credentials"
+    end
+
+    test "may use ADC for project/location-only credentials" do
+      credentials = %{project_id: "test-project", location: "us-central1"}
+
+      case VertexStrategy.headers(credentials) do
+        {:ok, headers} ->
+          assert {"Content-Type", "application/json"} in headers
+
+          assert Enum.any?(headers, fn
+                   {"Authorization", "Bearer " <> token} -> token != ""
+                   _ -> false
+                 end)
+
+        {:error, reason} ->
+          assert reason =~ "No valid Vertex AI credentials found"
+      end
     end
   end
 
@@ -252,9 +292,46 @@ defmodule Gemini.Auth.VertexStrategyTestNew do
 
   describe "refresh_credentials/1" do
     test "refreshes OAuth2 credentials" do
+      bypass = Bypass.open()
+
+      Bypass.expect_once(bypass, "POST", "/token", fn conn ->
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        params = URI.decode_query(body)
+
+        assert params["client_id"] == "test-client-id"
+        assert params["client_secret"] == "test-client-secret"
+        assert params["refresh_token"] == "test-refresh-token"
+        assert params["grant_type"] == "refresh_token"
+
+        conn
+        |> Plug.Conn.put_resp_content_type("application/json")
+        |> Plug.Conn.resp(
+          200,
+          Jason.encode!(%{
+            "access_token" => "refreshed-access-token",
+            "expires_in" => 3600,
+            "token_type" => "Bearer"
+          })
+        )
+      end)
+
+      credentials = %{
+        refresh_token: "test-refresh-token",
+        client_id: "test-client-id",
+        client_secret: "test-client-secret",
+        token_uri: "http://localhost:#{bypass.port}/token"
+      }
+
+      assert {:ok, refreshed} = VertexStrategy.refresh_credentials(credentials)
+
+      assert refreshed == Map.put(credentials, :access_token, "refreshed-access-token")
+    end
+
+    test "returns an error when refresh_token is missing OAuth2 client fields" do
       credentials = %{refresh_token: "test-refresh-token"}
 
-      assert {:ok, ^credentials} = VertexStrategy.refresh_credentials(credentials)
+      assert {:error, reason} = VertexStrategy.refresh_credentials(credentials)
+      assert reason =~ "Missing OAuth2 client_id"
     end
 
     test "refreshes service account key credentials" do
