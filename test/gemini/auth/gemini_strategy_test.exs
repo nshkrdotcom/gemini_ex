@@ -1,5 +1,5 @@
 defmodule Gemini.Auth.GeminiStrategyTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias Gemini.Auth.GeminiStrategy
 

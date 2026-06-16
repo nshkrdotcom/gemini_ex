@@ -319,11 +319,22 @@ defmodule Gemini.Auth.VertexStrategyTest do
 
   describe "base_url/1" do
     test "creates correct base URL with project_id and location" do
+      Application.delete_env(:gemini_ex, :vertex_base_url)
       config = %{project_id: "test-project", location: "us-central1"}
 
       result = VertexStrategy.base_url(config)
 
       assert result == "https://us-central1-aiplatform.googleapis.com/v1"
+    end
+
+    test "returns vertex_base_url from application config" do
+      Application.put_env(:gemini_ex, :vertex_base_url, "https://vertex-proxy.example.com/v1")
+
+      on_exit(fn -> Application.delete_env(:gemini_ex, :vertex_base_url) end)
+
+      config = %{project_id: "test-project", location: "us-central1"}
+
+      assert VertexStrategy.base_url(config) == "https://vertex-proxy.example.com/v1"
     end
 
     test "returns error when location is missing" do
