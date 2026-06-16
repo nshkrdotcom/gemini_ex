@@ -22,7 +22,12 @@ defmodule Gemini.MixProject do
       name: "GeminiEx",
       source_url: @source_url,
       homepage_url: @source_url,
-      test_coverage: [tool: ExCoveralls]
+      test_coverage: [tool: ExCoveralls],
+      test_ignore_filters: [
+        # Ignores everything in the fixtures folder
+        ~r/test\/fixtures\/.*/,
+        &String.ends_with?(&1, "_helper.exs")
+      ]
     ]
   end
 
