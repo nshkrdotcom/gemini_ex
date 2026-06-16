@@ -33,7 +33,7 @@ defmodule Gemini.Auth.GeminiStrategy do
 
   @impl true
   def base_url(_credentials) do
-    @base_url
+    Application.get_env(:gemini_ex, :base_url, @base_url)
   end
 
   @impl true

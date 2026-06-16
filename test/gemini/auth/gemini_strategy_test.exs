@@ -1,5 +1,5 @@
 defmodule Gemini.Auth.GeminiStrategyTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias Gemini.Auth.GeminiStrategy
 
@@ -38,10 +38,11 @@ defmodule Gemini.Auth.GeminiStrategyTest do
   end
 
   describe "base_url/1" do
-    test "returns Gemini API base URL" do
-      config = %{}
+    test "returns default base URL when application config is not set" do
+      Application.delete_env(:gemini_ex, :base_url)
 
-      assert GeminiStrategy.base_url(config) == "https://generativelanguage.googleapis.com/v1beta"
+      assert GeminiStrategy.base_url(%{}) ==
+               "https://generativelanguage.googleapis.com/v1beta"
     end
 
     test "base URL is consistent regardless of config" do
@@ -49,6 +50,16 @@ defmodule Gemini.Auth.GeminiStrategyTest do
       config2 = %{api_key: "key2", project_id: "project"}
 
       assert GeminiStrategy.base_url(config1) == GeminiStrategy.base_url(config2)
+    end
+
+    test "returns base_url from application config" do
+      Application.put_env(:gemini_ex, :base_url, "https://app-config-proxy.example.com")
+
+      on_exit(fn -> Application.delete_env(:gemini_ex, :base_url) end)
+
+      config = %{}
+
+      assert GeminiStrategy.base_url(config) == "https://app-config-proxy.example.com"
     end
   end
 end
