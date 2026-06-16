@@ -22,8 +22,13 @@ defmodule Gemini.MixProject do
       name: "GeminiEx",
       source_url: @source_url,
       homepage_url: @source_url,
-      test_coverage: [tool: ExCoveralls],
-      preferred_cli_env: [
+      test_coverage: [tool: ExCoveralls]
+    ]
+  end
+
+  def cli do
+    [
+      preferred_envs: [
         coveralls: :test,
         "coveralls.detail": :test,
         "coveralls.post": :test,
