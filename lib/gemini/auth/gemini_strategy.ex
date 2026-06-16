@@ -32,8 +32,6 @@ defmodule Gemini.Auth.GeminiStrategy do
   end
 
   @impl true
-  def base_url(%{base_url: url}) when is_binary(url), do: url
-
   def base_url(_credentials) do
     Application.get_env(:gemini_ex, :base_url, @base_url)
   end

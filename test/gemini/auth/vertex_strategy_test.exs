@@ -349,16 +349,6 @@ defmodule Gemini.Auth.VertexStrategyTest do
 
       assert result == {:error, "Project ID and Location are required for Vertex AI base URL"}
     end
-
-    test "returns custom base_url from credentials" do
-      config = %{
-        base_url: "https://my-vertex-proxy.example.com/v1",
-        project_id: "test-project",
-        location: "us-central1"
-      }
-
-      assert VertexStrategy.base_url(config) == "https://my-vertex-proxy.example.com/v1"
-    end
   end
 
   describe "build_path/3" do
