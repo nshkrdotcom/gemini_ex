@@ -43,5 +43,10 @@ defmodule Gemini.AuthTest do
       assert Auth.get_base_url(:gemini, credentials) ==
                "https://generativelanguage.googleapis.com/v1beta"
     end
+
+    test "returns custom base_url when set in credentials" do
+      assert Auth.get_base_url(:gemini, %{base_url: "https://proxy.example.com"}) ==
+               "https://proxy.example.com"
+    end
   end
 end

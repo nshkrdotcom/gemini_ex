@@ -170,6 +170,8 @@ defmodule Gemini.Auth.VertexStrategy do
   end
 
   @impl true
+  def base_url(%{base_url: url}) when is_binary(url), do: url
+
   def base_url(%{project_id: _project_id, location: location}) do
     "https://#{location}-aiplatform.googleapis.com/v1"
   end
