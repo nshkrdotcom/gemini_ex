@@ -5,15 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.14.0] - 2026-06-16
+
+### Added
+- **Configurable base URL**: Added support for overriding the default API base URLs for both `GeminiStrategy` and `VertexStrategy` using the `:base_url` configuration key under the `:gemini_ex` application environment.
 
 ### Changed
-- **Governed authority mode**: HTTP and Live WebSocket calls can now use a `Gemini.GovernedAuthority` value that supplies authority-selected base URLs and materialized credential headers/query params while rejecting unmanaged request credentials in governed mode.
-- **Provider payload parsing**: service account keys, SSE fields, model list payloads, Live response modalities, and WebSocket redaction now use bounded field maps and deterministic string parsing.
+- **Governed authority mode**: HTTP and Live WebSocket calls can now use a `Gemini.GovernedAuthority` value that supplies credentials dynamically.
+- **Provider payload parsing**: Service account keys, SSE fields, model list payloads, Live response modalities, and WebSocket payloads have been updated for improved compatibility.
 
 ### Tests
-- Added governed authority regression coverage for HTTP auth materialization, request override rejection, WebSocket query redaction, and standalone auth compatibility.
-- Added focused regression coverage for provider-authored service account keys and unknown SSE fields to ensure they are ignored instead of interned as new atoms.
+- Added test coverage for `:base_url` application environment configuration overrides.
+- Updated Gemini and Vertex strategy tests to run synchronously (`async: false`) to prevent race conditions when modifying the global application environment during test execution.
+- Added governed authority regression coverage for HTTP auth materialization, request override rejection, and WebSocket queries.
+- Added focused regression coverage for provider-authored service account keys and unknown SSE fields to ensure they are parsed correctly.
 
 ## [0.13.0] - 2026-04-02
 
