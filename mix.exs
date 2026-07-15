@@ -56,11 +56,11 @@ defmodule Gemini.MixProject do
     DependencySources.deps() ++
       [
         # Core dependencies
-        {:req, "~> 0.5.10"},
+        {:req, "~> 0.6.2"},
         {:jason, "~> 1.4.4"},
         {:typed_struct, "~> 0.3.0"},
         {:joken, "~> 2.6.2"},
-        {:telemetry, "~> 1.3.0"},
+        {:telemetry, "~> 1.4.2"},
         {:gun, "~> 2.1"},
 
         # ALTAR ADM - tool contract dependency
@@ -71,8 +71,8 @@ defmodule Gemini.MixProject do
         {:credo, "~> 1.7.12", only: [:dev, :test], runtime: false},
         {:dialyxir, "~> 1.4.5", only: [:dev], runtime: false},
         {:mox, "~> 1.0", only: :test},
-        {:meck, "~> 1.1.0", only: :test},
-        {:supertester, "~> 0.5.1", only: :test},
+        {:meck, "~> 1.2.0", only: :test},
+        {:supertester, "~> 0.6.0", only: :test},
         {:bypass, "~> 2.1", only: :test}
       ]
   end
