@@ -23,7 +23,7 @@ defmodule Gemini.RateLimiter.ConcurrencyGate do
   @adaptive_backoff_factor 0.75
   @adaptive_raise_amount 1
 
-  @type model_key :: String.t()
+  @type model_key :: term()
   @type permit_state :: %{
           current: non_neg_integer(),
           max: pos_integer(),

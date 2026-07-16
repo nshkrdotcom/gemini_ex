@@ -175,6 +175,42 @@ defmodule Gemini.ConfigTest do
     end
   end
 
+  describe "get_auth_config/1 account precedence" do
+    test "application Gemini account wins over ambient key" do
+      clear_all_auth_env_vars()
+      Gemini.Env.put("GEMINI_API_KEY", "ambient-key")
+
+      Application.put_env(:gemini, :auth, %{
+        type: :gemini,
+        credentials: %{api_key: "configured-key"}
+      })
+
+      assert Config.get_auth_config(:gemini) == %{api_key: "configured-key"}
+    end
+
+    test "application Vertex account and token win while ambient values only fill gaps" do
+      clear_all_auth_env_vars()
+      Gemini.Env.put("VERTEX_PROJECT_ID", "ambient-project")
+      Gemini.Env.put("VERTEX_LOCATION", "ambient-location")
+      Gemini.Env.put("VERTEX_ACCESS_TOKEN", "ambient-token")
+
+      Application.put_env(:gemini, :auth, %{
+        type: :vertex_ai,
+        credentials: %{
+          project_id: "configured-project",
+          location: "configured-location",
+          access_token: "configured-token"
+        }
+      })
+
+      assert Config.get_auth_config(:vertex_ai) == %{
+               project_id: "configured-project",
+               location: "configured-location",
+               access_token: "configured-token"
+             }
+    end
+  end
+
   describe "api_key/0" do
     test "prefers application config over GEMINI_API_KEY" do
       clear_all_auth_env_vars()

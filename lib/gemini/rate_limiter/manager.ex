@@ -122,7 +122,7 @@ defmodule Gemini.RateLimiter.Manager do
 
     config = Config.build(opts)
     location = Keyword.get(opts, :location)
-    state_key = State.build_key(model, location, :token_count)
+    state_key = State.build_key(model, location, :token_count, State.scope(opts))
 
     # When the limiter is disabled, still record usage for telemetry consumers
     if not Config.enabled?(config) do
@@ -176,7 +176,7 @@ defmodule Gemini.RateLimiter.Manager do
   def check_status(model, opts \\ []) do
     config = Config.build(opts)
     location = Keyword.get(opts, :location)
-    state_key = State.build_key(model, location, :token_count)
+    state_key = State.build_key(model, location, :token_count, State.scope(opts))
     budget_status = check_token_budget(state_key, opts, config)
 
     cond do
@@ -193,7 +193,7 @@ defmodule Gemini.RateLimiter.Manager do
          }}
 
       Config.concurrency_enabled?(config) and
-          ConcurrencyGate.available_permits(model, config) == 0 ->
+          ConcurrencyGate.available_permits(concurrency_key(model, opts), config) == 0 ->
         {:no_permits, 0}
 
       match?({:over_budget, _}, budget_status) ->
@@ -210,7 +210,7 @@ defmodule Gemini.RateLimiter.Manager do
   @spec get_retry_state(String.t(), keyword()) :: State.retry_state() | nil
   def get_retry_state(model, opts \\ []) do
     location = Keyword.get(opts, :location)
-    state_key = State.build_key(model, location, :token_count)
+    state_key = State.build_key(model, location, :token_count, State.scope(opts))
     State.get_retry_state(state_key)
   end
 
@@ -228,7 +228,7 @@ defmodule Gemini.RateLimiter.Manager do
   @spec get_usage(String.t(), keyword()) :: State.usage_window() | nil
   def get_usage(model, opts \\ []) do
     location = Keyword.get(opts, :location)
-    state_key = State.build_key(model, location, :token_count)
+    state_key = State.build_key(model, location, :token_count, State.scope(opts))
     config = Config.build(opts)
     State.get_current_usage(state_key, now: Config.now(config))
   end
@@ -257,7 +257,7 @@ defmodule Gemini.RateLimiter.Manager do
 
   defp do_execute(request_fn, model, config, opts) do
     location = Keyword.get(opts, :location)
-    state_key = State.build_key(model, location, :token_count)
+    state_key = State.build_key(model, location, :token_count, State.scope(opts))
     concurrency_key = concurrency_key(model, opts)
 
     # Emit telemetry for request start
@@ -288,7 +288,7 @@ defmodule Gemini.RateLimiter.Manager do
 
   defp do_execute_streaming(start_fn, model, config, opts) do
     location = Keyword.get(opts, :location)
-    state_key = State.build_key(model, location, :token_count)
+    state_key = State.build_key(model, location, :token_count, State.scope(opts))
     concurrency_key = concurrency_key(model, opts)
 
     case reserve_budget(state_key, opts, config) do
@@ -441,7 +441,13 @@ defmodule Gemini.RateLimiter.Manager do
 
     case start_fn.() do
       {:ok, value} ->
-        emit_stream_event(:started, model, Keyword.get(opts, :location))
+        emit_stream_event(
+          :started,
+          model,
+          Keyword.get(opts, :location),
+          State.scope(opts)
+        )
+
         {:ok, {value, release_fn}}
 
       {:error, reason} ->
@@ -678,8 +684,14 @@ defmodule Gemini.RateLimiter.Manager do
   end
 
   defp emit_release_event(outcome, state_key) do
-    {model, location, _metric} = state_key
-    emit_stream_event(outcome_to_stream_event(outcome), model, location)
+    metadata = State.key_metadata(state_key)
+
+    emit_stream_event(
+      outcome_to_stream_event(outcome),
+      metadata.model,
+      metadata.location,
+      metadata.quota_scope_ref
+    )
   end
 
   defp extract_usage_from_result({:ok, response}) when is_map(response),
@@ -719,12 +731,13 @@ defmodule Gemini.RateLimiter.Manager do
   end
 
   defp emit_budget_reserved(state_key, reservation_ctx, estimate_ctx) do
-    {model, location, _metric} = state_key
+    key_metadata = State.key_metadata(state_key)
 
     metadata =
       %{
-        model: model,
-        location: location,
+        model: key_metadata.model,
+        location: key_metadata.location,
+        quota_scope_ref: key_metadata.quota_scope_ref,
         reserved_tokens: reservation_ctx.reserved_tokens,
         estimated_tokens: reservation_ctx.estimated_tokens,
         estimated_total_tokens: estimate_ctx.estimated_total_tokens,
@@ -737,12 +750,13 @@ defmodule Gemini.RateLimiter.Manager do
   end
 
   defp emit_budget_rejected(state_key, budget_ctx, estimate_ctx) do
-    {model, location, _metric} = state_key
+    key_metadata = State.key_metadata(state_key)
 
     metadata =
       %{
-        model: model,
-        location: location,
+        model: key_metadata.model,
+        location: key_metadata.location,
+        quota_scope_ref: key_metadata.quota_scope_ref,
         retry_at: Map.get(budget_ctx, :window_end)
       }
       |> Map.merge(rate_limit_details(budget_ctx, estimate_ctx))
@@ -756,6 +770,7 @@ defmodule Gemini.RateLimiter.Manager do
     metadata = %{
       model: model,
       location: Keyword.get(opts, :location),
+      quota_scope_ref: State.scope(opts),
       system_time: System.system_time()
     }
 
@@ -776,6 +791,7 @@ defmodule Gemini.RateLimiter.Manager do
     metadata = %{
       model: model,
       location: Keyword.get(opts, :location),
+      quota_scope_ref: State.scope(opts),
       status: status
     }
 
@@ -788,6 +804,7 @@ defmodule Gemini.RateLimiter.Manager do
     metadata = %{
       model: model,
       location: Keyword.get(opts, :location),
+      quota_scope_ref: State.scope(opts),
       reason: reason
     }
 
@@ -799,12 +816,13 @@ defmodule Gemini.RateLimiter.Manager do
   end
 
   defp emit_rate_limit_wait(state_key, retry_at, reason, metadata) do
-    {model, location, _metric} = state_key
+    key_metadata = State.key_metadata(state_key)
 
     metadata =
       %{
-        model: model,
-        location: location,
+        model: key_metadata.model,
+        location: key_metadata.location,
+        quota_scope_ref: key_metadata.quota_scope_ref,
         retry_at: retry_at,
         reason: reason
       }
@@ -814,13 +832,14 @@ defmodule Gemini.RateLimiter.Manager do
   end
 
   defp emit_rate_limit_error(state_key, reason, start_time, metadata) do
-    {model, location, _metric} = state_key
+    key_metadata = State.key_metadata(state_key)
     duration = Telemetry.calculate_duration(start_time)
 
     metadata =
       %{
-        model: model,
-        location: location,
+        model: key_metadata.model,
+        location: key_metadata.location,
+        quota_scope_ref: key_metadata.quota_scope_ref,
         reason: reason
       }
       |> Map.merge(metadata)
@@ -828,18 +847,12 @@ defmodule Gemini.RateLimiter.Manager do
     Telemetry.execute([:gemini, :rate_limit, :error], %{duration: duration}, metadata)
   end
 
-  defp emit_stream_event(status, model, location) do
-    metadata = %{model: model, location: location}
+  defp emit_stream_event(status, model, location, quota_scope_ref) do
+    metadata = %{model: model, location: location, quota_scope_ref: quota_scope_ref}
     Telemetry.execute([:gemini, :rate_limit, :stream, status], %{}, metadata)
   end
 
   defp concurrency_key(model, opts) do
-    case Keyword.get(opts, :concurrency_key) do
-      nil ->
-        model
-
-      key ->
-        "#{model}:#{to_string(key)}"
-    end
+    {State.scope(opts), model}
   end
 end

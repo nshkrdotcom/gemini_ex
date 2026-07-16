@@ -7,10 +7,15 @@ defmodule Gemini.RateLimiter.State do
   - Token usage sliding windows for budget estimation
   - Concurrency permits for gating
 
-  State is keyed by `{model, location, metric}` tuples for fine-grained tracking.
+  State is keyed by `{quota_scope, model, location, metric}` tuples. The safe
+  quota/account scope prevents one account's retry or token budget state from
+  affecting another account while deliberately allowing accounts mapped to the
+  same provider quota scope to share limits.
   """
 
-  @type state_key :: {model :: String.t(), location :: String.t(), metric :: atom()}
+  @type state_key ::
+          {quota_scope :: String.t(), model :: String.t(), location :: String.t(),
+           metric :: atom()}
   @type retry_state :: %{
           retry_until: DateTime.t() | nil,
           quota_metric: String.t() | nil,
@@ -39,6 +44,7 @@ defmodule Gemini.RateLimiter.State do
   @lock_table :gemini_rate_limit_locks
   @default_window_duration_ms 60_000
   @default_location "us-central1"
+  @default_scope "standalone"
 
   @doc """
   Initialize the ETS table for state storage.
@@ -82,11 +88,26 @@ defmodule Gemini.RateLimiter.State do
   end
 
   @doc """
-  Build a state key from model, location, and metric.
+  Build a state key from quota/account scope, model, location, and metric.
   """
-  @spec build_key(String.t(), String.t() | nil, atom()) :: state_key()
-  def build_key(model, location, metric) do
-    {model, location || @default_location, metric}
+  @spec build_key(String.t(), String.t() | nil, atom(), String.t() | nil) :: state_key()
+  def build_key(model, location, metric, quota_scope \\ nil) do
+    {quota_scope || @default_scope, model, location || @default_location, metric}
+  end
+
+  @doc false
+  @spec scope(keyword()) :: String.t()
+  def scope(opts) do
+    Keyword.get(opts, :rate_limit_scope) ||
+      Keyword.get(opts, :account_namespace) ||
+      normalize_scope(Keyword.get(opts, :concurrency_key)) ||
+      @default_scope
+  end
+
+  @doc false
+  @spec key_metadata(state_key()) :: map()
+  def key_metadata({quota_scope, model, location, metric}) do
+    %{quota_scope_ref: quota_scope, model: model, location: location, metric: metric}
   end
 
   @doc """
@@ -398,6 +419,18 @@ defmodule Gemini.RateLimiter.State do
   defp normalize_window(window) do
     window
     |> Map.put_new(:reserved_tokens, 0)
+  end
+
+  defp normalize_scope(nil), do: nil
+
+  defp normalize_scope(scope) do
+    digest =
+      scope
+      |> :erlang.term_to_binary()
+      |> then(&:crypto.hash(:sha256, &1))
+      |> Base.url_encode64(padding: false)
+
+    "concurrency-scope://sha256/#{digest}"
   end
 
   defp scaled_tokens(tokens, multiplier) when multiplier == 1.0, do: tokens

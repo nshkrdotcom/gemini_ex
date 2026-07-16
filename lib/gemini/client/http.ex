@@ -36,8 +36,19 @@ defmodule Gemini.Client.HTTP do
     :service_account_data,
     :quota_project_id,
     :base_url,
-    :headers
+    :headers,
+    :credential_materialization,
+    :credential_headers,
+    :credential_query_params,
+    :account_namespace,
+    :rate_limit_scope,
+    :concurrency_key,
+    :disable_rate_limiter
   ]
+
+  @credential_query_names ~w(
+    key api_key access_token token auth_token authorization client_secret private_key
+  )
 
   @vertex_auth_override_keys [
     :project_id,
@@ -104,7 +115,8 @@ defmodule Gemini.Client.HTTP do
         {:error, Error.config_error("No authentication configured")}
 
       %{type: :governed_authority, credentials: %GovernedAuthority{} = authority} ->
-        execute_governed_request(method, path, body, authority, opts)
+        validate_governed_request_opts!(opts)
+        execute_governed_request(method, path, body, GovernedAuthority.new!(authority), opts)
 
       %{type: auth_type, credentials: credentials} ->
         execute_authenticated_request(method, path, body, auth_type, credentials, opts)
@@ -118,6 +130,7 @@ defmodule Gemini.Client.HTTP do
     end
 
     start_time = System.monotonic_time()
+    redaction_values = Keyword.get(opts, :redaction_values, [])
     metadata = Telemetry.build_request_metadata(url, method, opts)
     measurements = %{system_time: System.system_time()}
 
@@ -130,11 +143,18 @@ defmodule Gemini.Client.HTTP do
       url: url,
       headers: headers,
       receive_timeout: timeout,
+      # Gemini.RateLimiter owns all retry/retry-budget state. Req retries would
+      # escape that account-scoped admission and duplicate lower effects.
+      retry: false,
       json: body
     ]
 
     try do
-      result = Req.request(req_opts) |> handle_response()
+      result =
+        req_opts
+        |> Req.request()
+        |> handle_response()
+        |> Telemetry.redact(redaction_values)
 
       case result do
         {:ok, _response} ->
@@ -151,7 +171,7 @@ defmodule Gemini.Client.HTTP do
           Telemetry.execute(
             [:gemini, :request, :exception],
             measurements,
-            Map.put(metadata, :reason, error)
+            Map.put(metadata, :reason, Telemetry.redact(error, redaction_values))
           )
       end
 
@@ -161,10 +181,15 @@ defmodule Gemini.Client.HTTP do
         Telemetry.execute(
           [:gemini, :request, :exception],
           measurements,
-          Map.put(metadata, :reason, exception)
+          Map.put(metadata, :reason, Telemetry.redact(exception, redaction_values))
         )
 
-        reraise exception, __STACKTRACE__
+        if redaction_values == [] do
+          reraise exception, __STACKTRACE__
+        else
+          raise RuntimeError,
+                "governed request failed: #{inspect(Telemetry.redact(exception, redaction_values))}"
+        end
     end
   end
 
@@ -240,15 +265,27 @@ defmodule Gemini.Client.HTTP do
   end
 
   defp execute_governed_request(method, path, body, authority, opts) do
+    GovernedAuthority.validate_request_body!(body)
     url = build_governed_url(path, authority)
     headers = GovernedAuthority.headers(authority)
     model = extract_model_from_path(path)
 
+    managed_opts =
+      opts
+      |> Keyword.delete(:governed_authority)
+      |> Keyword.put(:model, model)
+      |> Keyword.put(:account_namespace, GovernedAuthority.account_namespace(authority))
+      |> Keyword.put(:rate_limit_scope, GovernedAuthority.rate_limit_scope(authority))
+      |> Keyword.put(:disable_rate_limiter, false)
+      |> Keyword.put(:governed_context, GovernedAuthority.refs(authority))
+      |> Keyword.put(:credential_query_names, GovernedAuthority.credential_query_names(authority))
+      |> Keyword.put(:redaction_values, GovernedAuthority.secret_values(authority))
+
     request_fn = fn ->
-      execute_request(method, url, headers, body, opts, false)
+      execute_request(method, url, headers, body, managed_opts, false)
     end
 
-    maybe_rate_limited_request(request_fn, model, opts)
+    maybe_rate_limited_request(request_fn, model, managed_opts)
   end
 
   defp execute_authenticated_request(method, path, body, auth_type, credentials, opts) do
@@ -303,18 +340,56 @@ defmodule Gemini.Client.HTTP do
     end
   end
 
-  defp build_governed_url(path, %GovernedAuthority{base_url: base_url}) do
+  defp build_governed_url(path, %GovernedAuthority{base_url: base_url} = authority) do
     if String.starts_with?(path, "https://") or String.starts_with?(path, "http://") do
       raise ArgumentError, "governed authority forbids unmanaged absolute request URLs"
     end
 
+    validate_governed_path_query!(path)
     normalized_base = String.trim_trailing(base_url, "/")
 
-    if String.starts_with?(path, "/") do
-      normalized_base <> path
-    else
-      normalized_base <> "/" <> path
+    url =
+      if String.starts_with?(path, "/") do
+        normalized_base <> path
+      else
+        normalized_base <> "/" <> path
+      end
+
+    append_query_params(url, GovernedAuthority.query_params(authority))
+  end
+
+  defp append_query_params(url, []), do: url
+
+  defp append_query_params(url, params) do
+    separator = if String.contains?(url, "?"), do: "&", else: "?"
+
+    encoded =
+      Enum.map_join(params, "&", fn {key, value} ->
+        URI.encode_www_form(key) <> "=" <> URI.encode_www_form(value)
+      end)
+
+    url <> separator <> encoded
+  end
+
+  defp validate_governed_path_query!(path) do
+    query = URI.parse(path).query
+
+    if is_binary(query) do
+      query
+      |> URI.query_decoder()
+      |> Enum.each(fn {key, _value} ->
+        if normalize_query_name(key) in @credential_query_names do
+          raise ArgumentError, "governed authority forbids credential query parameter #{key}"
+        end
+      end)
     end
+  end
+
+  defp normalize_query_name(name) do
+    name
+    |> String.trim()
+    |> String.downcase()
+    |> String.replace("-", "_")
   end
 
   defp build_absolute_url(base_url, absolute_path) do

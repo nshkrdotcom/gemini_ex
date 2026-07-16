@@ -1141,15 +1141,25 @@ defmodule Gemini.Config do
   """
   @spec get_auth_config(:gemini | :vertex_ai) :: map()
   def get_auth_config(:gemini) do
+    app_auth = Application.get_env(:gemini, :auth)
+    legacy_app_auth = Application.get_env(:gemini_ex, :auth)
+
     cond do
       # App env via configure/2
-      match?(%{type: :gemini, credentials: %{api_key: _}}, Application.get_env(:gemini, :auth)) ->
-        %{credentials: %{api_key: api_key}} = Application.get_env(:gemini, :auth)
+      match?(%{type: :gemini, credentials: %{api_key: _}}, app_auth) ->
+        %{credentials: %{api_key: api_key}} = app_auth
+        %{api_key: api_key}
+
+      match?(%{type: :gemini, credentials: %{api_key: _}}, legacy_app_auth) ->
+        %{credentials: %{api_key: api_key}} = legacy_app_auth
         %{api_key: api_key}
 
       # Legacy app env
       is_binary(Application.get_env(:gemini_ex, :api_key)) ->
         %{api_key: Application.get_env(:gemini_ex, :api_key)}
+
+      is_binary(Application.get_env(:gemini, :api_key)) ->
+        %{api_key: Application.get_env(:gemini, :api_key)}
 
       # Direct env var
       is_binary(gemini_api_key()) ->
@@ -1161,10 +1171,13 @@ defmodule Gemini.Config do
   end
 
   def get_auth_config(:vertex_ai) do
-    base =
+    env_config =
       %{}
       |> maybe_put(:project_id, vertex_project_id())
-      |> Map.put(:location, vertex_location())
+      |> maybe_put(:location, vertex_location())
+      |> maybe_put(:access_token, vertex_access_token())
+      |> maybe_put(:service_account_key, vertex_service_account())
+      |> maybe_put(:quota_project_id, vertex_quota_project_id())
 
     app_auth = Application.get_env(:gemini, :auth)
     legacy_app_auth = Application.get_env(:gemini_ex, :auth)
@@ -1182,16 +1195,10 @@ defmodule Gemini.Config do
           legacy_vertex
       end
 
-    config =
-      base
-      |> Map.merge(creds_from_app || %{})
-      |> maybe_put(:project_id, vertex_project_id())
-      |> maybe_put(:location, vertex_location())
-      |> maybe_put(:access_token, vertex_access_token())
-      |> maybe_put(:service_account_key, vertex_service_account())
-      |> maybe_put(:quota_project_id, vertex_quota_project_id())
-
-    config
+    # Application material is the explicit account selection. Environment
+    # values may fill missing fields for standalone calls but cannot overwrite
+    # an explicitly configured account or token.
+    Map.merge(env_config, creds_from_app || %{})
   end
 
   def get_auth_config(_strategy) do
@@ -1250,7 +1257,8 @@ defmodule Gemini.Config do
   end
 
   defp validate_vertex_config!(credentials) do
-    raise "Invalid Vertex AI configuration: #{inspect(credentials)}"
+    fields = if is_map(credentials), do: Map.keys(credentials), else: []
+    raise "Invalid Vertex AI configuration fields: #{inspect(fields)}"
   end
 
   defp load_project_from_service_account(file_path) do

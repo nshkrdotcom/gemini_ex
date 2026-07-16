@@ -261,8 +261,15 @@ defmodule Gemini.Auth.ADC do
     end
   end
 
-  def get_access_token({:metadata_server, _creds}, opts) do
-    cache_key = Keyword.get(opts, :cache_key, :metadata_server_token)
+  def get_access_token({:metadata_server, creds}, opts) do
+    default_cache_key =
+      TokenCache.credential_key(:metadata_server, %{
+        project_id: Map.get(creds, :project_id),
+        scopes: @vertex_ai_scopes,
+        audience: @oauth2_token_uri
+      })
+
+    cache_key = Keyword.get(opts, :cache_key, default_cache_key)
     force_refresh = Keyword.get(opts, :force_refresh, false)
 
     if force_refresh do
@@ -627,12 +634,22 @@ defmodule Gemini.Auth.ADC do
   end
 
   defp cache_key_for_service_account(creds) do
-    email = Map.get(creds, :client_email, "unknown")
-    "adc_service_account_#{:erlang.phash2(email)}"
+    TokenCache.credential_key(:adc_service_account, %{
+      client_email: Map.get(creds, :client_email),
+      private_key_id: Map.get(creds, :private_key_id),
+      project_id: Map.get(creds, :project_id),
+      token_uri: Map.get(creds, :token_uri),
+      scopes: @vertex_ai_scopes
+    })
   end
 
   defp cache_key_for_user(creds) do
-    client_id = Map.get(creds, :client_id, "unknown")
-    "adc_user_#{:erlang.phash2(client_id)}"
+    TokenCache.credential_key(:adc_user, %{
+      client_id: Map.get(creds, :client_id),
+      quota_project_id: Map.get(creds, :quota_project_id),
+      refresh_token: Map.get(creds, :refresh_token),
+      token_uri: @oauth2_token_uri,
+      scopes: @vertex_ai_scopes
+    })
   end
 end

@@ -184,8 +184,9 @@ defmodule Gemini.Auth.TokenCacheTest do
       stats = TokenCache.stats()
 
       assert stats.size == 2
-      assert "stat_key1" in stats.keys
-      assert "stat_key2" in stats.keys
+      assert Enum.all?(stats.keys, &String.starts_with?(&1, "cache-key://sha256/"))
+      refute inspect(stats.keys) =~ "stat_key1"
+      refute inspect(stats.keys) =~ "stat_key2"
     end
 
     test "returns empty stats when cache is empty" do
@@ -204,6 +205,36 @@ defmodule Gemini.Auth.TokenCacheTest do
       assert stats.keys == []
 
       TokenCache.init()
+    end
+  end
+
+  describe "credential_key/2" do
+    test "partitions token identities without exposing credential material" do
+      first =
+        TokenCache.credential_key(:adc_user, %{
+          account_namespace: "account-a",
+          generation: 1,
+          refresh_token: "refresh-token-a"
+        })
+
+      rotated =
+        TokenCache.credential_key(:adc_user, %{
+          account_namespace: "account-a",
+          generation: 2,
+          refresh_token: "refresh-token-b"
+        })
+
+      other_account =
+        TokenCache.credential_key(:adc_user, %{
+          account_namespace: "account-b",
+          generation: 1,
+          refresh_token: "refresh-token-a"
+        })
+
+      assert first != rotated
+      assert first != other_account
+      refute first =~ "refresh-token-a"
+      assert String.starts_with?(first, "credential-cache://adc_user/")
     end
   end
 

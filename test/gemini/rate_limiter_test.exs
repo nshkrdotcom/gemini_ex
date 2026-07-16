@@ -85,7 +85,7 @@ defmodule Gemini.RateLimiterTest do
 
     test "builds state keys" do
       key = State.build_key(default_model(), "us-central1", :token_count)
-      assert key == {default_model(), "us-central1", :token_count}
+      assert key == {"standalone", default_model(), "us-central1", :token_count}
     end
 
     test "manages retry_until state" do

@@ -216,12 +216,6 @@ defmodule Gemini.RateLimiter do
   defdelegate reset_all(), to: Manager
 
   defp concurrency_key(model, opts) do
-    case Keyword.get(opts, :concurrency_key) do
-      nil ->
-        model
-
-      key ->
-        "#{model}:#{to_string(key)}"
-    end
+    {State.scope(opts), model}
   end
 end

@@ -24,6 +24,16 @@ defmodule Gemini.Telemetry do
 
   alias Gemini.Config
 
+  @secret_keys ~w(
+    api_key access_token auth_token authorization bearer client_secret client_token
+    credential credential_headers credential_materialization credential_query_params
+    password private_key refresh_token secret service_account token
+  )
+
+  @secret_query_names ~w(
+    key api_key access_token auth_token authorization client_secret private_key token
+  )
+
   @type content_type :: :text | :multimodal | :unknown
   @type stream_id :: binary()
   @type telemetry_event :: [atom()]
@@ -57,7 +67,7 @@ defmodule Gemini.Telemetry do
   @spec execute(telemetry_event(), telemetry_measurements(), telemetry_metadata()) :: :ok
   def execute(event, measurements, metadata) when is_list(event) do
     if Config.telemetry_enabled?() do
-      :telemetry.execute(event, measurements, metadata)
+      :telemetry.execute(event, redact(measurements), redact(metadata))
     end
 
     :ok
@@ -197,7 +207,10 @@ defmodule Gemini.Telemetry do
   """
   @spec extract_model(keyword() | term()) :: binary()
   def extract_model(opts) when is_list(opts) do
-    Keyword.get(opts, :model, Config.default_model())
+    case Keyword.fetch(opts, :model) do
+      {:ok, model} -> model
+      :error -> Config.default_model()
+    end
   end
 
   def extract_model(_), do: Config.default_model()
@@ -230,14 +243,16 @@ defmodule Gemini.Telemetry do
   """
   @spec build_request_metadata(binary(), http_method(), keyword()) :: telemetry_metadata()
   def build_request_metadata(url, method, opts \\ []) do
-    %{
-      url: url,
+    metadata = %{
+      url: redact_url(url, Keyword.get(opts, :credential_query_names, [])),
       method: method,
       model: extract_model(opts),
       function: Keyword.get(opts, :function, :unknown),
       contents_type: Keyword.get(opts, :contents_type, :unknown),
       system_time: System.system_time()
     }
+
+    maybe_put_governed_context(metadata, opts)
   end
 
   @doc """
@@ -270,8 +285,8 @@ defmodule Gemini.Telemetry do
   @spec build_stream_metadata(binary(), http_method(), stream_id(), keyword()) ::
           telemetry_metadata()
   def build_stream_metadata(url, method, stream_id, opts \\ []) do
-    %{
-      url: url,
+    metadata = %{
+      url: redact_url(url, Keyword.get(opts, :credential_query_names, [])),
       method: method,
       model: extract_model(opts),
       function: Keyword.get(opts, :function, :unknown),
@@ -279,6 +294,95 @@ defmodule Gemini.Telemetry do
       stream_id: stream_id,
       system_time: System.system_time()
     }
+
+    maybe_put_governed_context(metadata, opts)
+  end
+
+  @doc """
+  Recursively redact secret-bearing keys, credential query values, and exact
+  transient secret values from telemetry, errors, and retry surfaces.
+  """
+  @spec redact(term(), [String.t()]) :: term()
+  def redact(term, secret_values \\ [])
+
+  def redact(term, _secret_values)
+      when is_nil(term) or is_atom(term) or is_number(term) or is_pid(term) or is_reference(term),
+      do: term
+
+  def redact(%DateTime{} = value, _secret_values), do: value
+  def redact(%NaiveDateTime{} = value, _secret_values), do: value
+  def redact(%Date{} = value, _secret_values), do: value
+  def redact(%Time{} = value, _secret_values), do: value
+
+  def redact(%_{} = value, secret_values) do
+    redacted_fields =
+      value
+      |> Map.from_struct()
+      |> redact(secret_values)
+
+    try do
+      struct(value, redacted_fields)
+    rescue
+      _error -> redact(inspect(value), secret_values)
+    end
+  end
+
+  def redact(value, secret_values) when is_map(value) do
+    Map.new(value, fn {key, nested} ->
+      if secret_key?(key) do
+        {key, "[REDACTED]"}
+      else
+        {key, redact(nested, secret_values)}
+      end
+    end)
+  end
+
+  def redact(value, secret_values) when is_list(value),
+    do: Enum.map(value, &redact(&1, secret_values))
+
+  def redact(value, secret_values) when is_tuple(value) do
+    value
+    |> Tuple.to_list()
+    |> Enum.map(&redact(&1, secret_values))
+    |> List.to_tuple()
+  end
+
+  def redact(value, secret_values) when is_binary(value) do
+    secret_values
+    |> Enum.filter(&(is_binary(&1) and &1 != ""))
+    |> Enum.uniq()
+    |> Enum.reduce(redact_url(value), fn secret, redacted ->
+      String.replace(redacted, secret, "[REDACTED]")
+    end)
+  end
+
+  def redact(value, _secret_values), do: value
+
+  @doc "Redact credential-like query parameters from a URL or path."
+  @spec redact_url(String.t(), [String.t()]) :: String.t()
+  def redact_url(url, additional_names \\ []) when is_binary(url) do
+    names = Enum.uniq(@secret_query_names ++ Enum.map(additional_names, &to_string/1))
+
+    Enum.reduce(names, url, fn name, redacted ->
+      pattern = Regex.compile!("([?&]#{Regex.escape(name)}=)[^&#\\s]*", "i")
+      Regex.replace(pattern, redacted, "\\1[REDACTED]")
+    end)
+  end
+
+  defp secret_key?(key) do
+    key
+    |> to_string()
+    |> String.trim()
+    |> String.downcase()
+    |> String.replace("-", "_")
+    |> then(&(&1 in @secret_keys))
+  end
+
+  defp maybe_put_governed_context(metadata, opts) do
+    case Keyword.get(opts, :governed_context) do
+      context when is_map(context) -> Map.put(metadata, :governed_context, redact(context))
+      _other -> metadata
+    end
   end
 
   @doc """

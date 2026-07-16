@@ -42,6 +42,19 @@ defmodule Gemini.Auth.TokenCache do
   @type ttl :: pos_integer()
   @type cache_entry :: {cache_key(), token(), expiry_time :: integer()}
 
+  @doc false
+  @spec credential_key(atom(), map() | keyword()) :: String.t()
+  def credential_key(kind, identity)
+      when is_atom(kind) and (is_map(identity) or is_list(identity)) do
+    digest =
+      {kind, identity |> Map.new() |> Enum.sort()}
+      |> :erlang.term_to_binary()
+      |> then(&:crypto.hash(:sha256, &1))
+      |> Base.url_encode64(padding: false)
+
+    "credential-cache://#{kind}/#{digest}"
+  end
+
   @doc """
   Initialize the token cache table.
 
@@ -104,7 +117,7 @@ defmodule Gemini.Auth.TokenCache do
     :ets.insert(@table_name, {key, token, expiry_time})
 
     Logger.debug(
-      "[TokenCache] Cached token for #{inspect(key)} (expires in #{effective_ttl}s, buffer: #{refresh_buffer}s)"
+      "[TokenCache] Cached token for #{key_ref(key)} (expires in #{effective_ttl}s, buffer: #{refresh_buffer}s)"
     )
 
     :ok
@@ -165,7 +178,7 @@ defmodule Gemini.Auth.TokenCache do
   def invalidate(key) do
     ensure_table_exists()
     :ets.delete(@table_name, key)
-    Logger.debug("[TokenCache] Invalidated cache for #{inspect(key)}")
+    Logger.debug("[TokenCache] Invalidated cache for #{key_ref(key)}")
     :ok
   end
 
@@ -197,14 +210,14 @@ defmodule Gemini.Auth.TokenCache do
 
   Map with cache statistics:
   - `:size` - Number of cached tokens
-  - `:keys` - List of cache keys
+  - `:keys` - List of irreversible cache-key fingerprints
 
   ## Examples
 
       TokenCache.stats()
-      #=> %{size: 2, keys: ["vertex_ai_token", "another_token"]}
+      #=> %{size: 2, keys: ["cache-key://sha256/...", "cache-key://sha256/..."]}
   """
-  @spec stats() :: %{size: non_neg_integer(), keys: [cache_key()]}
+  @spec stats() :: %{size: non_neg_integer(), keys: [String.t()]}
   def stats do
     case :ets.whereis(@table_name) do
       :undefined ->
@@ -212,7 +225,12 @@ defmodule Gemini.Auth.TokenCache do
 
       _ref ->
         size = :ets.info(@table_name, :size)
-        keys = :ets.match(@table_name, {:"$1", :_, :_}) |> List.flatten()
+
+        keys =
+          @table_name
+          |> :ets.match({:"$1", :_, :_})
+          |> List.flatten()
+          |> Enum.map(&key_ref/1)
 
         %{size: size, keys: keys}
     end
@@ -257,7 +275,7 @@ defmodule Gemini.Auth.TokenCache do
         validate_token(key, token, expiry_time)
 
       [] ->
-        Logger.debug("[TokenCache] Cache miss for #{inspect(key)}")
+        Logger.debug("[TokenCache] Cache miss for #{key_ref(key)}")
         :error
     end
   end
@@ -266,16 +284,26 @@ defmodule Gemini.Auth.TokenCache do
     now = System.system_time(:second)
 
     if now < expiry_time do
-      Logger.debug("[TokenCache] Cache hit for #{inspect(key)}")
+      Logger.debug("[TokenCache] Cache hit for #{key_ref(key)}")
       {:ok, token}
     else
       Logger.debug(
-        "[TokenCache] Cache expired for #{inspect(key)} (expired #{now - expiry_time}s ago)"
+        "[TokenCache] Cache expired for #{key_ref(key)} (expired #{now - expiry_time}s ago)"
       )
 
       # Clean up expired entry
       :ets.delete(@table_name, key)
       :error
     end
+  end
+
+  defp key_ref(key) do
+    digest =
+      key
+      |> :erlang.term_to_binary()
+      |> then(&:crypto.hash(:sha256, &1))
+      |> Base.url_encode64(padding: false)
+
+    "cache-key://sha256/#{digest}"
   end
 end

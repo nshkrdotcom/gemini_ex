@@ -344,14 +344,15 @@ defmodule Gemini.RateLimiter.RetryManager do
   defp jitter_wait(_wait_ms, _config), do: 0
 
   defp emit_retry_event(:set, state_key, retry_until, retry_info) do
-    {model, location, _metric} = state_key
+    key_metadata = State.key_metadata(state_key)
 
     Telemetry.execute(
       [:gemini, :rate_limit, :retry_window, :set],
       %{},
       %{
-        model: model,
-        location: location,
+        model: key_metadata.model,
+        location: key_metadata.location,
+        quota_scope_ref: key_metadata.quota_scope_ref,
         retry_until: retry_until,
         quota_metric: Map.get(retry_info, "quotaMetric"),
         quota_id: Map.get(retry_info, "quotaId")
@@ -360,22 +361,32 @@ defmodule Gemini.RateLimiter.RetryManager do
   end
 
   defp emit_retry_event(:hit, state_key, retry_until) do
-    {model, location, _metric} = state_key
+    key_metadata = State.key_metadata(state_key)
 
     Telemetry.execute(
       [:gemini, :rate_limit, :retry_window, :hit],
       %{},
-      %{model: model, location: location, retry_until: retry_until}
+      %{
+        model: key_metadata.model,
+        location: key_metadata.location,
+        quota_scope_ref: key_metadata.quota_scope_ref,
+        retry_until: retry_until
+      }
     )
   end
 
   defp emit_retry_event(:release, state_key, retry_until) do
-    {model, location, _metric} = state_key
+    key_metadata = State.key_metadata(state_key)
 
     Telemetry.execute(
       [:gemini, :rate_limit, :retry_window, :release],
       %{},
-      %{model: model, location: location, retry_until: retry_until}
+      %{
+        model: key_metadata.model,
+        location: key_metadata.location,
+        quota_scope_ref: key_metadata.quota_scope_ref,
+        retry_until: retry_until
+      }
     )
   end
 end
