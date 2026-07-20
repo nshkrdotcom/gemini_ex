@@ -45,4 +45,77 @@ defmodule Gemini.Client.HTTPStreamingTest do
 
     assert_receive {:stream_complete, "stream_test"}, 1_000
   end
+
+  test "governed stream errors redact credential material from callbacks results and telemetry",
+       %{
+         bypass: bypass
+       } do
+    sentinel = "stream-error-secret-never-visible"
+    test_pid = self()
+    handler_id = "stream-error-redaction-#{System.unique_integer([:positive])}"
+    original_telemetry = Application.get_env(:gemini_ex, :telemetry_enabled)
+    Application.put_env(:gemini_ex, :telemetry_enabled, true)
+
+    :telemetry.attach_many(
+      handler_id,
+      [[:gemini, :stream, :start], [:gemini, :stream, :exception]],
+      fn event, measurements, metadata, _config ->
+        send(test_pid, {:stream_error_telemetry, event, measurements, metadata})
+      end,
+      nil
+    )
+
+    on_exit(fn ->
+      :telemetry.detach(handler_id)
+
+      case original_telemetry do
+        nil -> Application.delete_env(:gemini_ex, :telemetry_enabled)
+        value -> Application.put_env(:gemini_ex, :telemetry_enabled, value)
+      end
+    end)
+
+    Bypass.expect_once(bypass, "POST", "/stream", fn conn ->
+      conn = Conn.fetch_query_params(conn)
+      assert conn.query_params["key"] == sentinel
+
+      Conn.resp(
+        conn,
+        400,
+        Jason.encode!(%{"error" => %{"message" => "provider echoed #{sentinel}"}})
+      )
+    end)
+
+    callback = fn event ->
+      send(test_pid, {:governed_stream_callback, event})
+      :ok
+    end
+
+    result =
+      HTTPStreaming.stream_sse(
+        "http://localhost:#{bypass.port}/stream?key=#{sentinel}",
+        [],
+        %{},
+        callback,
+        add_sse_params: false,
+        max_retries: 0,
+        timeout: 1_000,
+        model: "gemini-2.5-flash",
+        credential_query_names: ["key"],
+        redaction_values: [sentinel],
+        governed_context: %{provider_account_ref: "account://google/gemini/test"}
+      )
+
+    assert_receive {:governed_stream_callback, callback_event}
+    assert_receive {:stream_error_telemetry, [:gemini, :stream, :exception], _, error_metadata}
+
+    for surface <- [result, callback_event, error_metadata] do
+      refute inspect(surface) =~ sentinel
+    end
+
+    assert inspect(result) =~ "[REDACTED]"
+    assert error_metadata.url =~ "key=[REDACTED]"
+
+    assert error_metadata.governed_context.provider_account_ref ==
+             "account://google/gemini/test"
+  end
 end

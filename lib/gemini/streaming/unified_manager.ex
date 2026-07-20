@@ -43,7 +43,14 @@ defmodule Gemini.Streaming.UnifiedManager do
     :service_account_data,
     :quota_project_id,
     :base_url,
-    :headers
+    :headers,
+    :credential_materialization,
+    :credential_headers,
+    :credential_query_params,
+    :account_namespace,
+    :rate_limit_scope,
+    :concurrency_key,
+    :disable_rate_limiter
   ]
 
   @type stream_state :: %{
@@ -317,6 +324,10 @@ defmodule Gemini.Streaming.UnifiedManager do
         {:reply, {:error, :stream_not_found}, state}
 
       stream_state ->
+        Enum.each(stream_state.subscribers, fn {subscriber_pid, _ref} ->
+          send(subscriber_pid, {:stream_cancelled, stream_id})
+        end)
+
         new_state = finalize_stream(stream_state, state, :stopped)
         {:reply, :ok, new_state}
     end
@@ -485,13 +496,77 @@ defmodule Gemini.Streaming.UnifiedManager do
         Keyword.get(opts, :auth, Gemini.Config.current_api_type())
       end
 
-    case validate_auth_strategy(auth_strategy) do
-      :ok ->
-        init_and_start_stream(model, request_body, opts, auth_strategy, state)
-
-      {:error, reason} ->
-        {:reply, {:error, reason}, state}
+    with :ok <- validate_auth_strategy(auth_strategy),
+         {:ok, prepared_opts} <-
+           prepare_stream_opts(auth_strategy, model, request_body, opts) do
+      init_and_start_stream(model, request_body, prepared_opts, auth_strategy, state)
+    else
+      {:error, reason} -> {:reply, {:error, reason}, state}
     end
+  end
+
+  defp prepare_stream_opts(:governed_authority, model, request_body, opts) do
+    with :ok <- validate_governed_stream_opts(opts),
+         :ok <- validate_governed_stream_retries(opts),
+         :ok <- validate_governed_stream_mode(opts),
+         :ok <- validate_explicit_governed_model(model, opts),
+         {:ok, authority} <- governed_authority(opts),
+         :ok <- validate_governed_request_body(request_body) do
+      {:ok,
+       opts
+       |> Keyword.put(:governed_authority, authority)
+       |> Keyword.put(:account_namespace, GovernedAuthority.account_namespace(authority))
+       |> Keyword.put(:rate_limit_scope, GovernedAuthority.rate_limit_scope(authority))
+       |> Keyword.put(:governed_context, GovernedAuthority.refs(authority))
+       |> Keyword.put(
+         :credential_query_names,
+         GovernedAuthority.credential_query_names(authority)
+       )
+       |> Keyword.put(:redaction_values, GovernedAuthority.secret_values(authority))
+       |> Keyword.put(:disable_rate_limiter, false)
+       |> Keyword.put(:max_retries, 0)
+       |> Keyword.put(:model, model)}
+    end
+  end
+
+  defp prepare_stream_opts(_auth_strategy, _model, _request_body, opts), do: {:ok, opts}
+
+  defp governed_authority(opts) do
+    {:ok, GovernedAuthority.new!(Keyword.fetch!(opts, :governed_authority))}
+  rescue
+    error in [ArgumentError, KeyError] ->
+      {:error, {:invalid_governed_authority, error.message}}
+  end
+
+  defp validate_governed_request_body(request_body) do
+    GovernedAuthority.validate_request_body!(request_body)
+  rescue
+    error in ArgumentError -> {:error, {:invalid_governed_request, error.message}}
+  end
+
+  defp validate_explicit_governed_model(model, opts) do
+    case Keyword.fetch(opts, :model) do
+      {:ok, configured_model} when is_binary(configured_model) ->
+        if normalize_model(configured_model) == normalize_model(model),
+          do: :ok,
+          else: {:error, :governed_model_mismatch}
+
+      _missing_or_invalid ->
+        {:error, :governed_model_required}
+    end
+  end
+
+  defp validate_governed_stream_retries(opts) do
+    case Keyword.get(opts, :max_retries, 0) do
+      0 -> :ok
+      _other -> {:error, :governed_stream_retries_forbidden}
+    end
+  end
+
+  defp validate_governed_stream_mode(opts) do
+    if Keyword.get(opts, :auto_execute_tools, false),
+      do: {:error, :governed_auto_tool_stream_forbidden},
+      else: :ok
   end
 
   defp init_and_start_stream(model, request_body, opts, auth_strategy, state) do
@@ -680,8 +755,7 @@ defmodule Gemini.Streaming.UnifiedManager do
   end
 
   defp stream_request_with_governed_authority(stream_state) do
-    with :ok <- validate_governed_stream_opts(stream_state.config),
-         authority <-
+    with authority <-
            GovernedAuthority.new!(Keyword.fetch!(stream_state.config, :governed_authority)),
          url <- governed_streaming_url(authority, stream_state.model) do
       streaming_opts =
@@ -691,7 +765,11 @@ defmodule Gemini.Streaming.UnifiedManager do
           :max_backoff_ms,
           :connect_timeout,
           :method,
-          :add_sse_params
+          :add_sse_params,
+          :model,
+          :governed_context,
+          :credential_query_names,
+          :redaction_values
         ])
 
       start_stream_to_process(
@@ -736,11 +814,32 @@ defmodule Gemini.Streaming.UnifiedManager do
     end
   end
 
-  defp governed_streaming_url(%GovernedAuthority{base_url: base_url}, model) do
-    normalized_model =
-      if String.starts_with?(model, "models/"), do: model, else: "models/#{model}"
+  defp governed_streaming_url(%GovernedAuthority{base_url: base_url} = authority, model) do
+    normalized_model = normalize_model(model)
 
-    String.trim_trailing(base_url, "/") <> "/" <> normalized_model <> ":streamGenerateContent"
+    unless Regex.match?(~r/\Amodels\/[A-Za-z0-9._-]+\z/, normalized_model) do
+      raise ArgumentError, "governed stream requires an explicit provider model identifier"
+    end
+
+    url =
+      String.trim_trailing(base_url, "/") <>
+        "/" <> normalized_model <> ":streamGenerateContent"
+
+    append_query_params(url, GovernedAuthority.query_params(authority))
+  end
+
+  defp normalize_model("models/" <> _model = model), do: model
+  defp normalize_model(model), do: "models/#{model}"
+
+  defp append_query_params(url, []), do: url
+
+  defp append_query_params(url, params) do
+    encoded =
+      Enum.map_join(params, "&", fn {key, value} ->
+        URI.encode_www_form(key) <> "=" <> URI.encode_www_form(value)
+      end)
+
+    url <> "?" <> encoded
   end
 
   defp start_stream_to_process(url, final_headers, stream_state, []) do

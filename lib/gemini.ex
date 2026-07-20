@@ -207,7 +207,11 @@ defmodule Gemini do
         ]
 
   @doc """
-  Configure authentication for the client.
+  Configure process-wide authentication for explicit standalone use.
+
+  This function is never a managed-account entry point. Concurrent managed
+  calls must pass a `Gemini.GovernedAuthority`; that path rejects and ignores
+  this global standalone configuration.
 
   ## Examples
 
@@ -828,6 +832,9 @@ defmodule Gemini do
 
       {:stream_error, ^stream_id, error} ->
         {:error, error}
+
+      {:stream_cancelled, ^stream_id} ->
+        {:error, :cancelled}
     after
       stream_timeout ->
         _ = Coordinator.stop_stream(stream_id)

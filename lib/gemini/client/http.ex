@@ -269,6 +269,7 @@ defmodule Gemini.Client.HTTP do
     url = build_governed_url(path, authority)
     headers = GovernedAuthority.headers(authority)
     model = extract_model_from_path(path)
+    validate_explicit_governed_model!(path, model, opts)
 
     managed_opts =
       opts
@@ -390,6 +391,29 @@ defmodule Gemini.Client.HTTP do
     |> String.trim()
     |> String.downcase()
     |> String.replace("-", "_")
+  end
+
+  defp validate_explicit_governed_model!(path, model, opts) do
+    if governed_generation_path?(path) do
+      case Keyword.fetch(opts, :model) do
+        {:ok, configured_model} when is_binary(configured_model) ->
+          configured_model = String.replace_prefix(configured_model, "models/", "")
+
+          if configured_model != model do
+            raise ArgumentError, "governed authority model does not match request path"
+          end
+
+        _missing_or_invalid ->
+          raise ArgumentError, "governed authority requires an explicit model"
+      end
+    end
+
+    :ok
+  end
+
+  defp governed_generation_path?(path) do
+    endpoint = extract_endpoint_from_path(path)
+    endpoint in ["generateContent", "streamGenerateContent"]
   end
 
   defp build_absolute_url(base_url, absolute_path) do

@@ -73,9 +73,15 @@ defmodule Gemini.Client.HTTPStreaming do
     connect_timeout = Keyword.get(opts, :connect_timeout, @default_connect_timeout_ms)
     method = Keyword.get(opts, :method, :post)
     add_sse_params? = Keyword.get(opts, :add_sse_params, true)
+    redaction_values = Keyword.get(opts, :redaction_values, [])
 
     stream_id = Telemetry.generate_stream_id()
-    metadata = Telemetry.build_stream_metadata(url, method, stream_id, opts)
+
+    metadata =
+      url
+      |> Telemetry.build_stream_metadata(method, stream_id, opts)
+      |> Telemetry.redact(redaction_values)
+
     measurements = %{system_time: System.system_time()}
 
     Telemetry.execute([:gemini, :stream, :start], measurements, metadata)
@@ -83,7 +89,9 @@ defmodule Gemini.Client.HTTPStreaming do
     try do
       # Wrap the callback to emit telemetry for chunks
       telemetry_callback = fn event ->
-        case event do
+        safe_event = Telemetry.redact(event, redaction_values)
+
+        case safe_event do
           %{type: :data, data: data} ->
             chunk_measurements = %{
               chunk_size: calculate_chunk_size(data),
@@ -96,7 +104,7 @@ defmodule Gemini.Client.HTTPStreaming do
             :ok
         end
 
-        callback.(event)
+        callback.(safe_event)
       end
 
       stream_config = %{
@@ -105,10 +113,15 @@ defmodule Gemini.Client.HTTPStreaming do
         max_backoff_ms: max_backoff_ms,
         connect_timeout: connect_timeout,
         method: method,
-        add_sse_params?: add_sse_params?
+        add_sse_params?: add_sse_params?,
+        credential_query_names: Keyword.get(opts, :credential_query_names, []),
+        redaction_values: redaction_values
       }
 
-      result = stream_with_retries(url, headers, body, telemetry_callback, stream_config, 0)
+      result =
+        url
+        |> stream_with_retries(headers, body, telemetry_callback, stream_config, 0)
+        |> Telemetry.redact(redaction_values)
 
       case result do
         {:ok, :completed} ->
@@ -120,20 +133,26 @@ defmodule Gemini.Client.HTTPStreaming do
           Telemetry.execute(
             [:gemini, :stream, :exception],
             measurements,
-            Map.put(metadata, :reason, error)
+            Map.put(metadata, :reason, Telemetry.redact(error, redaction_values))
           )
 
           result
       end
     rescue
       exception ->
+        safe_exception = Telemetry.redact(exception, redaction_values)
+
         Telemetry.execute(
           [:gemini, :stream, :exception],
           measurements,
-          Map.put(metadata, :reason, exception)
+          Map.put(metadata, :reason, safe_exception)
         )
 
-        reraise exception, __STACKTRACE__
+        if redaction_values == [] do
+          reraise exception, __STACKTRACE__
+        else
+          {:error, Error.network_error("governed stream failed: #{inspect(safe_exception)}")}
+        end
     end
   end
 
@@ -218,7 +237,9 @@ defmodule Gemini.Client.HTTPStreaming do
         {:ok, :completed}
 
       {:error, error} when attempt < config.max_retries ->
-        Logger.warning("Stream attempt #{attempt + 1} failed: #{inspect(error)}, retrying...")
+        Logger.warning(
+          "Stream attempt #{attempt + 1} failed: #{inspect(safe(error, config))}, retrying..."
+        )
 
         # Exponential backoff
         delay = min(1000 * :math.pow(2, attempt), config.max_backoff_ms) |> round()
@@ -227,7 +248,10 @@ defmodule Gemini.Client.HTTPStreaming do
         stream_with_retries(url, headers, body, callback, config, attempt + 1)
 
       {:error, error} ->
-        Logger.error("Stream failed after #{config.max_retries} retries: #{inspect(error)}")
+        Logger.error(
+          "Stream failed after #{config.max_retries} retries: #{inspect(safe(error, config))}"
+        )
+
         {:error, error}
     end
   end
@@ -262,7 +286,8 @@ defmodule Gemini.Client.HTTPStreaming do
         ) ::
           {:ok, :completed} | {:error, term()}
   defp stream_with_finch(url, headers, body, callback, config) do
-    Logger.debug("Starting real-time streaming with Req to #{url} (#{config.method})")
+    safe_url = Telemetry.redact_url(url, config.credential_query_names)
+    Logger.debug("Starting real-time streaming with Req to #{safe_url} (#{config.method})")
 
     # Use Req's `:self` option for real-time streaming
     req_opts =
@@ -540,4 +565,6 @@ defmodule Gemini.Client.HTTPStreaming do
 
   defp calculate_chunk_size(data) when is_binary(data), do: byte_size(data)
   defp calculate_chunk_size(_), do: 0
+
+  defp safe(value, config), do: Telemetry.redact(value, config.redaction_values)
 end

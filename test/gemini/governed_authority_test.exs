@@ -22,6 +22,7 @@ defmodule Gemini.GovernedAuthorityTest do
     {:gemini, :api_key},
     {:gemini_ex, :auth},
     {:gemini_ex, :api_key},
+    {:gemini_ex, :model},
     {:gemini_ex, :vertex_ai},
     {:gemini_ex, :vertex_project_id},
     {:gemini_ex, :vertex_location},
@@ -96,7 +97,8 @@ defmodule Gemini.GovernedAuthorityTest do
 
     assert {:ok, %{"ok" => true}} =
              HTTP.post("models/gemini-2.5-flash:generateContent", %{},
-               governed_authority: authority
+               governed_authority: authority,
+               model: "gemini-2.5-flash"
              )
 
     assert_receive {:request_metadata, metadata}
@@ -108,6 +110,150 @@ defmodule Gemini.GovernedAuthorityTest do
     refute inspect(metadata) =~ "authority-header-key"
     refute inspect(metadata) =~ "env-key"
     refute inspect(metadata) =~ "app-key"
+  end
+
+  test "governed streaming applies exact materialization and delivers ordered incremental events" do
+    bypass = Bypass.open()
+    test_pid = self()
+    sentinel = "stream-authority-query-never-visible"
+    handler_id = "governed-stream-redaction-#{System.unique_integer([:positive])}"
+
+    Application.put_env(:gemini_ex, :telemetry_enabled, true)
+
+    :telemetry.attach_many(
+      handler_id,
+      [[:gemini, :stream, :start], [:gemini, :stream, :chunk]],
+      fn event, measurements, metadata, _config ->
+        send(test_pid, {:stream_telemetry, event, measurements, metadata})
+      end,
+      nil
+    )
+
+    on_exit(fn -> :telemetry.detach(handler_id) end)
+
+    Bypass.expect_once(
+      bypass,
+      "POST",
+      "/v1/models/gemini-2.5-flash:streamGenerateContent",
+      fn conn ->
+        conn = Plug.Conn.fetch_query_params(conn)
+        assert conn.query_params["key"] == sentinel
+        assert conn.query_params["alt"] == "sse"
+        assert Plug.Conn.get_req_header(conn, "x-goog-api-key") == ["stream-header-secret"]
+        assert Plug.Conn.get_req_header(conn, "x-governed-target") == ["target-123"]
+
+        conn =
+          conn
+          |> Plug.Conn.put_resp_content_type("text/event-stream")
+          |> Plug.Conn.send_chunked(200)
+
+        # Allow the caller to subscribe before the first provider chunk arrives.
+        Process.sleep(100)
+
+        chunks = [
+          %{"candidates" => [%{"content" => %{"parts" => [%{"text" => "first"}]}}]},
+          %{"usageMetadata" => %{"candidatesTokenCount" => 2, "promptTokenCount" => 1}},
+          %{"candidates" => [%{"content" => %{"parts" => [%{"text" => "second"}]}}]}
+        ]
+
+        conn =
+          Enum.reduce(chunks, conn, fn event, streaming_conn ->
+            {:ok, streaming_conn} =
+              Plug.Conn.chunk(streaming_conn, "data: #{Jason.encode!(event)}\n\n")
+
+            Process.sleep(25)
+            streaming_conn
+          end)
+
+        {:ok, conn} = Plug.Conn.chunk(conn, "data: [DONE]\n\n")
+        conn
+      end
+    )
+
+    Gemini.Env.put("GEMINI_API_KEY", "ambient-stream-key")
+    Application.put_env(:gemini_ex, :api_key, "ambient-app-stream-key")
+
+    managed_authority =
+      authority(
+        base_url: "http://localhost:#{bypass.port}/v1",
+        secret_payload: %{
+          headers: %{"x-goog-api-key" => "stream-header-secret"},
+          query_params: [{"key", sentinel}]
+        }
+      )
+
+    assert {:ok, stream_id} =
+             Gemini.start_stream("hello",
+               model: "gemini-2.5-flash",
+               governed_authority: managed_authority,
+               max_retries: 0
+             )
+
+    assert :ok = Gemini.subscribe_stream(stream_id)
+
+    assert_receive {:stream_event, ^stream_id,
+                    %{type: :data, data: %{"candidates" => first_candidates}}},
+                   1_000
+
+    assert get_in(first_candidates, [Access.at(0), "content", "parts", Access.at(0), "text"]) ==
+             "first"
+
+    assert_receive {:stream_event, ^stream_id,
+                    %{
+                      type: :data,
+                      data: %{
+                        "usageMetadata" => %{
+                          "candidatesTokenCount" => 2,
+                          "promptTokenCount" => 1
+                        }
+                      }
+                    }},
+                   1_000
+
+    assert_receive {:stream_event, ^stream_id,
+                    %{type: :data, data: %{"candidates" => second_candidates}}},
+                   1_000
+
+    assert get_in(second_candidates, [Access.at(0), "content", "parts", Access.at(0), "text"]) ==
+             "second"
+
+    assert_receive {:stream_complete, ^stream_id}, 1_000
+
+    assert_receive {:stream_telemetry, [:gemini, :stream, :start], _measurements, metadata}
+    assert metadata.model == "models/gemini-2.5-flash"
+    assert metadata.governed_context.provider_account_ref == "account://google/gemini/test"
+    assert metadata.governed_context.quota_scope_ref == "quota://google/project/test"
+    assert metadata.url =~ "key=[REDACTED]"
+
+    refute inspect(metadata) =~ sentinel
+    refute inspect(metadata) =~ "stream-header-secret"
+    refute inspect(metadata) =~ "ambient-stream-key"
+    refute inspect(metadata) =~ "ambient-app-stream-key"
+  end
+
+  test "governed generation requires explicit model and rejects stream supplementation and replay" do
+    Application.put_env(:gemini_ex, :model, "ambient-model")
+
+    assert {:error, :governed_model_required} =
+             Gemini.start_stream("hello", governed_authority: authority())
+
+    assert {:error, {:governed_authority_forbidden_option, :api_key}} =
+             Gemini.start_stream("hello",
+               model: "gemini-2.5-flash",
+               governed_authority: authority(),
+               api_key: "smuggled"
+             )
+
+    assert {:error, :governed_stream_retries_forbidden} =
+             Gemini.start_stream("hello",
+               model: "gemini-2.5-flash",
+               governed_authority: authority(),
+               max_retries: 1
+             )
+
+    assert_raise ArgumentError, ~r/requires an explicit model/, fn ->
+      HTTP.post("models/gemini-2.5-flash:generateContent", %{}, governed_authority: authority())
+    end
   end
 
   test "governed materialization binds account endpoint generation lease authority and expiry" do
