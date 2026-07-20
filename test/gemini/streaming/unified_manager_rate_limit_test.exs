@@ -142,12 +142,15 @@ defmodule Gemini.Streaming.UnifiedManagerRateLimitTest do
                                                                      _headers,
                                                                      _body,
                                                                      stream_id,
-                                                                     _manager_pid,
+                                                                     manager_pid,
                                                                      _opts ->
       pid =
         spawn(fn ->
           send(test_pid, {:governed_stream_started, stream_id, self()})
-          receive do: (:finish -> :ok)
+
+          receive do
+            :finish -> send(manager_pid, {:stream_complete, stream_id})
+          end
         end)
 
       {:ok, pid}
@@ -165,7 +168,8 @@ defmodule Gemini.Streaming.UnifiedManagerRateLimitTest do
                max_concurrency_per_model: 1
              )
 
-    assert_receive {:governed_stream_started, ^stream_a, _stream_a_pid}
+    assert_receive {:governed_stream_started, ^stream_a, stream_a_pid}
+    assert :ok = UnifiedManager.subscribe(stream_a, self())
 
     assert {:ok, stream_b} =
              UnifiedManager.start_stream(model, request,
@@ -185,7 +189,14 @@ defmodule Gemini.Streaming.UnifiedManagerRateLimitTest do
                non_blocking: true
              )
 
-    assert :ok = UnifiedManager.stop_stream(stream_a)
+    send(stream_a_pid, :finish)
+    assert_receive {:stream_complete, ^stream_a}
+
+    manager_state = :sys.get_state(UnifiedManager)
+    terminal_config = manager_state.streams[stream_a].config
+    refute Keyword.has_key?(terminal_config, :governed_authority)
+    refute Keyword.has_key?(terminal_config, :redaction_values)
+
     assert :ok = UnifiedManager.stop_stream(stream_b)
   end
 

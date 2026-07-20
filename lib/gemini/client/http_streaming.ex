@@ -195,9 +195,9 @@ defmodule Gemini.Client.HTTPStreaming do
   defp safe_stream_sse(url, headers, body, callback, opts) do
     stream_sse(url, headers, body, callback, opts)
   rescue
-    exception -> {:error, exception}
+    exception -> {:error, redact_transport_failure(exception, opts)}
   catch
-    :exit, reason -> {:error, reason}
+    :exit, reason -> {:error, redact_transport_failure(reason, opts)}
   end
 
   @spec forward_stream_result({:ok, :completed} | {:error, term()}, pid(), String.t()) :: :ok
@@ -567,4 +567,8 @@ defmodule Gemini.Client.HTTPStreaming do
   defp calculate_chunk_size(_), do: 0
 
   defp safe(value, config), do: Telemetry.redact(value, config.redaction_values)
+
+  defp redact_transport_failure(value, opts) do
+    Telemetry.redact(value, Keyword.get(opts, :redaction_values, []))
+  end
 end

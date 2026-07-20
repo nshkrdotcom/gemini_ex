@@ -26,6 +26,7 @@ defmodule Gemini.Streaming.UnifiedManager do
   alias Gemini.GovernedAuthority
   alias Gemini.RateLimiter
   alias Gemini.Streaming.ToolOrchestrator
+  alias Gemini.Telemetry
   alias Gemini.Types.{Content, Part}
 
   @type stream_id :: String.t()
@@ -451,7 +452,10 @@ defmodule Gemini.Streaming.UnifiedManager do
         {:noreply, state}
 
       stream_state ->
-        updated_stream = release_stream_resources(stream_state, :completed)
+        updated_stream =
+          stream_state
+          |> release_stream_resources(:completed)
+          |> scrub_transient_authority()
 
         # Update status and notify subscribers
         updated_stream = %{updated_stream | status: :completed}
@@ -472,13 +476,22 @@ defmodule Gemini.Streaming.UnifiedManager do
         {:noreply, state}
 
       stream_state ->
-        updated_stream = release_stream_resources(stream_state, :error)
+        safe_error =
+          Telemetry.redact(
+            error,
+            Keyword.get(stream_state.config, :redaction_values, [])
+          )
+
+        updated_stream =
+          stream_state
+          |> release_stream_resources(:error)
+          |> scrub_transient_authority()
 
         # Update status and notify subscribers
-        updated_stream = %{updated_stream | status: :error, error: error}
+        updated_stream = %{updated_stream | status: :error, error: safe_error}
 
         Enum.each(stream_state.subscribers, fn {subscriber_pid, _ref} ->
-          send(subscriber_pid, {:stream_error, stream_id, error})
+          send(subscriber_pid, {:stream_error, stream_id, safe_error})
         end)
 
         new_state = put_in(state.streams[stream_id], updated_stream)
@@ -903,6 +916,13 @@ defmodule Gemini.Streaming.UnifiedManager do
         release_fn.(status, usage)
         %{stream_state | release_fn: nil}
     end
+  end
+
+  defp scrub_transient_authority(stream_state) do
+    %{
+      stream_state
+      | config: Keyword.drop(stream_state.config, [:governed_authority, :redaction_values])
+    }
   end
 
   @spec stop_stream_process(pid() | nil) :: :ok

@@ -1,4 +1,4 @@
-defmodule DependencySources do
+defmodule Gemini.DependencySources do
   @moduledoc false
 
   @helper_version 2
