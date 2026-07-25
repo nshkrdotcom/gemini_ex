@@ -1257,8 +1257,7 @@ defmodule Gemini.Config do
   end
 
   defp validate_vertex_config!(credentials) do
-    fields = if is_map(credentials), do: Map.keys(credentials), else: []
-    raise "Invalid Vertex AI configuration fields: #{inspect(fields)}"
+    raise "Invalid Vertex AI configuration fields: #{inspect(Map.keys(credentials))}"
   end
 
   defp load_project_from_service_account(file_path) do

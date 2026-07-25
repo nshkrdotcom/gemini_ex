@@ -245,9 +245,7 @@ defmodule Gemini.Auth.JWT do
     with :ok <- validate_payload(payload) do
       cond do
         service_account_key = Keyword.get(opts, :service_account_key) ->
-          with {:ok, key} <- load_service_account_key(service_account_key) do
-            sign_with_key(payload, key)
-          end
+          sign_with_service_account_key_source(payload, service_account_key)
 
         service_account_data = Keyword.get(opts, :service_account_data) ->
           sign_with_key(payload, service_account_data)
@@ -273,6 +271,12 @@ defmodule Gemini.Auth.JWT do
   """
   @spec get_service_account_email(service_account_key()) :: String.t()
   def get_service_account_email(%{client_email: email}), do: email
+
+  defp sign_with_service_account_key_source(payload, service_account_key) do
+    with {:ok, key} <- load_service_account_key(service_account_key) do
+      sign_with_key(payload, key)
+    end
+  end
 
   defp handle_iam_response(%Req.Response{status: 200, body: body}), do: parse_signed_jwt(body)
 

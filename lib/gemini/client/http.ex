@@ -187,8 +187,10 @@ defmodule Gemini.Client.HTTP do
         if redaction_values == [] do
           reraise exception, __STACKTRACE__
         else
-          raise RuntimeError,
-                "governed request failed: #{inspect(Telemetry.redact(exception, redaction_values))}"
+          reraise RuntimeError.exception(
+                    "governed request failed: #{inspect(Telemetry.redact(exception, redaction_values))}"
+                  ),
+                  __STACKTRACE__
         end
     end
   end
@@ -378,11 +380,13 @@ defmodule Gemini.Client.HTTP do
     if is_binary(query) do
       query
       |> URI.query_decoder()
-      |> Enum.each(fn {key, _value} ->
-        if normalize_query_name(key) in @credential_query_names do
-          raise ArgumentError, "governed authority forbids credential query parameter #{key}"
-        end
-      end)
+      |> Enum.each(&validate_governed_query_param!/1)
+    end
+  end
+
+  defp validate_governed_query_param!({key, _value}) do
+    if normalize_query_name(key) in @credential_query_names do
+      raise ArgumentError, "governed authority forbids credential query parameter #{key}"
     end
   end
 
@@ -395,20 +399,21 @@ defmodule Gemini.Client.HTTP do
 
   defp validate_explicit_governed_model!(path, model, opts) do
     if governed_generation_path?(path) do
-      case Keyword.fetch(opts, :model) do
-        {:ok, configured_model} when is_binary(configured_model) ->
-          configured_model = String.replace_prefix(configured_model, "models/", "")
-
-          if configured_model != model do
-            raise ArgumentError, "governed authority model does not match request path"
-          end
-
-        _missing_or_invalid ->
-          raise ArgumentError, "governed authority requires an explicit model"
-      end
+      validate_governed_model_match!(Keyword.fetch(opts, :model), model)
     end
 
     :ok
+  end
+
+  defp validate_governed_model_match!({:ok, configured_model}, model)
+       when is_binary(configured_model) do
+    if String.replace_prefix(configured_model, "models/", "") != model do
+      raise ArgumentError, "governed authority model does not match request path"
+    end
+  end
+
+  defp validate_governed_model_match!(_missing_or_invalid, _model) do
+    raise ArgumentError, "governed authority requires an explicit model"
   end
 
   defp governed_generation_path?(path) do
