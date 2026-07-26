@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.15.0] - 2026-07-25
+
+### Changed
+
+- Adopted the shared dependency-source contract, including deterministic
+  source selection, source-lock verification, release DAG ordering, and a
+  fail-closed Hex package-existence preflight.
+- Completed the release package and HexDocs identity with named Hex, HexDocs,
+  changelog, and license links plus the canonical `assets/gemini_ex.svg`.
+- Refreshed the HTTP client lock to patched Mint 1.9.3.
+
+### Fixed
+
+- Restored strict Credo and Dialyzer gates without suppressions by extracting
+  nested validation/signing branches, preserving the governed-request
+  redaction stacktrace, and removing an unreachable credentials type branch.
+
 ## [0.14.0] - 2026-06-16
 
 ### Added
@@ -2101,7 +2120,9 @@ config :gemini_ex,
 - Minimal latency overhead
 - Concurrent request processing
 
-[Unreleased]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.14.0...v0.15.0
+[0.14.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.11.0...v0.11.1

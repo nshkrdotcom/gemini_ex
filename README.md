@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.svg" alt="Gemini Elixir Client Logo" width="200" height="200">
+  <img src="assets/gemini_ex.svg" alt="Gemini Elixir Client Logo" width="200" height="200">
 </p>
 
 # Gemini Elixir Client
@@ -59,7 +59,7 @@ Add `gemini` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:gemini_ex, "~> 0.14.0"}
+    {:gemini_ex, "~> 0.15.0"}
   ]
 end
 ```

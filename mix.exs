@@ -5,8 +5,10 @@ end
 defmodule Gemini.MixProject do
   use Mix.Project
 
-  @version "0.14.0"
+  @version "0.15.0"
   @source_url "https://github.com/nshkrdotcom/gemini_ex"
+  @homepage_url "https://hex.pm/packages/gemini_ex"
+  @docs_url "https://hexdocs.pm/gemini_ex"
 
   def project do
     [
@@ -21,7 +23,7 @@ defmodule Gemini.MixProject do
       package: package(),
       name: "GeminiEx",
       source_url: @source_url,
-      homepage_url: @source_url,
+      homepage_url: @homepage_url,
       test_coverage: [tool: ExCoveralls],
       test_ignore_filters: [
         # Ignores everything in the fixtures folder
@@ -90,9 +92,9 @@ defmodule Gemini.MixProject do
       name: "Gemini",
       source_ref: "v#{@version}",
       source_url: @source_url,
-      homepage_url: @source_url,
+      homepage_url: @docs_url,
       assets: %{"assets" => "assets"},
-      logo: "assets/logo.svg",
+      logo: "assets/gemini_ex.svg",
       extras: [
         # Getting Started
         "README.md",
@@ -302,8 +304,11 @@ defmodule Gemini.MixProject do
       licenses: ["MIT"],
       links: %{
         "GitHub" => @source_url,
+        "Hex" => @homepage_url,
+        "HexDocs" => @docs_url,
         "ALTAR Integration Story" => "https://hexdocs.pm/gemini_ex/altar_integration.html",
-        "Changelog" => "#{@source_url}/blob/main/CHANGELOG.md"
+        "Changelog" => "#{@source_url}/blob/main/CHANGELOG.md",
+        "License" => "#{@source_url}/blob/main/LICENSE"
       },
       maintainers: ["nshkrdotcom"],
       exclude_patterns: [
