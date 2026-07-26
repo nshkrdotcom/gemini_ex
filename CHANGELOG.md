@@ -13,7 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Adopted the shared dependency-source contract, including deterministic
   source selection, source-lock verification, release DAG ordering, and a
-  fail-closed Hex package-existence preflight.
+  fail-closed preflight for the exact local sibling release on Hex. Nested
+  package tasks resolve the helper-owning repository, and manifest self-entries
+  are excluded from prerequisites.
 - Completed the release package and HexDocs identity with named Hex, HexDocs,
   changelog, and license links plus the canonical `assets/gemini_ex.svg`.
 - Refreshed the HTTP client lock to patched Mint 1.9.3.
