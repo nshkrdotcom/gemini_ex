@@ -382,6 +382,16 @@ defmodule Gemini do
   end
 
   @doc """
+  Start a managed streaming session with its initial subscriber registered
+  atomically before provider events can be delivered.
+  """
+  @spec start_stream(String.t() | [Content.t()], options(), pid()) ::
+          {:ok, String.t()} | {:error, Error.t()}
+  def start_stream(contents, opts, subscriber_pid) when is_pid(subscriber_pid) do
+    Coordinator.stream_generate_content(contents, opts, subscriber_pid)
+  end
+
+  @doc """
   Start a streaming session with automatic tool execution.
 
   This function provides streaming support for the automatic tool-calling loop.
@@ -437,6 +447,14 @@ defmodule Gemini do
   @spec subscribe_stream(String.t()) :: :ok | {:error, Error.t()}
   def subscribe_stream(stream_id) do
     Coordinator.subscribe_stream(stream_id, self())
+  end
+
+  @doc """
+  Stop a streaming session and release its provider and rate-limit resources.
+  """
+  @spec stop_stream(String.t()) :: :ok | {:error, Error.t()}
+  def stop_stream(stream_id) do
+    Coordinator.stop_stream(stream_id)
   end
 
   @doc """

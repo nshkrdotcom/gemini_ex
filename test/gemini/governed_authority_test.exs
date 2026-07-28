@@ -147,9 +147,6 @@ defmodule Gemini.GovernedAuthorityTest do
           |> Plug.Conn.put_resp_content_type("text/event-stream")
           |> Plug.Conn.send_chunked(200)
 
-        # Allow the caller to subscribe before the first provider chunk arrives.
-        Process.sleep(100)
-
         chunks = [
           %{"candidates" => [%{"content" => %{"parts" => [%{"text" => "first"}]}}]},
           %{"usageMetadata" => %{"candidatesTokenCount" => 2, "promptTokenCount" => 1}},
@@ -183,13 +180,15 @@ defmodule Gemini.GovernedAuthorityTest do
       )
 
     assert {:ok, stream_id} =
-             Gemini.start_stream("hello",
-               model: "gemini-2.5-flash",
-               governed_authority: managed_authority,
-               max_retries: 0
+             Gemini.start_stream(
+               "hello",
+               [
+                 model: "gemini-2.5-flash",
+                 governed_authority: managed_authority,
+                 max_retries: 0
+               ],
+               self()
              )
-
-    assert :ok = Gemini.subscribe_stream(stream_id)
 
     assert_receive {:stream_event, ^stream_id,
                     %{type: :data, data: %{"candidates" => first_candidates}}},

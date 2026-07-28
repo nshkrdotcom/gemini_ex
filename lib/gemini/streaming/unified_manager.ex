@@ -146,18 +146,18 @@ defmodule Gemini.Streaming.UnifiedManager do
           contents
       end
 
-    # Start the stream with new API
-    case start_stream(model, request_body, opts) do
-      {:ok, stream_id} ->
-        # Auto-subscribe the calling process for compatibility
-        case subscribe(stream_id, subscriber_pid) do
-          :ok -> {:ok, stream_id}
-          {:error, reason} -> {:error, reason}
-        end
+    start_stream(model, request_body, opts, subscriber_pid)
+  end
 
-      {:error, reason} ->
-        {:error, reason}
-    end
+  @spec start_stream(String.t(), map(), keyword(), pid()) ::
+          {:ok, stream_id()} | {:error, term()}
+  def start_stream(model, request_body, opts, subscriber_pid)
+      when is_binary(model) and is_map(request_body) and is_list(opts) and
+             is_pid(subscriber_pid) do
+    GenServer.call(
+      __MODULE__,
+      {:start_stream, model, request_body, opts, subscriber_pid}
+    )
   end
 
   @doc """
@@ -248,7 +248,20 @@ defmodule Gemini.Streaming.UnifiedManager do
     if max_streams_reached?(state) do
       {:reply, {:error, :max_streams_reached}, state}
     else
-      start_stream_with_opts(model, request_body, opts, state)
+      start_stream_with_opts(model, request_body, opts, nil, state)
+    end
+  end
+
+  @impl true
+  def handle_call(
+        {:start_stream, model, request_body, opts, subscriber_pid},
+        _from,
+        state
+      ) do
+    if max_streams_reached?(state) do
+      {:reply, {:error, :max_streams_reached}, state}
+    else
+      start_stream_with_opts(model, request_body, opts, subscriber_pid, state)
     end
   end
 
@@ -501,7 +514,7 @@ defmodule Gemini.Streaming.UnifiedManager do
 
   # Private helper functions
 
-  defp start_stream_with_opts(model, request_body, opts, state) do
+  defp start_stream_with_opts(model, request_body, opts, subscriber_pid, state) do
     auth_strategy =
       if Keyword.has_key?(opts, :governed_authority) do
         :governed_authority
@@ -512,7 +525,14 @@ defmodule Gemini.Streaming.UnifiedManager do
     with :ok <- validate_auth_strategy(auth_strategy),
          {:ok, prepared_opts} <-
            prepare_stream_opts(auth_strategy, model, request_body, opts) do
-      init_and_start_stream(model, request_body, prepared_opts, auth_strategy, state)
+      init_and_start_stream(
+        model,
+        request_body,
+        prepared_opts,
+        auth_strategy,
+        subscriber_pid,
+        state
+      )
     else
       {:error, reason} -> {:reply, {:error, reason}, state}
     end
@@ -582,8 +602,16 @@ defmodule Gemini.Streaming.UnifiedManager do
       else: :ok
   end
 
-  defp init_and_start_stream(model, request_body, opts, auth_strategy, state) do
+  defp init_and_start_stream(
+         model,
+         request_body,
+         opts,
+         auth_strategy,
+         subscriber_pid,
+         state
+       ) do
     stream_id = generate_stream_id(state.stream_counter)
+    subscribers = initial_subscribers(subscriber_pid)
 
     stream_state = %{
       stream_id: stream_id,
@@ -593,7 +621,7 @@ defmodule Gemini.Streaming.UnifiedManager do
       status: :starting,
       error: nil,
       started_at: DateTime.utc_now(),
-      subscribers: [],
+      subscribers: subscribers,
       events_count: 0,
       last_event_at: nil,
       config: opts,
@@ -619,8 +647,21 @@ defmodule Gemini.Streaming.UnifiedManager do
         {:reply, {:ok, stream_id}, new_state}
 
       {:error, reason} ->
+        demonitor_subscribers(subscribers)
         {:reply, {:error, reason}, state}
     end
+  end
+
+  defp initial_subscribers(nil), do: []
+
+  defp initial_subscribers(subscriber_pid) when is_pid(subscriber_pid) do
+    [{subscriber_pid, Process.monitor(subscriber_pid)}]
+  end
+
+  defp demonitor_subscribers(subscribers) do
+    Enum.each(subscribers, fn {_pid, ref} ->
+      Process.demonitor(ref, [:flush])
+    end)
   end
 
   defp start_stream_backend(stream_state, opts) do

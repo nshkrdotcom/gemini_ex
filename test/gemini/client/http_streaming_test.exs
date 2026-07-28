@@ -58,7 +58,11 @@ defmodule Gemini.Client.HTTPStreamingTest do
 
     :telemetry.attach_many(
       handler_id,
-      [[:gemini, :stream, :start], [:gemini, :stream, :exception]],
+      [
+        [:gemini, :stream, :start],
+        [:gemini, :stream, :error],
+        [:gemini, :stream, :exception]
+      ],
       fn event, measurements, metadata, _config ->
         send(test_pid, {:stream_error_telemetry, event, measurements, metadata})
       end,
@@ -106,13 +110,18 @@ defmodule Gemini.Client.HTTPStreamingTest do
       )
 
     assert_receive {:governed_stream_callback, callback_event}
+
+    assert_receive {:stream_error_telemetry, [:gemini, :stream, :error], _,
+                    provider_error_metadata}
+
     assert_receive {:stream_error_telemetry, [:gemini, :stream, :exception], _, error_metadata}
 
-    for surface <- [result, callback_event, error_metadata] do
+    for surface <- [result, callback_event, provider_error_metadata, error_metadata] do
       refute inspect(surface) =~ sentinel
     end
 
     assert inspect(result) =~ "[REDACTED]"
+    assert provider_error_metadata.reason.http_status == 400
     assert error_metadata.url =~ "key=[REDACTED]"
 
     assert error_metadata.governed_context.provider_account_ref ==

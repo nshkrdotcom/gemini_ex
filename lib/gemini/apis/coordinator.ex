@@ -174,6 +174,19 @@ defmodule Gemini.APIs.Coordinator do
   @spec stream_generate_content(String.t() | GenerateContentRequest.t(), Gemini.options()) ::
           api_result(String.t())
   def stream_generate_content(input, opts \\ []) do
+    start_content_stream(input, opts, nil)
+  end
+
+  @spec stream_generate_content(
+          String.t() | GenerateContentRequest.t(),
+          Gemini.options(),
+          pid()
+        ) :: api_result(String.t())
+  def stream_generate_content(input, opts, subscriber_pid) when is_pid(subscriber_pid) do
+    start_content_stream(input, opts, subscriber_pid)
+  end
+
+  defp start_content_stream(input, opts, subscriber_pid) do
     model = opts |> Keyword.get(:model, Config.default_model()) |> normalize_model_option()
 
     # ADR-0001: Estimate tokens on original input BEFORE building the request
@@ -182,11 +195,19 @@ defmodule Gemini.APIs.Coordinator do
     case build_generate_request(input, opts_with_estimation) do
       {:ok, request_body} ->
         # Pass through the auto_execute_tools option to the UnifiedManager
-        UnifiedManager.start_stream(model, request_body, opts_with_estimation)
+        start_unified_stream(model, request_body, opts_with_estimation, subscriber_pid)
 
       {:error, reason} ->
         {:error, reason}
     end
+  end
+
+  defp start_unified_stream(model, request_body, opts, nil) do
+    UnifiedManager.start_stream(model, request_body, opts)
+  end
+
+  defp start_unified_stream(model, request_body, opts, subscriber_pid) do
+    UnifiedManager.start_stream(model, request_body, opts, subscriber_pid)
   end
 
   @doc """

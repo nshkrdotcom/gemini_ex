@@ -100,6 +100,13 @@ defmodule Gemini.Client.HTTPStreaming do
 
             Telemetry.execute([:gemini, :stream, :chunk], chunk_measurements, metadata)
 
+          %{type: :error, error: error} ->
+            Telemetry.execute(
+              [:gemini, :stream, :error],
+              measurements,
+              Map.put(metadata, :reason, error)
+            )
+
           _ ->
             :ok
         end
