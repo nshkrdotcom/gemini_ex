@@ -1,4 +1,4 @@
-defmodule Gemini.DependencySources do
+defmodule DependencySources do
   @moduledoc false
 
   # Settled common dependency-source helper.
@@ -31,7 +31,7 @@ defmodule Gemini.DependencySources do
   #   H4 `release_dag/0` / `release_order/0` - the machine-readable release
   #      order that H1 reads.
 
-  @helper_version 5
+  @helper_version 7
   @repo_root Path.dirname(__DIR__)
 
   @source_keys [:path, :github, :hex]
@@ -84,7 +84,9 @@ defmodule Gemini.DependencySources do
     codex_sdk: [:cli_subprocess_core],
     claude_agent_sdk: [:cli_subprocess_core],
     cursor_cli_sdk: [:cli_subprocess_core],
-    agent_session_manager: [:cli_subprocess_core, :cursor_cli_sdk],
+    antigravity_cli_sdk: [:cli_subprocess_core],
+    amp_sdk: [:cli_subprocess_core],
+    agent_session_manager: [:cli_subprocess_core],
     gemini_ex: [],
     inference: []
   }

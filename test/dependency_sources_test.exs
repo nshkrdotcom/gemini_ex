@@ -1,7 +1,7 @@
 defmodule DependencySourcesTest do
   use ExUnit.Case, async: true
 
-  @helper Gemini.DependencySources
+  @helper DependencySources
 
   setup do
     workspace =
@@ -88,13 +88,13 @@ defmodule DependencySourcesTest do
       workspace: workspace,
       root: root
     } do
-      write_sibling!(workspace, "cli_subprocess_core", "0.2.0")
-      write_config!(root, dep_config("cli_subprocess_core", ~s("~> 0.2.0")))
+      write_sibling!(workspace, "cursor_cli_sdk", "0.2.0")
+      write_config!(root, dep_config("cursor_cli_sdk", ~s("~> 0.2.0")))
 
       assert {:error, blockers} =
                @helper.publish_preflight(root, package: :agent_session_manager)
 
-      assert [%{app: :cursor_cli_sdk, reason: :missing_release_prerequisite}] = blockers
+      assert [%{app: :cli_subprocess_core, reason: :missing_release_prerequisite}] = blockers
     end
 
     test "an empty manifest has nothing to preflight", %{root: root} do
@@ -290,7 +290,7 @@ defmodule DependencySourcesTest do
       assert dag[:codex_sdk] == [:cli_subprocess_core]
       assert dag[:claude_agent_sdk] == [:cli_subprocess_core]
       assert dag[:cursor_cli_sdk] == [:cli_subprocess_core]
-      assert dag[:agent_session_manager] == [:cli_subprocess_core, :cursor_cli_sdk]
+      assert dag[:agent_session_manager] == [:cli_subprocess_core]
       assert dag[:gemini_ex] == []
       assert dag[:inference] == []
     end
@@ -412,7 +412,7 @@ end
 defmodule DependencySourcesNoticeTest do
   use ExUnit.Case, async: false
 
-  @helper Gemini.DependencySources
+  @helper DependencySources
 
   setup do
     workspace =

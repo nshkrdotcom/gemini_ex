@@ -1,4 +1,4 @@
-unless Code.ensure_loaded?(Gemini.DependencySources) do
+unless Code.ensure_loaded?(DependencySources) do
   Code.require_file("build_support/dependency_sources.exs", __DIR__)
 end
 
@@ -55,7 +55,7 @@ defmodule Gemini.MixProject do
   end
 
   defp deps do
-    Gemini.DependencySources.deps() ++
+    DependencySources.deps(__DIR__) ++
       [
         # Core dependencies
         {:req, "~> 0.6.2"},
