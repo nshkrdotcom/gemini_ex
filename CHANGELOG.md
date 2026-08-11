@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0] - 2026-08-10
+
+### Changed
+
+- Refreshed the development lockfile to the latest compatible Cowboy, Cowlib,
+  and Gun releases available on Hex.
+
+### Fixed
+
+- Removed an unused dependency-source helper arity so clean compilation emits
+  no dead-code warnings while preserving published-package fallback behavior.
+
 ## [0.15.0] - 2026-07-27
 
 ### Changed
@@ -2122,7 +2134,8 @@ config :gemini_ex,
 - Minimal latency overhead
 - Concurrent request processing
 
-[Unreleased]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.13.0...v0.14.0
 [0.13.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.12.0...v0.13.0

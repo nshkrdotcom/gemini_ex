@@ -13,7 +13,7 @@ defmodule Gemini.MixProject do
 
   @workspace_checkout? File.regular?(Path.expand("build_support/dependency_sources.exs", __DIR__))
 
-  @version "0.15.0"
+  @version "0.16.0"
   @source_url "https://github.com/nshkrdotcom/gemini_ex"
   @homepage_url "https://hex.pm/packages/gemini_ex"
   @docs_url "https://hexdocs.pm/gemini_ex"
@@ -27,6 +27,7 @@ defmodule Gemini.MixProject do
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       docs: docs(),
+      dialyzer: [plt_core_path: "_build/plts/core"],
       description: description(),
       package: package(),
       name: "GeminiEx",
@@ -302,18 +303,6 @@ defmodule Gemini.MixProject do
           ""
       end
     ]
-  end
-
-
-  # In a source checkout the registry decides the source (path first). In a
-  # published package there is no registry, and the requirement stated here is
-  # the whole answer.
-  defp workspace_dep(app, hex_requirement, opts \\ []) do
-    if @workspace_checkout? do
-      apply(DependencySources, :dep, [app, __DIR__, opts])
-    else
-      if opts == [], do: {app, hex_requirement}, else: {app, hex_requirement, opts}
-    end
   end
 
   defp workspace_deps do
