@@ -5,7 +5,7 @@ defmodule Gemini.APIs.CoordinatorModelPathBuildingTest do
   alias Plug.Conn
 
   setup do
-    bypass = Bypass.open()
+    bypass = Gemini.TestHTTPServer.open()
 
     original_auth = Application.get_env(:gemini_ex, :auth)
 
@@ -47,7 +47,7 @@ defmodule Gemini.APIs.CoordinatorModelPathBuildingTest do
 
     Application.put_env(:gemini_ex, :auth, %{type: :gemini, credentials: %{api_key: "test"}})
 
-    Bypass.expect_once(
+    Gemini.TestHTTPServer.expect_once(
       bypass,
       "POST",
       "/models/gemini-3-pro-image-preview:generateContent",
@@ -79,7 +79,7 @@ defmodule Gemini.APIs.CoordinatorModelPathBuildingTest do
       credentials: %{project_id: "proj", location: "loc", access_token: "token"}
     })
 
-    Bypass.expect_once(
+    Gemini.TestHTTPServer.expect_once(
       bypass,
       "POST",
       "/projects/proj/locations/loc/publishers/google/models/gemini-3-pro-image-preview:generateContent",
@@ -111,7 +111,7 @@ defmodule Gemini.APIs.CoordinatorModelPathBuildingTest do
       credentials: %{project_id: "proj", location: "loc", access_token: "token"}
     })
 
-    Bypass.expect_once(
+    Gemini.TestHTTPServer.expect_once(
       bypass,
       "GET",
       "/v1beta1/publishers/google/models",
@@ -156,7 +156,7 @@ defmodule Gemini.APIs.CoordinatorModelPathBuildingTest do
       credentials: %{project_id: "proj", location: "loc", access_token: "token"}
     })
 
-    Bypass.expect_once(
+    Gemini.TestHTTPServer.expect_once(
       bypass,
       "GET",
       "/v1/publishers/google/models/gemini-2.5-flash",

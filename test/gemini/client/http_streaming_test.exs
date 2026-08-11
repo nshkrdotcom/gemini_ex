@@ -5,12 +5,12 @@ defmodule Gemini.Client.HTTPStreamingTest do
   alias Plug.Conn
 
   setup do
-    bypass = Bypass.open()
+    bypass = Gemini.TestHTTPServer.open()
     %{bypass: bypass}
   end
 
   test "stream_to_process starts stream tasks under the task supervisor", %{bypass: bypass} do
-    Bypass.expect_once(bypass, "POST", "/stream", fn conn ->
+    Gemini.TestHTTPServer.expect_once(bypass, "POST", "/stream", fn conn ->
       conn =
         conn
         |> Conn.put_resp_content_type("text/event-stream")
@@ -78,7 +78,7 @@ defmodule Gemini.Client.HTTPStreamingTest do
       end
     end)
 
-    Bypass.expect_once(bypass, "POST", "/stream", fn conn ->
+    Gemini.TestHTTPServer.expect_once(bypass, "POST", "/stream", fn conn ->
       conn = Conn.fetch_query_params(conn)
       assert conn.query_params["key"] == sentinel
 

@@ -57,7 +57,7 @@ defmodule Gemini.GovernedAuthorityTest do
   end
 
   test "governed HTTP applies isolated query material and emits only redacted telemetry" do
-    bypass = Bypass.open()
+    bypass = Gemini.TestHTTPServer.open()
     test_pid = self()
     handler_id = "governed-http-redaction-#{System.unique_integer([:positive])}"
 
@@ -72,15 +72,20 @@ defmodule Gemini.GovernedAuthorityTest do
 
     on_exit(fn -> :telemetry.detach(handler_id) end)
 
-    Bypass.expect_once(bypass, "POST", "/v1/models/gemini-2.5-flash:generateContent", fn conn ->
-      conn = Plug.Conn.fetch_query_params(conn)
-      assert conn.query_params["key"] == "authority-query-key"
-      assert Plug.Conn.get_req_header(conn, "x-goog-api-key") == ["authority-header-key"]
-      assert Plug.Conn.get_req_header(conn, "x-governed-target") == ["target-123"]
-      refute Plug.Conn.get_req_header(conn, "authorization") == ["Bearer env-token"]
+    Gemini.TestHTTPServer.expect_once(
+      bypass,
+      "POST",
+      "/v1/models/gemini-2.5-flash:generateContent",
+      fn conn ->
+        conn = Plug.Conn.fetch_query_params(conn)
+        assert conn.query_params["key"] == "authority-query-key"
+        assert Plug.Conn.get_req_header(conn, "x-goog-api-key") == ["authority-header-key"]
+        assert Plug.Conn.get_req_header(conn, "x-governed-target") == ["target-123"]
+        refute Plug.Conn.get_req_header(conn, "authorization") == ["Bearer env-token"]
 
-      Plug.Conn.resp(conn, 200, Jason.encode!(%{"ok" => true}))
-    end)
+        Plug.Conn.resp(conn, 200, Jason.encode!(%{"ok" => true}))
+      end
+    )
 
     Gemini.Env.put("GEMINI_API_KEY", "env-key")
     Gemini.Env.put("VERTEX_ACCESS_TOKEN", "env-token")
@@ -113,7 +118,7 @@ defmodule Gemini.GovernedAuthorityTest do
   end
 
   test "governed streaming applies exact materialization and delivers ordered incremental events" do
-    bypass = Bypass.open()
+    bypass = Gemini.TestHTTPServer.open()
     test_pid = self()
     sentinel = "stream-authority-query-never-visible"
     handler_id = "governed-stream-redaction-#{System.unique_integer([:positive])}"
@@ -131,7 +136,7 @@ defmodule Gemini.GovernedAuthorityTest do
 
     on_exit(fn -> :telemetry.detach(handler_id) end)
 
-    Bypass.expect_once(
+    Gemini.TestHTTPServer.expect_once(
       bypass,
       "POST",
       "/v1/models/gemini-2.5-flash:streamGenerateContent",
@@ -359,10 +364,10 @@ defmodule Gemini.GovernedAuthorityTest do
   end
 
   test "provider errors, exception metadata, and retry surfaces redact materialized secrets" do
-    bypass = Bypass.open()
+    bypass = Gemini.TestHTTPServer.open()
     sentinel = "sentinel-api-key-never-visible"
 
-    Bypass.expect_once(bypass, "GET", "/v1/models", fn conn ->
+    Gemini.TestHTTPServer.expect_once(bypass, "GET", "/v1/models", fn conn ->
       conn = Plug.Conn.fetch_query_params(conn)
       assert conn.query_params["key"] == sentinel
 

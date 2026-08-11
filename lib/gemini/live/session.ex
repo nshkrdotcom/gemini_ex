@@ -490,24 +490,23 @@ defmodule Gemini.Live.Session do
   end
 
   @impl true
-  def handle_info({:gun_ws, _pid, _ref, {:text, data}}, state) do
+  def handle_info({:gemini_websocket, _pid, _ref, {:text, data}}, state) do
     handle_websocket_data(data, state)
   end
 
   # Live API sends binary frames containing JSON
-  def handle_info({:gun_ws, _pid, _ref, {:binary, data}}, state) do
+  def handle_info({:gemini_websocket, _pid, _ref, {:binary, data}}, state) do
     handle_websocket_data(data, state)
   end
 
-  def handle_info({:gun_ws, _pid, _ref, {:close, code, reason}}, state) do
+  def handle_info({:gemini_websocket, _pid, _ref, {:close, code, reason}}, state) do
     Logger.info("Live API WebSocket closed: #{code} - #{reason}")
     emit_telemetry_close(:server_closed)
     invoke_callback(state.callbacks.on_close, {code, reason})
     {:noreply, %{state | status: :disconnected, websocket: nil}}
   end
 
-  def handle_info({:gun_down, _pid, protocol, reason, _}, state)
-      when protocol in [:http, :http2] do
+  def handle_info({:gemini_websocket, _pid, _ref, {:connection_down, reason}}, state) do
     Logger.warning("Live API connection down: #{inspect(reason)}")
     emit_telemetry_error({:connection_down, reason})
     invoke_callback(state.callbacks.on_error, {:connection_down, reason})

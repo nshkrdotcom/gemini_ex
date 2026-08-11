@@ -2,13 +2,13 @@ defmodule Gemini.Test.FakeGemini do
   @moduledoc """
   Fake Gemini endpoint for testing rate limiting behavior.
 
-  Uses Bypass to create a local HTTP server that can simulate various
+  Uses the Bandit-backed test HTTP server to simulate various
   Gemini API responses including 200 success, 429 rate limits, and 5xx errors.
 
   ## Usage
 
       setup do
-        bypass = Bypass.open()
+        bypass = Gemini.TestHTTPServer.open()
         {:ok, bypass: bypass}
       end
 
@@ -37,11 +37,11 @@ defmodule Gemini.Test.FakeGemini do
   }
 
   defp expect_post(bypass, handler) do
-    Bypass.expect(bypass, fn conn -> handle_post(conn, handler) end)
+    Gemini.TestHTTPServer.expect(bypass, fn conn -> handle_post(conn, handler) end)
   end
 
   defp expect_post_once(bypass, handler) do
-    Bypass.expect_once(bypass, fn conn -> handle_post(conn, handler) end)
+    Gemini.TestHTTPServer.expect_once(bypass, fn conn -> handle_post(conn, handler) end)
   end
 
   defp handle_post(%Plug.Conn{method: "POST"} = conn, handler), do: handler.(conn)

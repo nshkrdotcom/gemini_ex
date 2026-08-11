@@ -1,9 +1,9 @@
 defmodule Gemini.Client.WebSocket do
   @moduledoc """
-  WebSocket client for Gemini Live API using :gun.
+  WebSocket client for Gemini Live API using a verified-TLS WebSockex transport.
 
   This module provides low-level WebSocket connectivity with:
-  - TLS/HTTP2 connection management
+  - TLS and HTTP/1.1 upgrade management
   - Automatic reconnection handling with configurable retry logic
   - Message framing and parsing
   - Auth strategy integration (Gemini API / Vertex AI)
@@ -32,8 +32,8 @@ defmodule Gemini.Client.WebSocket do
   ## Connection State
 
   The connection struct tracks:
-  - Gun connection PID
-  - Stream reference
+  - WebSocket transport PID
+  - Connection reference
   - Authentication strategy
   - Connection status
 
@@ -58,6 +58,7 @@ defmodule Gemini.Client.WebSocket do
   require Logger
 
   alias Gemini.Auth.MultiAuthCoordinator
+  alias Gemini.Client.WebSocket.Transport
   alias Gemini.Config
   alias Gemini.GovernedAuthority
   alias Gemini.Telemetry
@@ -66,8 +67,8 @@ defmodule Gemini.Client.WebSocket do
   @type connection_status :: :connecting | :connected | :closing | :closed
 
   @type t :: %__MODULE__{
-          gun_pid: pid() | nil,
-          stream_ref: reference() | nil,
+          transport_pid: pid() | nil,
+          connection_ref: reference() | nil,
           auth_strategy: auth_strategy() | nil,
           status: connection_status(),
           model: String.t() | nil,
@@ -92,15 +93,15 @@ defmodule Gemini.Client.WebSocket do
           | {:governed_authority_forbidden_option, atom()}
           | {:open_failed, term()}
           | {:connection_failed, term()}
-          | {:upgrade_failed, integer(), list()}
+          | {:upgrade_failed, integer(), term()}
           | {:upgrade_error, term()}
           | :upgrade_timeout
           | {:max_retries_exceeded, term()}
 
   @enforce_keys []
   defstruct [
-    :gun_pid,
-    :stream_ref,
+    :transport_pid,
+    :connection_ref,
     :auth_strategy,
     :model,
     :api_key,
@@ -143,24 +144,6 @@ defmodule Gemini.Client.WebSocket do
     :service_account_data,
     :quota_project_id
   ]
-
-  # Build gun options at runtime to avoid compile-time function capture issue
-  # WebSocket connections require HTTP/1.1 for the upgrade handshake
-  @spec gun_opts() :: map()
-  defp gun_opts do
-    %{
-      protocols: [:http],
-      transport: :tls,
-      tls_opts: [
-        verify: :verify_peer,
-        cacerts: :public_key.cacerts_get(),
-        depth: 3,
-        customize_hostname_check: [
-          match_fun: :public_key.pkix_verify_hostname_match_fun(:https)
-        ]
-      ]
-    }
-  end
 
   @doc """
   Establishes a WebSocket connection to the Live API.
@@ -280,14 +263,20 @@ defmodule Gemini.Client.WebSocket do
       })
   """
   @spec send(t(), map()) :: :ok | {:error, term()}
-  def send(%__MODULE__{status: :connected, gun_pid: pid, stream_ref: ref} = conn, message)
+  def send(%__MODULE__{status: :connected, transport_pid: pid} = conn, message)
       when is_map(message) do
     json = Jason.encode!(message)
-    :gun.ws_send(pid, ref, {:text, json})
-    emit_send(conn, message, byte_size(json))
-    :ok
+
+    case WebSockex.send_frame(pid, {:text, json}) do
+      :ok ->
+        emit_send(conn, message, byte_size(json))
+        :ok
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   catch
-    :error, reason -> {:error, reason}
+    :exit, reason -> {:error, {:exit, reason}}
   end
 
   def send(%__MODULE__{status: status}, _message) do
@@ -312,39 +301,31 @@ defmodule Gemini.Client.WebSocket do
   - `{:error, reason}` - Other error
   """
   @spec receive(t(), timeout()) :: {:ok, map()} | {:error, term()}
-  def receive(%__MODULE__{gun_pid: pid, stream_ref: ref} = conn, timeout \\ 60_000) do
+  def receive(%__MODULE__{transport_pid: pid, connection_ref: ref} = conn, timeout \\ 60_000) do
     start_time = System.monotonic_time()
 
     result =
       receive do
-        {:gun_ws, ^pid, ^ref, {:text, data}} ->
+        {:gemini_websocket, ^pid, ^ref, {:text, data}} ->
           case Jason.decode(data) do
             {:ok, message} -> {:ok, message}
             {:error, _} = error -> error
           end
 
         # Live API sends binary frames containing JSON
-        {:gun_ws, ^pid, ^ref, {:binary, data}} ->
+        {:gemini_websocket, ^pid, ^ref, {:binary, data}} ->
           case Jason.decode(data) do
             {:ok, message} -> {:ok, message}
             {:error, _} = error -> error
           end
 
-        {:gun_ws, ^pid, ^ref, {:close, code, reason}} ->
+        {:gemini_websocket, ^pid, ^ref, {:close, code, reason}} ->
           Logger.debug("WebSocket closed: code=#{code}, reason=#{reason}")
           {:error, {:closed, code, reason}}
 
-        {:gun_down, ^pid, :http2, reason, _} ->
-          Logger.warning("Gun connection down: #{inspect(reason)}")
+        {:gemini_websocket, ^pid, ^ref, {:connection_down, reason}} ->
+          Logger.warning("WebSocket connection down: #{inspect(reason)}")
           {:error, {:connection_down, reason}}
-
-        {:gun_error, ^pid, ^ref, reason} ->
-          Logger.error("WebSocket error: #{inspect(reason)}")
-          {:error, reason}
-
-        {:gun_error, ^pid, reason} ->
-          Logger.error("Gun error: #{inspect(reason)}")
-          {:error, reason}
       after
         timeout ->
           {:error, :timeout}
@@ -395,20 +376,19 @@ defmodule Gemini.Client.WebSocket do
   - `:ok` - Always returns :ok
   """
   @spec close(t()) :: :ok
-  def close(%__MODULE__{gun_pid: nil} = conn) do
+  def close(%__MODULE__{transport_pid: nil} = conn) do
     emit_close(conn, :already_closed)
     :ok
   end
 
-  def close(%__MODULE__{gun_pid: pid, stream_ref: ref, status: :connected} = conn) do
-    :gun.ws_send(pid, ref, :close)
-    :gun.close(pid)
+  def close(%__MODULE__{transport_pid: pid, status: :connected} = conn) do
+    Transport.close(pid)
     emit_close(conn, :graceful)
     :ok
   end
 
-  def close(%__MODULE__{gun_pid: pid} = conn) do
-    :gun.close(pid)
+  def close(%__MODULE__{transport_pid: pid} = conn) do
+    Transport.close(pid)
     emit_close(conn, :forced)
     :ok
   end
@@ -512,84 +492,59 @@ defmodule Gemini.Client.WebSocket do
 
   @spec do_connect(t(), timeout()) :: {:ok, t()} | {:error, term()}
   defp do_connect(conn, timeout) do
-    with {:ok, conn} <- open_connection(conn, timeout),
-         {:ok, conn} <- upgrade_to_websocket(conn) do
-      {:ok, %{conn | status: :connected}}
-    end
-  end
-
-  @spec open_connection(t(), timeout()) :: {:ok, t()} | {:error, term()}
-  defp open_connection(%__MODULE__{auth_strategy: :gemini} = conn, timeout) do
-    Logger.debug("Opening connection to Gemini API Live endpoint")
-    do_open_connection(conn, @gemini_host, 443, timeout)
-  end
-
-  defp open_connection(%__MODULE__{auth_strategy: :vertex_ai, location: location} = conn, timeout) do
-    host = "#{location}-aiplatform.googleapis.com"
-    Logger.debug("Opening connection to Vertex AI Live endpoint: #{host}")
-    do_open_connection(conn, host, 443, timeout)
-  end
-
-  defp open_connection(
-         %__MODULE__{
-           auth_strategy: :governed_authority,
-           governed_authority: %GovernedAuthority{} = authority
-         } = conn,
-         timeout
-       ) do
-    uri = URI.parse(authority.base_url)
-    host = uri.host || authority.base_url
-    port = uri.port || 443
-    Logger.debug("Opening governed Live endpoint")
-    do_open_connection(conn, host, port, timeout)
-  end
-
-  @spec do_open_connection(t(), String.t(), pos_integer(), timeout()) ::
-          {:ok, t()} | {:error, term()}
-  defp do_open_connection(conn, host, port, timeout) do
-    case :gun.open(String.to_charlist(host), port, gun_opts()) do
-      {:ok, pid} ->
-        case :gun.await_up(pid, timeout) do
-          {:ok, protocol} when protocol in [:http, :http2] ->
-            Logger.debug("Gun connection established with #{protocol}")
-            {:ok, %{conn | gun_pid: pid}}
-
-          {:error, reason} ->
-            :gun.close(pid)
-            {:error, {:connection_failed, reason}}
-        end
-
-      {:error, reason} ->
-        {:error, {:open_failed, reason}}
-    end
-  end
-
-  @spec upgrade_to_websocket(t()) :: {:ok, t()} | {:error, term()}
-  defp upgrade_to_websocket(%__MODULE__{} = conn) do
     path = build_websocket_path(conn)
     headers = build_upgrade_headers(conn)
+    url = build_websocket_url(conn, path)
+    connection_ref = make_ref()
 
-    Logger.debug("Upgrading to WebSocket: #{redact_websocket_path(path)}")
+    Logger.debug("Opening WebSocket: #{redact_websocket_path(path)}")
 
-    stream_ref = :gun.ws_upgrade(conn.gun_pid, path, headers, %{})
+    case Transport.start(url, headers, self(), connection_ref, timeout, @upgrade_timeout) do
+      {:ok, pid} ->
+        {:ok, %{conn | transport_pid: pid, connection_ref: connection_ref, status: :connected}}
 
-    receive do
-      {:gun_upgrade, _pid, ^stream_ref, ["websocket"], _headers} ->
-        Logger.debug("WebSocket upgrade successful")
-        {:ok, %{conn | stream_ref: stream_ref}}
+      {:error, %WebSockex.RequestError{code: status} = reason} ->
+        {:error, {:upgrade_failed, status, Exception.message(reason)}}
 
-      {:gun_response, _pid, ^stream_ref, :fin, status, resp_headers} ->
-        Logger.error("WebSocket upgrade failed: status=#{status}")
-        {:error, {:upgrade_failed, status, resp_headers}}
+      {:error, %WebSockex.ConnError{original: reason}} ->
+        {:error, {:open_failed, reason}}
 
-      {:gun_error, _pid, ^stream_ref, reason} ->
-        Logger.error("WebSocket upgrade error: #{inspect(reason)}")
+      {:error, reason} ->
         {:error, {:upgrade_error, reason}}
-    after
-      @upgrade_timeout ->
-        {:error, :upgrade_timeout}
     end
   end
+
+  @spec build_websocket_url(t(), String.t()) :: String.t()
+  defp build_websocket_url(conn, path) do
+    endpoint = websocket_endpoint(conn)
+    path_uri = URI.parse(path)
+
+    URI.to_string(%URI{endpoint | path: path_uri.path, query: path_uri.query})
+  end
+
+  defp websocket_endpoint(%__MODULE__{auth_strategy: :gemini}) do
+    %URI{scheme: "wss", host: @gemini_host, port: 443}
+  end
+
+  defp websocket_endpoint(%__MODULE__{auth_strategy: :vertex_ai, location: location}) do
+    %URI{scheme: "wss", host: "#{location}-aiplatform.googleapis.com", port: 443}
+  end
+
+  defp websocket_endpoint(%__MODULE__{
+         auth_strategy: :governed_authority,
+         governed_authority: %GovernedAuthority{} = authority
+       }) do
+    uri = URI.parse(authority.base_url)
+
+    %URI{
+      scheme: websocket_scheme(uri.scheme),
+      host: uri.host,
+      port: uri.port
+    }
+  end
+
+  defp websocket_scheme(scheme) when scheme in ["ws", "http"], do: "ws"
+  defp websocket_scheme(_scheme), do: "wss"
 
   @spec build_websocket_path(t()) :: String.t()
   defp build_websocket_path(%__MODULE__{auth_strategy: :gemini} = conn) do

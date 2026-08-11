@@ -72,7 +72,7 @@ defmodule Gemini.MixProject do
         {:typed_struct, "~> 0.3.0"},
         {:joken, "~> 2.6.2"},
         {:telemetry, "~> 1.4.2"},
-        {:gun, "~> 2.1"},
+        {:websockex, "~> 0.5.1"},
 
         # ALTAR ADM - tool contract dependency
         {:altar, "~> 0.2.0"},
@@ -84,7 +84,8 @@ defmodule Gemini.MixProject do
         {:mox, "~> 1.0", only: :test},
         {:meck, "~> 1.2.0", only: :test},
         {:supertester, "~> 0.6.0", only: :test},
-        {:bypass, "~> 2.1", only: :test}
+        {:bandit, "~> 1.12", only: :test},
+        {:plug, "~> 1.18", only: :test}
       ]
   end
 

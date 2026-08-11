@@ -23,8 +23,8 @@ defmodule Gemini.Client.WebSocketTest do
 
     test "has nil defaults for connection state" do
       conn = %WebSocket{}
-      assert conn.gun_pid == nil
-      assert conn.stream_ref == nil
+      assert conn.transport_pid == nil
+      assert conn.connection_ref == nil
       assert conn.project_id == nil
       assert conn.location == nil
     end
@@ -135,13 +135,13 @@ defmodule Gemini.Client.WebSocketTest do
   end
 
   describe "close/1" do
-    test "returns :ok for nil gun_pid" do
-      conn = %WebSocket{gun_pid: nil}
+    test "returns :ok for nil transport_pid" do
+      conn = %WebSocket{transport_pid: nil}
       assert :ok = WebSocket.close(conn)
     end
 
-    test "returns :ok for nil gun_pid with closed status" do
-      conn = %WebSocket{gun_pid: nil, status: :closed}
+    test "returns :ok for nil transport_pid with closed status" do
+      conn = %WebSocket{transport_pid: nil, status: :closed}
       assert :ok = WebSocket.close(conn)
     end
   end

@@ -11,11 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Refreshed the development lockfile to the latest compatible Cowboy, Cowlib,
-  and Gun releases available on Hex.
+- Replaced the Gun/Cowlib Live WebSocket stack with WebSockex and explicit TLS
+  peer and hostname verification.
+- Replaced the Cowboy-backed Bypass test dependency with an in-repo,
+  Bandit-backed expectation server.
 
 ### Fixed
 
+- Removed all Gun and Cowlib advisories from the runtime and test dependency
+  graphs without suppressing the Hex security audit.
 - Removed an unused dependency-source helper arity so clean compilation emits
   no dead-code warnings while preserving published-package fallback behavior.
 

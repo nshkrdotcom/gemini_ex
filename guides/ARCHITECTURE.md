@@ -188,7 +188,7 @@ graph LR
 ### 6. Live API System (New in v0.9.0)
 - **Live.Session**: GenServer managing WebSocket connection lifecycle with callback-based message routing
 - **Live.Models**: Runtime model resolution based on API key capabilities and regional rollout status
-- **Client.WebSocket**: WebSocket client using `:gun` for HTTP/2 + TLS connections
+- **Client.WebSocket**: WebSocket client using WebSockex with peer and hostname verification
 - **Live.Audio**: PCM audio handling utilities for native audio features
 
 ### 7. Authentication System

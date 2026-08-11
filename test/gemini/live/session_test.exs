@@ -431,7 +431,7 @@ defmodule Gemini.Live.SessionTest do
         }
       }
 
-      send(pid, {:gun_ws, self(), make_ref(), {:text, Jason.encode!(message)}})
+      send(pid, {:gemini_websocket, self(), make_ref(), {:text, Jason.encode!(message)}})
 
       assert_receive :callback_started, 500
       assert_receive {:callback_result, _result}, 500

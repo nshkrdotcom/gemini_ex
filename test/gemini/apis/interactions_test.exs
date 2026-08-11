@@ -17,7 +17,7 @@ defmodule Gemini.APIs.InteractionsTest do
   }
 
   setup do
-    bypass = Bypass.open()
+    bypass = Gemini.TestHTTPServer.open()
 
     :meck.new(Gemini.Auth, [:passthrough])
 
@@ -152,7 +152,7 @@ defmodule Gemini.APIs.InteractionsTest do
         "http://localhost:#{bypass.port}"
       end)
 
-      Bypass.expect_once(bypass, "POST", "/v1beta/interactions", fn conn ->
+      Gemini.TestHTTPServer.expect_once(bypass, "POST", "/v1beta/interactions", fn conn ->
         assert conn.query_string == ""
 
         {:ok, body, conn} = Conn.read_body(conn)
@@ -227,7 +227,7 @@ defmodule Gemini.APIs.InteractionsTest do
         }
       ]
 
-      Bypass.expect_once(bypass, "POST", "/v1beta/interactions", fn conn ->
+      Gemini.TestHTTPServer.expect_once(bypass, "POST", "/v1beta/interactions", fn conn ->
         refute String.contains?(conn.query_string, "alt=sse")
         assert "text/event-stream" in Conn.get_req_header(conn, "accept")
 
@@ -298,7 +298,7 @@ defmodule Gemini.APIs.InteractionsTest do
 
       parent = self()
 
-      Bypass.expect_once(bypass, "POST", "/v1beta/interactions", fn conn ->
+      Gemini.TestHTTPServer.expect_once(bypass, "POST", "/v1beta/interactions", fn conn ->
         conn =
           conn
           |> Conn.put_resp_content_type("text/event-stream")
@@ -349,7 +349,7 @@ defmodule Gemini.APIs.InteractionsTest do
         "http://localhost:#{bypass.port}"
       end)
 
-      Bypass.expect_once(bypass, "POST", "/v1beta/interactions", fn conn ->
+      Gemini.TestHTTPServer.expect_once(bypass, "POST", "/v1beta/interactions", fn conn ->
         conn =
           conn
           |> Conn.put_resp_content_type("text/event-stream")
@@ -390,7 +390,7 @@ defmodule Gemini.APIs.InteractionsTest do
         "http://localhost:#{bypass.port}"
       end)
 
-      Bypass.expect_once(bypass, "POST", "/v1beta/interactions", fn conn ->
+      Gemini.TestHTTPServer.expect_once(bypass, "POST", "/v1beta/interactions", fn conn ->
         conn =
           conn
           |> Conn.put_resp_content_type("text/event-stream")
@@ -430,7 +430,7 @@ defmodule Gemini.APIs.InteractionsTest do
         "http://localhost:#{bypass.port}"
       end)
 
-      Bypass.expect_once(bypass, "GET", "/v1beta/interactions/int_123", fn conn ->
+      Gemini.TestHTTPServer.expect_once(bypass, "GET", "/v1beta/interactions/int_123", fn conn ->
         refute String.contains?(conn.query_string, "alt=sse")
         assert "text/event-stream" in Conn.get_req_header(conn, "accept")
 
@@ -467,7 +467,7 @@ defmodule Gemini.APIs.InteractionsTest do
         "http://localhost:#{bypass.port}"
       end)
 
-      Bypass.expect_once(
+      Gemini.TestHTTPServer.expect_once(
         bypass,
         "POST",
         "/v1beta1/projects/proj/locations/us-central1/interactions",

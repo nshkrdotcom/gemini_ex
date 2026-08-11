@@ -292,9 +292,9 @@ defmodule Gemini.Auth.VertexStrategyTestNew do
 
   describe "refresh_credentials/1" do
     test "refreshes OAuth2 credentials" do
-      bypass = Bypass.open()
+      bypass = Gemini.TestHTTPServer.open()
 
-      Bypass.expect_once(bypass, "POST", "/token", fn conn ->
+      Gemini.TestHTTPServer.expect_once(bypass, "POST", "/token", fn conn ->
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         params = URI.decode_query(body)
 
