@@ -5,6 +5,17 @@ defmodule Gemini.ConfigTest do
 
   import Gemini.Test.ModelHelpers
 
+  @current_stable_models %{
+    flash_3_7: "gemini-3.7-flash",
+    flash_3_6: "gemini-3.6-flash",
+    flash_3_5: "gemini-3.5-flash",
+    flash_3_5_lite: "gemini-3.5-flash-lite",
+    flash_3_1_lite: "gemini-3.1-flash-lite",
+    flash_3_1_image: "gemini-3.1-flash-image",
+    flash_3_1_lite_image: "gemini-3.1-flash-lite-image",
+    pro_3_image: "gemini-3-pro-image"
+  }
+
   # All environment variables that Config reads from
   @env_vars ~w(
     GEMINI_API_KEY
@@ -244,6 +255,16 @@ defmodule Gemini.ConfigTest do
   end
 
   describe "model registry integration" do
+    test "current stable Gemini 3 models are available through the universal config registry" do
+      Enum.each(@current_stable_models, fn {key, code} ->
+        assert Config.get_model(key) == code
+        assert Config.model_available?(key, :gemini)
+        assert %{code: ^code, track: :stable} = Config.model_info(key)
+      end)
+
+      assert Config.model_available?(:flash_3_7, :vertex_ai)
+    end
+
     test "model_info/1 resolves metadata for key and raw model name" do
       assert %{code: "gemini-3.1-pro-preview"} = Config.model_info(:pro_3_1_preview)
       assert %{code: "gemini-3.1-pro-preview"} = Config.model_info("gemini-3.1-pro-preview")

@@ -59,7 +59,10 @@ defmodule Gemini.Config do
 
   # Universal models - work identically in both Gemini API and Vertex AI
   @universal_models %{
-    # Gemini 3 models (preview)
+    # Gemini 3 stable models
+    flash_3_7: "gemini-3.7-flash",
+
+    # Gemini 3 preview models
     pro_3_1_preview: "gemini-3.1-pro-preview",
     pro_3_1_preview_customtools: "gemini-3.1-pro-preview-customtools",
     pro_3_preview: "gemini-3-pro-preview",
@@ -107,6 +110,16 @@ defmodule Gemini.Config do
 
   # Gemini API (AI Studio) only models - convenience aliases that don't work on Vertex AI
   @gemini_api_models %{
+    # Current stable Gemini API catalog. Add these to @universal_models only
+    # after their exact Vertex model IDs are independently qualified.
+    flash_3_6: "gemini-3.6-flash",
+    flash_3_5: "gemini-3.5-flash",
+    flash_3_5_lite: "gemini-3.5-flash-lite",
+    flash_3_1_lite: "gemini-3.1-flash-lite",
+    flash_3_1_image: "gemini-3.1-flash-image",
+    flash_3_1_lite_image: "gemini-3.1-flash-lite-image",
+    pro_3_image: "gemini-3-pro-image",
+
     # Convenience aliases (AI Studio only - Vertex AI doesn't support -latest suffix)
     flash_lite_latest: "gemini-flash-lite-latest",
     flash_latest: "gemini-flash-latest",

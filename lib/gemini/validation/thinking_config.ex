@@ -13,7 +13,8 @@ defmodule Gemini.Validation.ThinkingConfig do
   ## Model Support
 
   - **Gemini 3 Pro**: `:low`, `:high`
-  - **Gemini 3 Flash**: `:minimal`, `:low`, `:medium`, `:high`
+  - **Gemini 3.7 Flash**: `:low`, `:medium`, `:high`
+  - **Earlier Gemini 3 Flash models**: `:minimal`, `:low`, `:medium`, `:high`
 
   ## Gemini 2.5 Models
 
@@ -62,10 +63,15 @@ defmodule Gemini.Validation.ThinkingConfig do
   def validate_level(:high, _model), do: :ok
 
   def validate_level(:minimal, model) do
-    if model && String.contains?(model, "gemini-3-pro") && !String.contains?(model, "flash") do
-      {:error, "Thinking level :minimal is only supported on Gemini 3 Flash models"}
-    else
-      :ok
+    cond do
+      model && String.contains?(model, "gemini-3.7-flash") ->
+        {:error, "Thinking level :minimal is not supported by Gemini 3.7 Flash"}
+
+      model && String.contains?(model, "gemini-3-pro") && !String.contains?(model, "flash") ->
+        {:error, "Thinking level :minimal is only supported on Gemini 3 Flash models"}
+
+      true ->
+        :ok
     end
   end
 

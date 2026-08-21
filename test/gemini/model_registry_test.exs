@@ -4,6 +4,41 @@ defmodule Gemini.ModelRegistryTest do
   alias Gemini.ModelRegistry
 
   describe "get/1" do
+    test "resolves Gemini 3.7 Flash with its published capabilities" do
+      assert %{
+               key: :gemini_3_7_flash,
+               code: "gemini-3.7-flash",
+               track: :stable,
+               latest_update: "August 2026"
+             } = entry = ModelRegistry.get("gemini-3.7-flash")
+
+      assert entry.input_modalities == [:text, :image, :video, :audio, :pdf]
+      assert entry.output_modalities == [:text]
+      assert entry.capabilities.structured_outputs == :supported
+      assert entry.capabilities.function_calling == :supported
+      assert entry.capabilities.caching == :supported
+      assert entry.capabilities.live_api == :not_supported
+    end
+
+    test "resolves the current stable Flash and Nano Banana family" do
+      expected = [
+        "gemini-3.7-flash",
+        "gemini-3.6-flash",
+        "gemini-3.5-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-3.1-flash-lite",
+        "gemini-3.1-flash-image",
+        "gemini-3.1-flash-lite-image",
+        "gemini-3-pro-image"
+      ]
+
+      Enum.each(expected, fn code ->
+        assert %{code: ^code, track: :stable} = ModelRegistry.get(code)
+      end)
+
+      assert %{track: :deprecated} = ModelRegistry.get("gemini-3.1-flash-lite-preview")
+    end
+
     test "resolves canonical model code" do
       assert %{key: :gemini_3_1_pro_preview, code: "gemini-3.1-pro-preview"} =
                ModelRegistry.get("gemini-3.1-pro-preview")

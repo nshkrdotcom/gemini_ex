@@ -29,7 +29,7 @@ config = GenerationConfig.structured_json(schema)
 
 {:ok, response} = Gemini.generate(
   "What is the capital of France?",
-  model: "gemini-2.5-flash",
+  model: "gemini-3.7-flash",
   generation_config: config
 )
 

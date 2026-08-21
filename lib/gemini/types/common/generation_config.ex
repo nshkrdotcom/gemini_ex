@@ -13,7 +13,8 @@ defmodule Gemini.Types.GenerationConfig do
     ## Gemini 3 (Recommended)
 
     Use `thinking_level` for Gemini 3 models:
-    - `:minimal` - Minimal thinking (Gemini 3 Flash only)
+    - `:minimal` - Minimal thinking (supported by earlier Gemini 3 Flash models,
+      but not Gemini 3.7 Flash)
     - `:low` - Minimizes latency and cost. Best for simple tasks.
     - `:medium` - Balanced thinking (Gemini 3 Flash only)
     - `:high` - Maximizes reasoning depth (default for Gemini 3).
@@ -21,7 +22,8 @@ defmodule Gemini.Types.GenerationConfig do
     ## Model Support
 
     - **Gemini 3 Pro**: `:low`, `:high`
-    - **Gemini 3 Flash**: `:minimal`, `:low`, `:medium`, `:high`
+    - **Gemini 3.7 Flash**: `:low`, `:medium`, `:high`
+    - **Earlier Gemini 3 Flash models**: `:minimal`, `:low`, `:medium`, `:high`
 
     ## Gemini 2.5 (Legacy)
 
@@ -53,7 +55,8 @@ defmodule Gemini.Types.GenerationConfig do
     @moduledoc """
     Configuration for image generation in Gemini 3 Pro Image.
 
-    Used with `gemini-3-pro-image-preview` model for generating and editing images.
+    Used with `gemini-3-pro-image` and the Gemini 3.1 Flash Image models for
+    generating and editing images.
 
     ## Fields
 
@@ -236,7 +239,8 @@ defmodule Gemini.Types.GenerationConfig do
   ## Parameters
   - `config`: GenerationConfig struct (defaults to new config)
   - `level`: Thinking level atom
-    - `:minimal` - Minimal thinking (Gemini 3 Flash only)
+    - `:minimal` - Minimal thinking (earlier Gemini 3 Flash models only;
+      Gemini 3.7 Flash rejects it)
     - `:low` - Minimizes latency and cost. Best for simple instruction following.
     - `:medium` - Balanced thinking (Gemini 3 Flash only)
     - `:high` - Maximizes reasoning depth. Model may take longer for first token.
@@ -532,7 +536,8 @@ defmodule Gemini.Types.GenerationConfig do
   @doc """
   Configure image generation settings for Gemini 3 Pro Image.
 
-  Used with `gemini-3-pro-image-preview` model for generating images.
+  Used with `gemini-3-pro-image` and the Gemini 3.1 Flash Image models for
+  generating images.
 
   ## Parameters
   - `config`: GenerationConfig struct (defaults to new config)

@@ -45,6 +45,182 @@ defmodule Gemini.ModelRegistry do
 
   @entries [
     %{
+      key: :gemini_3_7_flash,
+      code: "gemini-3.7-flash",
+      source_page: "https://ai.google.dev/gemini-api/docs/models/gemini-3.7-flash",
+      track: :stable,
+      latest_update: "August 2026",
+      input_modalities: [:text, :image, :video, :audio, :pdf],
+      output_modalities: [:text],
+      capabilities: %{
+        audio_generation: :not_supported,
+        batch_api: :supported,
+        caching: :supported,
+        function_calling: :supported,
+        image_generation: :not_supported,
+        live_api: :not_supported,
+        structured_outputs: :supported,
+        thinking: :supported
+      },
+      aliases: [],
+      live_modalities: [],
+      notes: "GA Flash model; thinking levels are low, medium, and high (not minimal)"
+    },
+    %{
+      key: :gemini_3_6_flash,
+      code: "gemini-3.6-flash",
+      source_page: "https://ai.google.dev/gemini-api/docs/models/gemini-3.6-flash",
+      track: :stable,
+      latest_update: "July 2026",
+      input_modalities: [:text, :image, :video, :audio, :pdf],
+      output_modalities: [:text],
+      capabilities: %{
+        audio_generation: :not_supported,
+        batch_api: :supported,
+        caching: :supported,
+        function_calling: :supported,
+        image_generation: :not_supported,
+        live_api: :not_supported,
+        structured_outputs: :supported,
+        thinking: :supported
+      },
+      aliases: [],
+      live_modalities: [],
+      notes: nil
+    },
+    %{
+      key: :gemini_3_5_flash,
+      code: "gemini-3.5-flash",
+      source_page: "https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash",
+      track: :stable,
+      latest_update: "May 2026",
+      input_modalities: [:text, :image, :video, :audio, :pdf],
+      output_modalities: [:text],
+      capabilities: %{
+        audio_generation: :not_supported,
+        batch_api: :supported,
+        caching: :supported,
+        function_calling: :supported,
+        image_generation: :not_supported,
+        live_api: :not_supported,
+        structured_outputs: :supported,
+        thinking: :supported
+      },
+      aliases: [],
+      live_modalities: [],
+      notes: nil
+    },
+    %{
+      key: :gemini_3_5_flash_lite,
+      code: "gemini-3.5-flash-lite",
+      source_page: "https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite",
+      track: :stable,
+      latest_update: "July 2026",
+      input_modalities: [:text, :image, :video, :audio, :pdf],
+      output_modalities: [:text],
+      capabilities: %{
+        audio_generation: :not_supported,
+        batch_api: :supported,
+        caching: :supported,
+        function_calling: :supported,
+        image_generation: :not_supported,
+        live_api: :not_supported,
+        structured_outputs: :supported,
+        thinking: :supported
+      },
+      aliases: [],
+      live_modalities: [],
+      notes: "Low-latency, cost-efficient stable Flash-Lite model"
+    },
+    %{
+      key: :gemini_3_1_flash_lite,
+      code: "gemini-3.1-flash-lite",
+      source_page: "https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite",
+      track: :stable,
+      latest_update: "May 2026",
+      input_modalities: [:text, :image, :video, :audio, :pdf],
+      output_modalities: [:text],
+      capabilities: %{
+        audio_generation: :not_supported,
+        batch_api: :supported,
+        caching: :supported,
+        function_calling: :supported,
+        image_generation: :not_supported,
+        live_api: :not_supported,
+        structured_outputs: :supported,
+        thinking: :supported
+      },
+      aliases: [],
+      live_modalities: [],
+      notes: "Stable successor to the shut-down Gemini 3.1 Flash-Lite Preview"
+    },
+    %{
+      key: :gemini_3_1_flash_image,
+      code: "gemini-3.1-flash-image",
+      source_page: "https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-image",
+      track: :stable,
+      latest_update: "February 2026",
+      input_modalities: [:text, :image, :pdf],
+      output_modalities: [:text, :image],
+      capabilities: %{
+        audio_generation: :not_supported,
+        batch_api: :supported,
+        caching: :not_supported,
+        function_calling: :not_supported,
+        image_generation: :supported,
+        live_api: :not_supported,
+        structured_outputs: :not_supported,
+        thinking: :supported
+      },
+      aliases: [],
+      live_modalities: [],
+      notes: "Nano Banana 2"
+    },
+    %{
+      key: :gemini_3_1_flash_lite_image,
+      code: "gemini-3.1-flash-lite-image",
+      source_page: "https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite-image",
+      track: :stable,
+      latest_update: "June 2026",
+      input_modalities: [:text, :image],
+      output_modalities: [:text, :image],
+      capabilities: %{
+        audio_generation: :not_supported,
+        batch_api: :supported,
+        caching: :not_supported,
+        function_calling: :supported,
+        image_generation: :supported,
+        live_api: :not_supported,
+        structured_outputs: :not_supported,
+        thinking: :supported
+      },
+      aliases: [],
+      live_modalities: [],
+      notes: "Nano Banana 2 Lite"
+    },
+    %{
+      key: :gemini_3_pro_image,
+      code: "gemini-3-pro-image",
+      source_page: "https://ai.google.dev/gemini-api/docs/models/gemini-3-pro-image",
+      track: :stable,
+      latest_update: "November 2025",
+      input_modalities: [:text, :image],
+      output_modalities: [:text, :image],
+      capabilities: %{
+        audio_generation: :not_supported,
+        batch_api: :supported,
+        caching: :not_supported,
+        function_calling: :not_supported,
+        image_generation: :supported,
+        live_api: :not_supported,
+        structured_outputs: :not_supported,
+        thinking: :supported
+      },
+      aliases: [],
+      live_modalities: [],
+      notes: "Nano Banana Pro"
+    },
+    %{
       key: :gemini_3_1_pro_preview,
       code: "gemini-3.1-pro-preview",
       source_page: "https://ai.google.dev/gemini-api/docs/models/gemini-3.1-pro-preview",
@@ -92,7 +268,7 @@ defmodule Gemini.ModelRegistry do
       key: :gemini_3_1_flash_lite_preview,
       code: "gemini-3.1-flash-lite-preview",
       source_page: "https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite-preview",
-      track: :preview,
+      track: :deprecated,
       latest_update: "March 2026",
       input_modalities: [:text, :image, :video, :audio, :pdf],
       output_modalities: [:text],
@@ -108,7 +284,7 @@ defmodule Gemini.ModelRegistry do
       },
       aliases: [],
       live_modalities: [],
-      notes: "Frontier-class performance rivaling larger models at a fraction of the cost"
+      notes: "Shut down May 25, 2026; use gemini-3.1-flash-lite"
     },
     %{
       key: :gemini_3_1_flash_image_preview,

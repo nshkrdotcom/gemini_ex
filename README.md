@@ -38,7 +38,7 @@ A comprehensive Elixir client for Google's Gemini AI API with dual authenticatio
 - **Chat Sessions & System Instructions**: Multi-turn conversation management with persistent guardrails
 - **Flexible Multimodal Input**: Intuitive formats for images/text with automatic MIME detection
 - **Thinking Budget Control**: Optimize costs by controlling thinking token usage
-- **Gemini 3 Support**: `thinking_level` (`:minimal`, `:low`, `:medium`, `:high`), image generation, media resolution, thought signatures (NEW in v0.5.x!)
+- **Gemini 3.7 Flash Support**: stable `gemini-3.7-flash` with structured outputs, function calling, caching, and `:low`/`:medium`/`:high` thinking levels
 - **Context Caching**: Cache large contexts once and reuse by ID (NEW in v0.6.0!)
 - **Complete Generation Config**: Full support for all generation config options including structured output
 - **Production Ready**: Robust error handling, retry logic, and performance optimizations
@@ -59,7 +59,7 @@ Add `gemini` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:gemini_ex, "~> 0.16.0"}
+    {:gemini_ex, "~> 0.17.0"}
   ]
 end
 ```
@@ -432,6 +432,7 @@ alias Gemini.Types.Content
 **TTL defaults:** The default cache TTL is configurable via `config :gemini_ex, :context_cache, default_ttl_seconds: ...` (defaults to 3_600). You can also override per call with `default_ttl_seconds:` or pass `:ttl`/`:expire_time` explicitly.
 
 **Models that support explicit caching:**
+- `gemini-3.7-flash`
 - `gemini-2.5-flash`
 - `gemini-2.5-flash-lite`
 - `gemini-2.5-pro`
@@ -836,7 +837,7 @@ Enable them in `tools:` and optionally combine with structured outputs:
 {:ok, response} =
   Gemini.generate(
     "Find the latest Elixir release notes and summarize the key changes.",
-    model: "gemini-3-flash-preview",
+    model: "gemini-3.7-flash",
     tools: [:google_search, :url_context],
     response_mime_type: "application/json",
     response_json_schema: %{
@@ -1513,7 +1514,7 @@ Models are organized by API compatibility:
 
 | Category | Example Models | Gemini API | Vertex AI |
 |----------|---------------|------------|-----------|
-| **Universal** | `gemini-2.5-flash`, `gemini-3-flash-preview` | ✓ | ✓ |
+| **Universal** | `gemini-2.5-flash`, `gemini-3.7-flash` | ✓ | ✓ |
 | **AI Studio Only** | `gemini-flash-lite-latest`, `gemini-pro-latest` | ✓ | ✗ |
 | **Vertex AI Only** | `embeddinggemma`, `embeddinggemma-300m` | ✗ | ✓ |
 
@@ -1682,9 +1683,14 @@ All generation config options are fully supported across all API entry points:
 
 **Model quick picks**
 - `gemini-flash-lite-latest` (default; fastest + most cost-efficient)
+- `gemini-3.5-flash-lite` and `gemini-3.1-flash-lite` (stable low-latency models)
 - `gemini-2.5-flash` (balanced price/performance for high-volume workloads)
-- `gemini-3-flash-preview` (fast Gemini 3 with full thinking levels + built-in tools)
+- `gemini-3.7-flash` (stable capable Flash model; use `thinking_level: :low` for lower latency)
 - `gemini-3.1-pro-preview` (most capable multimodal reasoning and agentic coding)
+
+Current stable Gemini API aliases are `:flash_3_7`, `:flash_3_6`,
+`:flash_3_5`, `:flash_3_5_lite`, `:flash_3_1_lite`, `:flash_3_1_image`,
+`:flash_3_1_lite_image`, and `:pro_3_image`.
 
 ### Multimodal Content (New in v0.2.2!)
 
@@ -1801,7 +1807,7 @@ config = Gemini.Types.GenerationConfig.image_config(
 
 {:ok, response} =
   Gemini.generate("A sunrise over the mountains",
-    model: "gemini-3-pro-image-preview",
+    model: "gemini-3-pro-image",
     generation_config: config
   )
 

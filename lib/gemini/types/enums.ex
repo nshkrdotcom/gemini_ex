@@ -397,7 +397,8 @@ defmodule Gemini.Types.Enums do
     ## Values
 
     - `:unspecified` - Unspecified thinking level
-    - `:minimal` - Minimal thinking (Gemini 3 Flash only)
+    - `:minimal` - Minimal thinking (earlier Gemini 3 Flash models only;
+      Gemini 3.7 Flash rejects it)
     - `:low` - Low thinking level
     - `:medium` - Medium thinking level (Gemini 3 Flash only)
     - `:high` - High thinking level (default)
@@ -405,7 +406,8 @@ defmodule Gemini.Types.Enums do
     ## Model Support
 
     - **Gemini 3 Pro**: `:low`, `:high`
-    - **Gemini 3 Flash**: `:minimal`, `:low`, `:medium`, `:high`
+    - **Gemini 3.7 Flash**: `:low`, `:medium`, `:high`
+    - **Earlier Gemini 3 Flash models**: `:minimal`, `:low`, `:medium`, `:high`
     """
 
     @type t :: :unspecified | :minimal | :low | :medium | :high

@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0] - 2026-08-21
+
+### Added
+
+- Added the current stable Gemini API family to `Gemini.ModelRegistry` and
+  `Gemini.Config`: Gemini 3.7/3.6/3.5 Flash, Gemini 3.5/3.1 Flash-Lite,
+  Nano Banana 2, Nano Banana 2 Lite, and Nano Banana Pro.
+- Added published modality and capability metadata for all eight models,
+  including structured-output, function-calling, caching, and image-generation
+  support. Gemini 3.7 Flash is also registered as universal for Gemini API and
+  Vertex AI; the other new aliases remain Gemini-API-scoped until their exact
+  Vertex identifiers are independently qualified.
+
+### Fixed
+
+- Reject `thinking_level: :minimal` for Gemini 3.7 Flash while continuing to
+  accept its supported `:low`, `:medium`, and `:high` levels.
+- Mark the shut-down `gemini-3.1-flash-lite-preview` registry entry deprecated
+  and direct callers to `gemini-3.1-flash-lite`.
+
 ## [0.16.0] - 2026-08-10
 
 ### Changed
@@ -2138,7 +2158,8 @@ config :gemini_ex,
 - Minimal latency overhead
 - Concurrent request processing
 
-[Unreleased]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.13.0...v0.14.0

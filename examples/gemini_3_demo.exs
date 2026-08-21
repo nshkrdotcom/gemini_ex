@@ -4,7 +4,7 @@
 # This example demonstrates the new features in Gemini 3:
 # 1. Thinking levels (replaces thinking_budget for Gemini 3)
 # 2. Built-in tools (Google Search, URL Context, Code Execution)
-# 3. Image generation with gemini-3-pro-image-preview
+# 3. Image generation with gemini-3-pro-image
 # 4. Media resolution control for vision tasks
 #
 # Requirements:
@@ -169,7 +169,7 @@ end
 # ============================================================================
 
 IO.puts(String.duplicate("-", 80))
-IO.puts("3. IMAGE GENERATION (gemini-3-pro-image-preview)")
+IO.puts("3. IMAGE GENERATION (gemini-3-pro-image)")
 IO.puts(String.duplicate("-", 80) <> "\n")
 
 IO.puts("""
@@ -189,7 +189,7 @@ IO.puts("  Prompt: 'A serene mountain lake at sunset with reflection'\n")
 
 case Coordinator.generate_content(
        "Generate an image of a serene mountain lake at sunset with perfect reflection of the mountains in the still water.",
-       model: "gemini-3-pro-image-preview",
+       model: "gemini-3-pro-image",
        generation_config: image_config
      ) do
   {:ok, %{candidates: candidates}} when is_list(candidates) and length(candidates) > 0 ->
@@ -356,7 +356,7 @@ New in Gemini 3:
 Models:
 - gemini-3-pro-preview      : Text, reasoning, code
 - gemini-3-flash-preview    : Fast thinking + built-in tools
-- gemini-3-pro-image-preview: Image generation
+- gemini-3-pro-image        : Image generation
 
 Best Practices:
 - Keep temperature at 1.0 (Gemini 3 default) for best results
