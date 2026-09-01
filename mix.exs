@@ -1,17 +1,5 @@
-# `build_support/` is not shipped in the published package, so its absence is
-# how this file knows it is running inside a consumer's deps/ rather than in a
-# source checkout. Guard on the file, not on a directory shape: a shape test
-# breaks when the repo is vendored at a different depth or used as a git dep.
-workspace_helper = Path.expand("build_support/dependency_sources.exs", __DIR__)
-
-if File.regular?(workspace_helper) and not Code.ensure_loaded?(DependencySources) do
-  Code.require_file(workspace_helper)
-end
-
 defmodule Gemini.MixProject do
   use Mix.Project
-
-  @workspace_checkout? File.regular?(Path.expand("build_support/dependency_sources.exs", __DIR__))
 
   @version "0.17.0"
   @source_url "https://github.com/nshkrdotcom/gemini_ex"
@@ -64,29 +52,28 @@ defmodule Gemini.MixProject do
   end
 
   defp deps do
-    workspace_deps() ++
-      [
-        # Core dependencies
-        {:req, "~> 0.6.2"},
-        {:jason, "~> 1.4.4"},
-        {:typed_struct, "~> 0.3.0"},
-        {:joken, "~> 2.6.2"},
-        {:telemetry, "~> 1.4.2"},
-        {:websockex, "~> 0.5.1"},
+    [
+      # Core dependencies
+      {:req, "~> 0.6.2"},
+      {:jason, "~> 1.4.4"},
+      {:typed_struct, "~> 0.3.0"},
+      {:joken, "~> 2.6.2"},
+      {:telemetry, "~> 1.4.2"},
+      {:websockex, "~> 0.5.1"},
 
-        # ALTAR ADM - tool contract dependency
-        {:altar, "~> 0.2.0"},
+      # ALTAR ADM - tool contract dependency
+      {:altar, "~> 0.2.0"},
 
-        # Development and testing
-        {:ex_doc, "~> 0.40.0", only: :dev, runtime: false},
-        {:credo, "~> 1.7.12", only: [:dev, :test], runtime: false},
-        {:dialyxir, "~> 1.4.5", only: [:dev], runtime: false},
-        {:mox, "~> 1.0", only: :test},
-        {:meck, "~> 1.2.0", only: :test},
-        {:supertester, "~> 0.6.0", only: :test},
-        {:bandit, "~> 1.12", only: :test},
-        {:plug, "~> 1.18", only: :test}
-      ]
+      # Development and testing
+      {:ex_doc, "~> 0.40.0", only: :dev, runtime: false},
+      {:credo, "~> 1.7.12", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.4.5", only: [:dev], runtime: false},
+      {:mox, "~> 1.0", only: :test},
+      {:meck, "~> 1.2.0", only: :test},
+      {:supertester, "~> 0.6.0", only: :test},
+      {:bandit, "~> 1.12", only: :test},
+      {:plug, "~> 1.18", only: :test}
+    ]
   end
 
   defp description do
@@ -304,14 +291,6 @@ defmodule Gemini.MixProject do
           ""
       end
     ]
-  end
-
-  defp workspace_deps do
-    if @workspace_checkout? do
-      apply(DependencySources, :deps, [__DIR__])
-    else
-      []
-    end
   end
 
   defp package do

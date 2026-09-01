@@ -7,10 +7,11 @@
 - `doc/` is generated output and should not be edited.
 
 ## Dependency Sources
-- Dependency source selection is handled by `build_support/dependency_sources.exs` and `build_support/dependency_sources.config.exs`.
-- Local dependency overrides use `.dependency_sources.local.exs`; do not commit that file.
-- Repos with no internal dependencies keep an empty manifest.
-- Dependency source selection must not use environment variables.
+- This repository currently has no switchable cross-repository dependencies,
+  so it needs no MWO bootstrap or repository-local source manifest.
+- Keep committed dependency tuples ordinary Mix/Hex declarations. If a future
+  cross-repository dependency needs managed substitution, add only the minimal
+  MWO bootstrap/wrapper seam and declare its coordinates in Portfolio Registry.
 - This repo is not a Weld consumer in this pass and must not receive a blind Weld dependency. Weld verification is limited to discovered Weld consumers.
 
 ## Runtime Environment
