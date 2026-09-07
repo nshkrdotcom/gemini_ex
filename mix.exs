@@ -1,7 +1,7 @@
 defmodule Gemini.MixProject do
   use Mix.Project
 
-  @version "0.17.0"
+  @version "0.18.0"
   @source_url "https://github.com/nshkrdotcom/gemini_ex"
   @homepage_url "https://hex.pm/packages/gemini_ex"
   @docs_url "https://hexdocs.pm/gemini_ex"
@@ -54,10 +54,10 @@ defmodule Gemini.MixProject do
   defp deps do
     [
       # Core dependencies
-      {:req, "~> 0.6.2"},
+      {:req, "~> 0.7.4"},
       {:jason, "~> 1.4.4"},
       {:typed_struct, "~> 0.3.0"},
-      {:joken, "~> 2.6.2"},
+      {:joken, "~> 2.7"},
       {:telemetry, "~> 1.4.2"},
       {:websockex, "~> 0.5.1"},
 
@@ -69,6 +69,7 @@ defmodule Gemini.MixProject do
       {:credo, "~> 1.7.12", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4.5", only: [:dev], runtime: false},
       {:mox, "~> 1.0", only: :test},
+      {:excoveralls, "~> 0.18", only: :test},
       {:meck, "~> 1.2.0", only: :test},
       {:supertester, "~> 0.6.0", only: :test},
       {:bandit, "~> 1.12", only: :test},

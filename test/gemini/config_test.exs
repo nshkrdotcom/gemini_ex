@@ -6,6 +6,7 @@ defmodule Gemini.ConfigTest do
   import Gemini.Test.ModelHelpers
 
   @current_stable_models %{
+    flash_3_8: "gemini-3.8-flash",
     flash_3_7: "gemini-3.7-flash",
     flash_3_6: "gemini-3.6-flash",
     flash_3_5: "gemini-3.5-flash",
@@ -262,6 +263,7 @@ defmodule Gemini.ConfigTest do
         assert %{code: ^code, track: :stable} = Config.model_info(key)
       end)
 
+      assert Config.model_available?(:flash_3_8, :vertex_ai)
       assert Config.model_available?(:flash_3_7, :vertex_ai)
     end
 

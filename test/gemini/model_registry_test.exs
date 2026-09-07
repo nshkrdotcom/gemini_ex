@@ -4,6 +4,22 @@ defmodule Gemini.ModelRegistryTest do
   alias Gemini.ModelRegistry
 
   describe "get/1" do
+    test "resolves Gemini 3.8 Flash with its published capabilities" do
+      assert %{
+               key: :gemini_3_8_flash,
+               code: "gemini-3.8-flash",
+               track: :stable,
+               latest_update: "September 2026"
+             } = entry = ModelRegistry.get("gemini-3.8-flash")
+
+      assert entry.input_modalities == [:text, :image, :video, :audio, :pdf]
+      assert entry.output_modalities == [:text]
+      assert entry.capabilities.structured_outputs == :supported
+      assert entry.capabilities.function_calling == :supported
+      assert entry.capabilities.caching == :supported
+      assert entry.capabilities.live_api == :not_supported
+    end
+
     test "resolves Gemini 3.7 Flash with its published capabilities" do
       assert %{
                key: :gemini_3_7_flash,
@@ -22,6 +38,7 @@ defmodule Gemini.ModelRegistryTest do
 
     test "resolves the current stable Flash and Nano Banana family" do
       expected = [
+        "gemini-3.8-flash",
         "gemini-3.7-flash",
         "gemini-3.6-flash",
         "gemini-3.5-flash",

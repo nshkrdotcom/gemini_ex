@@ -44,7 +44,7 @@ defmodule CoordinatorIntegrationTest do
           {:ok, response} ->
             IO.puts("✅ list_models succeeded")
             IO.puts("Response type: #{inspect(response.__struct__)}")
-            assert is_struct(response)
+            assert is_list(response.models)
 
           {:error, reason} ->
             flunk("list_models failed: #{inspect(reason)}")

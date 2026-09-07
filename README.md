@@ -38,7 +38,7 @@ A comprehensive Elixir client for Google's Gemini AI API with dual authenticatio
 - **Chat Sessions & System Instructions**: Multi-turn conversation management with persistent guardrails
 - **Flexible Multimodal Input**: Intuitive formats for images/text with automatic MIME detection
 - **Thinking Budget Control**: Optimize costs by controlling thinking token usage
-- **Gemini 3.7 Flash Support**: stable `gemini-3.7-flash` with structured outputs, function calling, caching, and `:low`/`:medium`/`:high` thinking levels
+- **Gemini 3.8 Flash Support**: stable `gemini-3.8-flash` with structured outputs, function calling, caching, and `:low`/`:medium`/`:high` thinking levels
 - **Context Caching**: Cache large contexts once and reuse by ID (NEW in v0.6.0!)
 - **Complete Generation Config**: Full support for all generation config options including structured output
 - **Production Ready**: Robust error handling, retry logic, and performance optimizations
@@ -59,7 +59,7 @@ Add `gemini` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:gemini_ex, "~> 0.17.0"}
+    {:gemini_ex, "~> 0.18.0"}
   ]
 end
 ```
@@ -432,6 +432,7 @@ alias Gemini.Types.Content
 **TTL defaults:** The default cache TTL is configurable via `config :gemini_ex, :context_cache, default_ttl_seconds: ...` (defaults to 3_600). You can also override per call with `default_ttl_seconds:` or pass `:ttl`/`:expire_time` explicitly.
 
 **Models that support explicit caching:**
+- `gemini-3.8-flash`
 - `gemini-3.7-flash`
 - `gemini-2.5-flash`
 - `gemini-2.5-flash-lite`
@@ -1514,7 +1515,7 @@ Models are organized by API compatibility:
 
 | Category | Example Models | Gemini API | Vertex AI |
 |----------|---------------|------------|-----------|
-| **Universal** | `gemini-2.5-flash`, `gemini-3.7-flash` | ✓ | ✓ |
+| **Universal** | `gemini-2.5-flash`, `gemini-3.7-flash`, `gemini-3.8-flash` | ✓ | ✓ |
 | **AI Studio Only** | `gemini-flash-lite-latest`, `gemini-pro-latest` | ✓ | ✗ |
 | **Vertex AI Only** | `embeddinggemma`, `embeddinggemma-300m` | ✗ | ✓ |
 
@@ -1685,10 +1686,19 @@ All generation config options are fully supported across all API entry points:
 - `gemini-flash-lite-latest` (default; fastest + most cost-efficient)
 - `gemini-3.5-flash-lite` and `gemini-3.1-flash-lite` (stable low-latency models)
 - `gemini-2.5-flash` (balanced price/performance for high-volume workloads)
-- `gemini-3.7-flash` (stable capable Flash model; use `thinking_level: :low` for lower latency)
+- `gemini-3.8-flash` (flagship capable Flash model for agentic coding; use `thinking_level: :low` for lower latency)
+- `gemini-3.7-flash` (stable capable Flash model)
 - `gemini-3.1-pro-preview` (most capable multimodal reasoning and agentic coding)
 
-Current stable Gemini API aliases are `:flash_3_7`, `:flash_3_6`,
+For 3.8 Flash, use low, medium (provider default), or high thinking. Do not send
+`temperature`, `top_p`, `top_k`, `candidate_count`, `presence_penalty`, or
+`frequency_penalty`; generic generation presets containing these fields are
+not suitable for this model. Omit model-prefill turns and preserve matching
+tool-call IDs/names. These restrictions are documented in Google's
+[3.8 migration guide](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/guides/gemini-3-8-flash).
+No authenticated Gemini API or Vertex test was run for this release candidate.
+
+Current stable Gemini API aliases include `:flash_3_8`, `:flash_3_7`, `:flash_3_6`,
 `:flash_3_5`, `:flash_3_5_lite`, `:flash_3_1_lite`, `:flash_3_1_image`,
 `:flash_3_1_lite_image`, and `:pro_3_image`.
 

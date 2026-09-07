@@ -10,6 +10,7 @@ defmodule Gemini.Validation.ThinkingConfigTest do
   @flash_2_5_lite Config.get_model(:flash_2_5_lite)
   @pro_3 Config.get_model(:pro_3_preview)
   @flash_3 Config.get_model(:flash_3_preview)
+  @flash_3_8 "gemini-3.8-flash"
   @flash_3_7 "gemini-3.7-flash"
 
   describe "validate_level/2 for Gemini 3 models" do
@@ -26,11 +27,20 @@ defmodule Gemini.Validation.ThinkingConfigTest do
       assert msg =~ "only supported on Gemini 3 Flash"
     end
 
-    test "accepts minimal/medium/low/high for Gemini 3 Flash" do
+    test "accepts all levels for standard Gemini 3 Flash" do
       assert :ok = ThinkingConfig.validate_level(:minimal, @flash_3)
       assert :ok = ThinkingConfig.validate_level(:low, @flash_3)
       assert :ok = ThinkingConfig.validate_level(:medium, @flash_3)
       assert :ok = ThinkingConfig.validate_level(:high, @flash_3)
+    end
+
+    test "accepts low/medium/high but rejects minimal for Gemini 3.8 Flash" do
+      assert {:error, msg} = ThinkingConfig.validate_level(:minimal, @flash_3_8)
+      assert msg =~ "not supported by Gemini 3.8 Flash"
+
+      assert :ok = ThinkingConfig.validate_level(:low, @flash_3_8)
+      assert :ok = ThinkingConfig.validate_level(:medium, @flash_3_8)
+      assert :ok = ThinkingConfig.validate_level(:high, @flash_3_8)
     end
 
     test "accepts low/medium/high but rejects minimal for Gemini 3.7 Flash" do

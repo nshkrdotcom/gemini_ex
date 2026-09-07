@@ -826,16 +826,6 @@ defmodule Gemini.APIs.Files do
 
   defp get_token_from_credentials(%{token: token}) when is_binary(token), do: token
 
-  # Handle Goth.Token struct (if Goth is available) - match by struct name
-  defp get_token_from_credentials(%{__struct__: struct_name, token: token})
-       when is_binary(token) do
-    if struct_name |> Module.split() |> List.last() == "Token" do
-      token
-    else
-      raise_credentials_error(%{__struct__: struct_name})
-    end
-  end
-
   defp get_token_from_credentials(credentials) do
     raise_credentials_error(credentials)
   end

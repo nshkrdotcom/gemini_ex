@@ -45,6 +45,28 @@ defmodule Gemini.ModelRegistry do
 
   @entries [
     %{
+      key: :gemini_3_8_flash,
+      code: "gemini-3.8-flash",
+      source_page: "https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash",
+      track: :stable,
+      latest_update: "September 2026",
+      input_modalities: [:text, :image, :video, :audio, :pdf],
+      output_modalities: [:text],
+      capabilities: %{
+        audio_generation: :not_supported,
+        batch_api: :supported,
+        caching: :supported,
+        function_calling: :supported,
+        image_generation: :not_supported,
+        live_api: :not_supported,
+        structured_outputs: :supported,
+        thinking: :supported
+      },
+      aliases: [],
+      live_modalities: [],
+      notes: "GA Flash model; thinking levels are low, medium, and high (not minimal)"
+    },
+    %{
       key: :gemini_3_7_flash,
       code: "gemini-3.7-flash",
       source_page: "https://ai.google.dev/gemini-api/docs/models/gemini-3.7-flash",

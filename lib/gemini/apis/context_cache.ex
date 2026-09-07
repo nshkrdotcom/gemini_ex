@@ -369,17 +369,14 @@ defmodule Gemini.APIs.ContextCache do
   end
 
   defp format_content(%{parts: parts} = map) do
-    role =
-      Map.get(map, :role) ||
-        Map.get(map, "role") ||
-        "user"
+    role = Map.get(map, "role", "user")
 
     %{role: role, parts: format_parts(parts)}
   end
 
   defp format_content(%{text: text} = map) when is_binary(text) do
-    role = Map.get(map, :role, "user")
-    parts = Map.get(map, :parts, [%{text: text}])
+    role = Map.get(map, :role) || Map.get(map, "role") || "user"
+    parts = [%{text: text}]
     %{role: role, parts: format_parts(parts)}
   end
 
@@ -508,6 +505,7 @@ defmodule Gemini.APIs.ContextCache do
   end
 
   @valid_cache_models [
+    "gemini-3.8-flash",
     "gemini-3.7-flash",
     "gemini-3.6-flash",
     "gemini-3.5-flash",

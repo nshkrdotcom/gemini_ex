@@ -1031,10 +1031,8 @@ defmodule Gemini.Live.Session do
       :ok
   end
 
-  @spec invoke_callback_result(tool_call_callback() | nil, term()) ::
+  @spec invoke_callback_result(tool_call_callback(), term()) ::
           {:ok, term()} | {:error, term()}
-  defp invoke_callback_result(nil, _arg), do: {:ok, nil}
-
   defp invoke_callback_result(callback, arg) when is_function(callback, 1) do
     {:ok, callback.(arg)}
   rescue

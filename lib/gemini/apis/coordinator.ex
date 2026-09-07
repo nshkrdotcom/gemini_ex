@@ -1414,8 +1414,6 @@ defmodule Gemini.APIs.Coordinator do
   # - Content struct: Converted to API format with role and parts
   # - Map with parts: Passed through with formatting
   @spec format_system_instruction(String.t() | Content.t() | map() | nil) :: map() | nil
-  defp format_system_instruction(nil), do: nil
-
   defp format_system_instruction(text) when is_binary(text) do
     %{parts: [%{text: text}]}
   end
@@ -1437,8 +1435,8 @@ defmodule Gemini.APIs.Coordinator do
   defp format_system_instruction(_), do: nil
 
   # Helper to format parts within system instruction maps
-  defp format_system_instruction_part(%{text: _} = part), do: part
   defp format_system_instruction_part(%Part{} = part), do: format_part(part)
+  defp format_system_instruction_part(%{text: _} = part), do: part
   defp format_system_instruction_part(part), do: part
 
   # Add safety settings to request if provided

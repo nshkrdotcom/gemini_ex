@@ -266,7 +266,7 @@ defmodule Gemini.Live.Audio do
   end
 
   defp do_chunk_audio(data, chunk_size, acc) do
-    <<chunk::binary-size(chunk_size), rest::binary>> = data
+    <<chunk::binary-size(^chunk_size), rest::binary>> = data
     do_chunk_audio(rest, chunk_size, [chunk | acc])
   end
 end

@@ -219,9 +219,6 @@ defmodule Gemini.RateLimiter.Manager do
     |> Map.put_new(:usage, State.get_current_usage(state_key, now: Config.now(config)) || %{})
   end
 
-  defp build_over_budget_status(_status, state_key, config),
-    do: State.get_current_usage(state_key, now: Config.now(config)) || %{}
-
   @doc """
   Get current token usage for a model.
   """

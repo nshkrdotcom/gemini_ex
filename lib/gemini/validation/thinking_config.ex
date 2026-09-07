@@ -5,15 +5,16 @@ defmodule Gemini.Validation.ThinkingConfig do
   ## Gemini 3 Models
 
   Use `thinking_level` for Gemini 3 models:
-  - `:minimal` - Minimal thinking (Flash only). Model may still think for complex tasks.
+  - `:minimal` - Minimal thinking (older Flash models only, not 3.7/3.8).
   - `:low` - Minimizes latency and cost
   - `:medium` - Balanced thinking (Flash only)
-  - `:high` - Maximizes reasoning depth (default)
+  - `:high` - Maximizes reasoning depth (model-dependent default)
 
   ## Model Support
 
   - **Gemini 3 Pro**: `:low`, `:high`
   - **Gemini 3.7 Flash**: `:low`, `:medium`, `:high`
+  - **Gemini 3.8 Flash**: `:low`, `:medium` (default), `:high`
   - **Earlier Gemini 3 Flash models**: `:minimal`, `:low`, `:medium`, `:high`
 
   ## Gemini 2.5 Models
@@ -64,6 +65,9 @@ defmodule Gemini.Validation.ThinkingConfig do
 
   def validate_level(:minimal, model) do
     cond do
+      model && String.contains?(model, "gemini-3.8-flash") ->
+        {:error, "Thinking level :minimal is not supported by Gemini 3.8 Flash"}
+
       model && String.contains?(model, "gemini-3.7-flash") ->
         {:error, "Thinking level :minimal is not supported by Gemini 3.7 Flash"}
 

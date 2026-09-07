@@ -9,8 +9,6 @@ defmodule LiveAPITest do
   Run with: mix test test/live_api_test.exs --include live_api
   """
 
-  require Logger
-
   import Gemini.Test.ModelHelpers
 
   defp mask_api_key(key) when is_binary(key) and byte_size(key) > 2 do

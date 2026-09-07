@@ -14,14 +14,15 @@ defmodule Gemini.Types.GenerationConfig do
 
     Use `thinking_level` for Gemini 3 models:
     - `:minimal` - Minimal thinking (supported by earlier Gemini 3 Flash models,
-      but not Gemini 3.7 Flash)
+      but not Gemini 3.7 or 3.8 Flash)
     - `:low` - Minimizes latency and cost. Best for simple tasks.
     - `:medium` - Balanced thinking (Gemini 3 Flash only)
-    - `:high` - Maximizes reasoning depth (default for Gemini 3).
+    - `:high` - Maximizes reasoning depth (default varies by model; Gemini 3.8 Flash defaults to medium).
 
     ## Model Support
 
     - **Gemini 3 Pro**: `:low`, `:high`
+    - **Gemini 3.8 Flash**: `:low`, `:medium`, `:high`
     - **Gemini 3.7 Flash**: `:low`, `:medium`, `:high`
     - **Earlier Gemini 3 Flash models**: `:minimal`, `:low`, `:medium`, `:high`
 
@@ -240,7 +241,7 @@ defmodule Gemini.Types.GenerationConfig do
   - `config`: GenerationConfig struct (defaults to new config)
   - `level`: Thinking level atom
     - `:minimal` - Minimal thinking (earlier Gemini 3 Flash models only;
-      Gemini 3.7 Flash rejects it)
+      Gemini 3.7 and 3.8 Flash reject it)
     - `:low` - Minimizes latency and cost. Best for simple instruction following.
     - `:medium` - Balanced thinking (Gemini 3 Flash only)
     - `:high` - Maximizes reasoning depth. Model may take longer for first token.

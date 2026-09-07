@@ -293,13 +293,13 @@ defmodule Gemini.Live.Models do
   defp auth_compatible?(model_key, :vertex_ai), do: Config.model_available?(model_key, :vertex_ai)
   defp auth_compatible?(_model_key, _auth), do: true
 
+  defp safe_get_model(nil), do: nil
+
   defp safe_get_model(model_key) when is_atom(model_key) do
     Config.get_model(model_key)
   rescue
     ArgumentError -> nil
   end
-
-  defp safe_get_model(nil), do: nil
 
   defp normalize_model_name(name) when is_binary(name) do
     name

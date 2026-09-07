@@ -60,6 +60,7 @@ defmodule Gemini.Config do
   # Universal models - work identically in both Gemini API and Vertex AI
   @universal_models %{
     # Gemini 3 stable models
+    flash_3_8: "gemini-3.8-flash",
     flash_3_7: "gemini-3.7-flash",
 
     # Gemini 3 preview models

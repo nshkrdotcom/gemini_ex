@@ -14,8 +14,11 @@ defmodule Gemini.AuthTest do
     end
 
     test "raises error for unknown auth type" do
+      # Fixed input, constructed at runtime to exercise the rejection branch.
+      invalid_auth = String.to_atom("invalid")
+
       assert_raise ArgumentError, "Unknown authentication type: :invalid", fn ->
-        Auth.get_strategy(:invalid)
+        Auth.get_strategy(invalid_auth)
       end
     end
   end

@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.18.0] - 2026-09-07
+
+### Changed
+
+- Update Req to the 0.7 line and Joken to 2.7; refresh locks and resolve current-toolchain warnings.
+- Include the missing test-only ExCoveralls dependency so the configured coverage tasks can run.
+
+### Added
+
+- Added `gemini-3.8-flash` to `Gemini.ModelRegistry` and `Gemini.Config` (`:flash_3_8` alias in `@universal_models`), engineered for long-horizon software engineering, autonomous agents, and complex enterprise workflows.
+- Added `gemini-3.8-flash` to `@valid_cache_models` in `Gemini.APIs.ContextCache`.
+- Documented thinking levels for Gemini 3.8 Flash (`:low`, `:medium`, `:high`).
+
+### Fixed
+
+- Reject `thinking_level: :minimal` for Gemini 3.8 Flash in `Gemini.Validation.ThinkingConfig` while continuing to support `:low`, `:medium`, and `:high`.
+- Resolved all compiler warnings under Elixir 1.20, including bitstring pin syntax in `Gemini.Live.Audio`, dead and redundant pattern match clauses in `Gemini.Live.Session`, `Gemini.Live.Models`, `Gemini.APIs.Files`, `Gemini.RateLimiter.Manager`, and `Gemini.APIs.Coordinator`, and type inference issues in `Gemini.APIs.ContextCache`.
+
 ## [0.17.0] - 2026-08-21
 
 ### Added
@@ -2158,7 +2176,8 @@ config :gemini_ex,
 - Minimal latency overhead
 - Concurrent request processing
 
-[Unreleased]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.17.0...HEAD
+[Unreleased]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.18.0...HEAD
+[0.18.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.16.0...v0.17.0
 [0.16.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.14.0...v0.15.0
