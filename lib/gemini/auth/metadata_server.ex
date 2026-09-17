@@ -81,7 +81,7 @@ defmodule Gemini.Auth.MetadataServer do
   def available? do
     url = "#{@metadata_base_url}/"
 
-    case Req.get(url, headers: @metadata_headers, receive_timeout: @availability_timeout) do
+    case metadata_get(url, @availability_timeout) do
       {:ok, %Req.Response{status: 200}} ->
         Logger.debug("[MetadataServer] Metadata server is available")
         true
@@ -139,7 +139,7 @@ defmodule Gemini.Auth.MetadataServer do
   def get_access_token do
     url = "#{@metadata_base_url}/instance/service-accounts/default/token"
 
-    case Req.get(url, headers: @metadata_headers, receive_timeout: @request_timeout) do
+    case metadata_get(url, @request_timeout) do
       {:ok, %Req.Response{status: 200, body: body}} ->
         parse_token_response(body)
 
@@ -179,7 +179,7 @@ defmodule Gemini.Auth.MetadataServer do
   def get_project_id do
     url = "#{@metadata_base_url}/project/project-id"
 
-    case Req.get(url, headers: @metadata_headers, receive_timeout: @request_timeout) do
+    case metadata_get(url, @request_timeout) do
       {:ok, %Req.Response{status: 200, body: body}} when is_binary(body) ->
         project_id = String.trim(body)
         Logger.debug("[MetadataServer] Retrieved project ID: #{project_id}")
@@ -219,7 +219,7 @@ defmodule Gemini.Auth.MetadataServer do
   def get_service_account_email do
     url = "#{@metadata_base_url}/instance/service-accounts/default/email"
 
-    case Req.get(url, headers: @metadata_headers, receive_timeout: @request_timeout) do
+    case metadata_get(url, @request_timeout) do
       {:ok, %Req.Response{status: 200, body: body}} when is_binary(body) ->
         email = String.trim(body)
         Logger.debug("[MetadataServer] Retrieved service account email: #{email}")
@@ -298,5 +298,23 @@ defmodule Gemini.Auth.MetadataServer do
 
   defp parse_token_response(body) do
     {:error, "Unexpected response body type: #{inspect(body)}"}
+  end
+
+  defp metadata_get(url, timeout) do
+    task =
+      Task.Supervisor.async_nolink(Gemini.TaskSupervisor, fn ->
+        Req.get(url,
+          headers: @metadata_headers,
+          retry: false,
+          connect_options: [timeout: timeout],
+          receive_timeout: timeout
+        )
+      end)
+
+    case Task.yield(task, timeout) || Task.shutdown(task, :brutal_kill) do
+      {:ok, result} -> result
+      {:exit, reason} -> {:error, reason}
+      nil -> {:error, %Mint.TransportError{reason: :timeout}}
+    end
   end
 end
