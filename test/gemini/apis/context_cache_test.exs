@@ -8,6 +8,13 @@ defmodule Gemini.APIs.ContextCacheTest do
   import Gemini.Test.ModelHelpers
 
   setup do
+    :meck.new(Gemini.Client.HTTP, [:non_strict, :no_link])
+    on_exit(fn -> :meck.unload(Gemini.Client.HTTP) end)
+
+    :meck.expect(Gemini.Client.HTTP, :post, fn _path, _body, _opts ->
+      {:error, :offline_test}
+    end)
+
     original_envs =
       Enum.map(
         ~w(GEMINI_API_KEY VERTEX_SERVICE_ACCOUNT VERTEX_JSON_FILE VERTEX_ACCESS_TOKEN VERTEX_PROJECT_ID VERTEX_LOCATION GOOGLE_CLOUD_PROJECT GOOGLE_CLOUD_LOCATION),
@@ -39,6 +46,20 @@ defmodule Gemini.APIs.ContextCacheTest do
   end
 
   describe "create/2" do
+    test "warns that Argon does not support explicit caching" do
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          assert {:error, :offline_test} =
+                   ContextCache.create("Hello",
+                     display_name: "Unsupported explicit cache",
+                     model: "gemini-4-argon",
+                     auth: :gemini
+                   )
+        end)
+
+      assert log =~ "may not support explicit caching"
+    end
+
     test "raises when display_name is missing" do
       error =
         assert_raise ArgumentError, fn ->
@@ -51,9 +72,6 @@ defmodule Gemini.APIs.ContextCacheTest do
     test "accepts content structs" do
       content = Content.text("Hello world", "user")
 
-      # This would make an actual API call - verify the function call returns an error
-      # (not a crash) when credentials are missing or invalid
-      # Use caching_model() to avoid model validation warning
       result =
         ContextCache.create([content],
           display_name: "Test Cache",
@@ -62,7 +80,7 @@ defmodule Gemini.APIs.ContextCacheTest do
         )
 
       # Should return an error tuple, not crash
-      assert match?({:error, _}, result)
+      assert result == {:error, :offline_test}
     end
   end
 

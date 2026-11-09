@@ -2,6 +2,11 @@ defmodule Gemini.Validation.ThinkingConfig do
   @moduledoc """
   Validation for thinking configuration parameters based on model capabilities.
 
+  ## Gemini 4 Argon
+
+  Argon supports `:low`, `:medium` (default), and `:high`. Use levels rather
+  than token budgets; `:minimal` is not supported.
+
   ## Gemini 3 Models
 
   Use `thinking_level` for Gemini 3 models:
@@ -24,7 +29,7 @@ defmodule Gemini.Validation.ThinkingConfig do
   - **2.5 Flash**: 0-24,576 tokens (can disable)
   - **2.5 Flash Lite**: 0 or 512-24,576 tokens
 
-  Special value `-1` enables dynamic thinking (model decides budget) for all models.
+  Special value `-1` enables dynamic thinking for budget-based models.
 
   ## Important
 
@@ -62,6 +67,12 @@ defmodule Gemini.Validation.ThinkingConfig do
   def validate_level(:unspecified, _model), do: :ok
   def validate_level(:low, _model), do: :ok
   def validate_level(:high, _model), do: :ok
+
+  def validate_level(:minimal, "models/gemini-4-argon"),
+    do: validate_level(:minimal, "gemini-4-argon")
+
+  def validate_level(:minimal, "gemini-4-argon"),
+    do: {:error, "Thinking level :minimal is not supported by Gemini 4 Argon"}
 
   def validate_level(:minimal, model) do
     cond do
@@ -111,6 +122,11 @@ defmodule Gemini.Validation.ThinkingConfig do
       {:error, "Gemini 2.5 Pro cannot disable thinking (minimum budget: 128)"}
   """
   @spec validate_budget(integer(), String.t()) :: validation_result()
+  def validate_budget(budget, model)
+      when is_integer(budget) and model in ["gemini-4-argon", "models/gemini-4-argon"] do
+    {:error, "Gemini 4 Argon uses thinking_level (:low, :medium, or :high), not thinking_budget"}
+  end
+
   def validate_budget(budget, model) when is_integer(budget) and is_binary(model) do
     cond do
       budget == -1 ->

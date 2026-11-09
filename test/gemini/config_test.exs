@@ -6,8 +6,11 @@ defmodule Gemini.ConfigTest do
   import Gemini.Test.ModelHelpers
 
   @current_stable_models %{
+    argon_4: "gemini-4-argon",
     flash_3_8: "gemini-3.8-flash",
-    flash_3_7: "gemini-3.7-flash",
+    live_3_8: "gemini-3.8-live",
+    flash_3_8_tts: "gemini-3.8-flash-tts",
+    flash_3_8_lite_tts: "gemini-3.8-flash-lite-tts",
     flash_3_6: "gemini-3.6-flash",
     flash_3_5: "gemini-3.5-flash",
     flash_3_5_lite: "gemini-3.5-flash-lite",
@@ -256,15 +259,22 @@ defmodule Gemini.ConfigTest do
   end
 
   describe "model registry integration" do
-    test "current stable Gemini 3 models are available through the universal config registry" do
+    test "current stable Gemini models are available through the universal config registry" do
       Enum.each(@current_stable_models, fn {key, code} ->
         assert Config.get_model(key) == code
         assert Config.model_available?(key, :gemini)
+        assert Config.model_available?(key, :vertex_ai)
         assert %{code: ^code, track: :stable} = Config.model_info(key)
       end)
 
       assert Config.model_available?(:flash_3_8, :vertex_ai)
       assert Config.model_available?(:flash_3_7, :vertex_ai)
+      assert %{code: "gemini-3.7-flash", track: :deprecated} = Config.model_info(:flash_3_7)
+
+      assert Config.get_model(:latest) == "gemini-4-argon"
+      assert Config.get_model(:stable) == "gemini-3.8-flash"
+      assert Config.get_model(:default_universal) == "gemini-3.5-flash-lite"
+      assert Config.default_model_for(:vertex_ai) == "gemini-2.5-flash-lite"
     end
 
     test "model_info/1 resolves metadata for key and raw model name" do

@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Added `gemini-4-argon` to `Gemini.ModelRegistry`, `Gemini.Config` (`:argon_4` alias in `@universal_models`) (implicit caching only).
+- Added `gemini-3.8-live` and `gemini-3.8-live-extended-thinking` to `Gemini.ModelRegistry`, `Gemini.Config` (`:live_3_8` and `:live_3_8_extended_thinking`), and `Gemini.Live.Models` as preferred Live API audio candidates (3.8 Live is the default) for both Gemini API and Vertex AI.
+- Added `gemini-3.8-flash-tts` and `gemini-3.8-flash-lite-tts` to `Gemini.ModelRegistry` and `Gemini.Config`.
+- Promoted `gemini-3.6-flash`, `gemini-3.5-flash`, and `gemini-3.5-flash-lite` to `@universal_models` for verified cross-platform compatibility between Gemini API and Vertex AI.
+
+### Changed
+
+- Require Elixir 1.17 or later to match the existing Altar dependency requirement.
+- Isolated cache and Vertex auth unit tests from provider calls and local ADC credentials; handle IAM transport errors without crashing.
+- Updated universal aliases in `Gemini.Config`:
+  - `:latest` updated to `gemini-4-argon` (frontier reasoning model).
+  - `:stable` updated to `gemini-3.8-flash` (GA workhorse model).
+  - `:default_universal` updated to `gemini-3.5-flash-lite`.
+- Retained the regional Vertex default (`gemini-2.5-flash-lite`); newer aliases require a supported location. Corrected global Vertex HTTP hostname construction.
+- Updated `@use_case_models` in `Gemini.Config` to use modern model keys (`:flash_3_8`, `:argon_4`, `:flash_3_5_lite`).
+- Marked `gemini-3.7-flash` as `:deprecated` in `Gemini.ModelRegistry` with automated routing notes to `gemini-3.8-flash`.
+- Upgraded dependencies in `mix.exs` and `mix.lock`: Bandit to 1.14.1, Req to 0.7.5, Mox to 1.3.2, Finch to 0.24.0, ThousandIsland to 1.6.0, Mint to 1.11.0, Hpax to 1.1.0, NimbleOptions to 1.2.0, Jose to 1.11.13, Makeup to 1.2.3, PlugCrypto to 2.2.1.
+- Modernized minimum version constraints in `mix.exs` for `jason`, `credo`, `dialyxir`, `ex_doc`, and `plug`.
+- Corrected Argon thinking validation (low/medium/high; no minimal or token budgets) and Live 3.8 client-content routing and stable Extended Thinking metadata.
+- Fixed the model-info example to read normalized response fields and report authentication without exposing key fragments.
+- Removed obsolete references to `gemini-1.5-*` and deprecated `gemini-3-pro-preview` in examples and documentation.
+
 ## [0.18.0] - 2026-09-17
 
 - Bound metadata-server DNS, connection, and response time and disable automatic retries so unavailable GCP metadata does not stall authentication probes.

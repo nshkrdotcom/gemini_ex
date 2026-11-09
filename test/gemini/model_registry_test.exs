@@ -4,6 +4,23 @@ defmodule Gemini.ModelRegistryTest do
   alias Gemini.ModelRegistry
 
   describe "get/1" do
+    test "resolves Gemini 4 Argon with its published capabilities" do
+      assert %{
+               key: :gemini_4_argon,
+               code: "gemini-4-argon",
+               track: :stable,
+               latest_update: "October 2026"
+             } = entry = ModelRegistry.get("gemini-4-argon")
+
+      assert entry.input_modalities == [:text, :image, :video, :audio, :pdf]
+      assert entry.output_modalities == [:text]
+      assert entry.capabilities.structured_outputs == :supported
+      assert entry.capabilities.function_calling == :supported
+      assert entry.capabilities.caching == :supported
+      assert entry.capabilities.live_api == :not_supported
+      assert entry.capabilities.thinking == :supported
+    end
+
     test "resolves Gemini 3.8 Flash with its published capabilities" do
       assert %{
                key: :gemini_3_8_flash,
@@ -20,11 +37,27 @@ defmodule Gemini.ModelRegistryTest do
       assert entry.capabilities.live_api == :not_supported
     end
 
-    test "resolves Gemini 3.7 Flash with its published capabilities" do
+    test "resolves Gemini 3.8 Live with its published capabilities" do
+      assert %{
+               key: :gemini_3_8_live,
+               code: "gemini-3.8-live",
+               track: :stable,
+               latest_update: "September 2026"
+             } = entry = ModelRegistry.get("gemini-3.8-live")
+
+      assert entry.input_modalities == [:text, :image, :audio]
+      assert entry.output_modalities == [:text, :audio]
+      assert entry.capabilities.live_api == :supported
+      assert entry.capabilities.audio_generation == :supported
+      assert entry.capabilities.function_calling == :supported
+      assert entry.capabilities.thinking == :supported
+    end
+
+    test "resolves Gemini 3.7 Flash as deprecated and routed" do
       assert %{
                key: :gemini_3_7_flash,
                code: "gemini-3.7-flash",
-               track: :stable,
+               track: :deprecated,
                latest_update: "August 2026"
              } = entry = ModelRegistry.get("gemini-3.7-flash")
 
@@ -38,8 +71,12 @@ defmodule Gemini.ModelRegistryTest do
 
     test "resolves the current stable Flash and Nano Banana family" do
       expected = [
+        "gemini-4-argon",
         "gemini-3.8-flash",
-        "gemini-3.7-flash",
+        "gemini-3.8-live",
+        "gemini-3.8-live-extended-thinking",
+        "gemini-3.8-flash-tts",
+        "gemini-3.8-flash-lite-tts",
         "gemini-3.6-flash",
         "gemini-3.5-flash",
         "gemini-3.5-flash-lite",
@@ -53,6 +90,7 @@ defmodule Gemini.ModelRegistryTest do
         assert %{code: ^code, track: :stable} = ModelRegistry.get(code)
       end)
 
+      assert %{track: :deprecated} = ModelRegistry.get("gemini-3.7-flash")
       assert %{track: :deprecated} = ModelRegistry.get("gemini-3.1-flash-lite-preview")
     end
 
@@ -90,7 +128,9 @@ defmodule Gemini.ModelRegistryTest do
       text_candidates = ModelRegistry.live_candidates(:text)
       audio_candidates = ModelRegistry.live_candidates(:audio)
 
-      assert hd(audio_candidates) == "gemini-3.1-flash-live-preview"
+      assert hd(audio_candidates) == "gemini-3.8-live"
+      assert "gemini-3.8-live-extended-thinking" in audio_candidates
+      assert "gemini-3.1-flash-live-preview" in audio_candidates
       assert text_candidates == []
       assert "gemini-2.5-flash-native-audio-preview-12-2025" in audio_candidates
       assert "gemini-2.5-flash-native-audio-latest" in audio_candidates
@@ -99,6 +139,12 @@ defmodule Gemini.ModelRegistryTest do
 
   describe "live session metadata" do
     test "returns explicit session response modalities and text input method" do
+      assert [:audio] ==
+               ModelRegistry.live_session_response_modalities("gemini-3.8-live")
+
+      assert :client_content ==
+               ModelRegistry.live_text_input_method("gemini-3.8-live")
+
       assert [:audio] ==
                ModelRegistry.live_session_response_modalities("gemini-3.1-flash-live-preview")
 

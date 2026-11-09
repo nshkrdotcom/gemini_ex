@@ -18,12 +18,12 @@ defmodule Gemini.Live.Models do
   @legacy_default_models %{
     gemini: %{
       text: nil,
-      audio: :flash_3_1_live_preview,
+      audio: :live_3_8,
       image: :flash_2_0_exp_image_generation
     },
     vertex_ai: %{
       text: nil,
-      audio: :flash_3_1_live_preview,
+      audio: :live_3_8,
       image: :flash_2_0_preview_image_generation
     }
   }
@@ -32,6 +32,8 @@ defmodule Gemini.Live.Models do
     gemini: %{
       text: [],
       audio: [
+        :live_3_8,
+        :live_3_8_extended_thinking,
         :flash_3_1_live_preview,
         :flash_2_5_native_audio_latest,
         :flash_2_5_native_audio_preview_12_2025,
@@ -50,6 +52,8 @@ defmodule Gemini.Live.Models do
     vertex_ai: %{
       text: [],
       audio: [
+        :live_3_8,
+        :live_3_8_extended_thinking,
         :flash_3_1_live_preview,
         :flash_2_5_native_audio_latest,
         :flash_2_5_native_audio_preview_12_2025,

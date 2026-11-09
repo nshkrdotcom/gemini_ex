@@ -151,7 +151,7 @@ defmodule Gemini.Auth.JWT do
         handle_iam_response(response)
 
       {:error, reason} ->
-        {:error, "Request failed: #{reason}"}
+        {:error, "Request failed: #{inspect(reason)}"}
     end
   end
 

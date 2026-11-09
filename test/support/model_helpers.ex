@@ -163,12 +163,12 @@ defmodule Gemini.Test.ModelHelpers do
   Returns a model with thinking/reasoning capability.
 
   Only use for tests that specifically require thinking capability.
-  Uses flash_2_5 which supports thinking_budget configuration.
+  Uses flash_3_8 which supports thinking levels.
 
   Note: This model works with both Gemini API and Vertex AI.
   """
   @spec thinking_model() :: String.t()
-  def thinking_model, do: Config.get_model(:flash_2_5)
+  def thinking_model, do: Config.get_model(:flash_3_8)
 
   @doc """
   Check if a model key is available for the current auth type.
@@ -191,15 +191,15 @@ defmodule Gemini.Test.ModelHelpers do
   of which authentication is configured.
   """
   @spec universal_model() :: String.t()
-  def universal_model, do: Config.get_model(:flash_2_5_lite)
+  def universal_model, do: Config.get_model(:flash_3_5_lite)
 
   @doc """
   Returns a model that supports structured outputs for both APIs.
 
-  Flash 2.5 supports JSON schema-based structured outputs.
+  Flash 3.8 supports JSON schema-based structured outputs.
   """
   @spec structured_output_model() :: String.t()
-  def structured_output_model, do: Config.get_model(:flash_2_5)
+  def structured_output_model, do: Config.get_model(:flash_3_8)
 
   @doc """
   Returns a model that supports context caching.
@@ -220,7 +220,7 @@ defmodule Gemini.Test.ModelHelpers do
   Use this for context cache tests.
   """
   @spec caching_model() :: String.t()
-  def caching_model, do: Config.get_model(:flash_2_5)
+  def caching_model, do: Config.get_model(:flash_3_8)
 
   @doc """
   Get the default embedding dimensions for the current auth type.

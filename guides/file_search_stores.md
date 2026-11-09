@@ -314,7 +314,7 @@ Combine with other generation options:
   tools: [%{file_search_stores: [store.name]}],
   temperature: 0.3,
   max_output_tokens: 500,
-  model: "gemini-1.5-pro-002"
+  model: "gemini-2.5-flash"
 )
 ```
 

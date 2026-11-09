@@ -77,7 +77,7 @@ config_low = GenerationConfig.thinking_level(:low)
 
 case Coordinator.generate_content(
        "What is 2 + 2?",
-       model: "gemini-3-pro-preview",
+       model: "gemini-3.1-pro-preview",
        generation_config: config_low
      ) do
   {:ok, response} ->
@@ -115,7 +115,7 @@ config_high = GenerationConfig.thinking_level(:high)
 
 case Coordinator.generate_content(
        "Explain the philosophical implications of Godel's incompleteness theorems in 2 sentences.",
-       model: "gemini-3-pro-preview",
+       model: "gemini-3.1-pro-preview",
        generation_config: config_high
      ) do
   {:ok, response} ->
@@ -354,7 +354,7 @@ New in Gemini 3:
    Part.with_thought_signature(part, signature)
 
 Models:
-- gemini-3-pro-preview      : Text, reasoning, code
+- gemini-3.1-pro-preview    : Text, reasoning, code
 - gemini-3-flash-preview    : Fast thinking + built-in tools
 - gemini-3-pro-image        : Image generation
 

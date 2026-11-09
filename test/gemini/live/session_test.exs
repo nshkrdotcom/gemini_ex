@@ -374,6 +374,24 @@ defmodule Gemini.Live.SessionTest do
     end
   end
 
+  test "Gemini 3.8 Live accepts client content updates with an audio response" do
+    for model <- ["gemini-3.8-live", "gemini-3.8-live-extended-thinking"] do
+      {:ok, pid} =
+        Session.start_link(
+          model: model,
+          auth: :gemini,
+          generation_config: %{response_modalities: ["AUDIO"]},
+          websocket_module: WebSocketStub,
+          websocket_opts: [test_pid: self()]
+        )
+
+      assert :ok = Session.connect(pid)
+      assert :ok = Session.send_client_content(pid, "hello")
+      assert_receive {:websocket_send, %{"clientContent" => _}}
+      GenServer.stop(pid)
+    end
+  end
+
   describe "send_client_content/3 validation" do
     test "rejects direct client content turns for models that require realtime text input" do
       {:ok, pid} =

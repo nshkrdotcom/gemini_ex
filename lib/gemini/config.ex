@@ -19,7 +19,7 @@ defmodule Gemini.Config do
 
   Default models are automatically selected based on detected authentication:
   - Gemini API: `gemini-flash-lite-latest` (convenience alias)
-  - Vertex AI: `gemini-2.5-flash-lite` (universal name)
+  - Vertex AI: `gemini-2.5-flash-lite` (regional compatibility default)
 
   For embeddings:
   - Gemini API: `gemini-embedding-001` (3072 dimensions)
@@ -59,9 +59,25 @@ defmodule Gemini.Config do
 
   # Universal models - work identically in both Gemini API and Vertex AI
   @universal_models %{
-    # Gemini 3 stable models
+    # Gemini 4 frontier models
+    argon_4: "gemini-4-argon",
+
+    # Gemini 3.8 models
+    live_3_8: "gemini-3.8-live",
+    live_3_8_extended_thinking: "gemini-3.8-live-extended-thinking",
+    flash_3_8_tts: "gemini-3.8-flash-tts",
+    flash_3_8_lite_tts: "gemini-3.8-flash-lite-tts",
     flash_3_8: "gemini-3.8-flash",
+
+    # Gemini 3 stable models
     flash_3_7: "gemini-3.7-flash",
+    flash_3_6: "gemini-3.6-flash",
+    flash_3_5: "gemini-3.5-flash",
+    flash_3_5_lite: "gemini-3.5-flash-lite",
+    flash_3_1_lite: "gemini-3.1-flash-lite",
+    flash_3_1_image: "gemini-3.1-flash-image",
+    flash_3_1_lite_image: "gemini-3.1-flash-lite-image",
+    pro_3_image: "gemini-3-pro-image",
 
     # Gemini 3 preview models
     pro_3_1_preview: "gemini-3.1-pro-preview",
@@ -104,23 +120,13 @@ defmodule Gemini.Config do
     flash_2_0_live_001: "gemini-2.0-flash-live-001",
 
     # Universal aliases (use these for cross-platform compatibility)
-    default_universal: "gemini-2.5-flash-lite",
-    latest: "gemini-3.1-pro-preview",
-    stable: "gemini-2.5-pro"
+    default_universal: "gemini-3.5-flash-lite",
+    latest: "gemini-4-argon",
+    stable: "gemini-3.8-flash"
   }
 
   # Gemini API (AI Studio) only models - convenience aliases that don't work on Vertex AI
   @gemini_api_models %{
-    # Current stable Gemini API catalog. Add these to @universal_models only
-    # after their exact Vertex model IDs are independently qualified.
-    flash_3_6: "gemini-3.6-flash",
-    flash_3_5: "gemini-3.5-flash",
-    flash_3_5_lite: "gemini-3.5-flash-lite",
-    flash_3_1_lite: "gemini-3.1-flash-lite",
-    flash_3_1_image: "gemini-3.1-flash-image",
-    flash_3_1_lite_image: "gemini-3.1-flash-lite-image",
-    pro_3_image: "gemini-3-pro-image",
-
     # Convenience aliases (AI Studio only - Vertex AI doesn't support -latest suffix)
     flash_lite_latest: "gemini-flash-lite-latest",
     flash_latest: "gemini-flash-latest",
@@ -176,9 +182,9 @@ defmodule Gemini.Config do
   # Use-case aliases with recommended token budgets
   # These provide consistent model selection across the codebase
   @use_case_models %{
-    cache_context: %{model_key: :flash_2_5, recommended_tokens: 32_000},
-    report_section: %{model_key: :pro_2_5, recommended_tokens: 16_000},
-    fast_path: %{model_key: :flash_2_5_lite, recommended_tokens: 8_000}
+    cache_context: %{model_key: :flash_3_8, recommended_tokens: 32_000},
+    report_section: %{model_key: :argon_4, recommended_tokens: 32_768},
+    fast_path: %{model_key: :flash_3_5_lite, recommended_tokens: 8_000}
   }
 
   @default_embedding_models %{
@@ -748,20 +754,20 @@ defmodule Gemini.Config do
 
   | Use Case | Model | Recommended Token Budget |
   |----------|-------|--------------------------|
-  | `:cache_context` | gemini-2.5-flash | 32,000 |
-  | `:report_section` | gemini-2.5-pro | 16,000 |
-  | `:fast_path` | gemini-2.5-flash-lite | 8,000 |
+  | `:cache_context` | gemini-3.8-flash | 32,000 |
+  | `:report_section` | gemini-4-argon | 32,768 |
+  | `:fast_path` | gemini-3.5-flash-lite | 8,000 |
 
   ## Examples
 
       iex> Gemini.Config.model_for_use_case(:cache_context)
-      "gemini-2.5-flash"
+      "gemini-3.8-flash"
 
       iex> Gemini.Config.model_for_use_case(:fast_path)
-      "gemini-2.5-flash-lite"
+      "gemini-3.5-flash-lite"
 
       iex> Gemini.Config.model_for_use_case(:cache_context, :vertex_ai)
-      "gemini-2.5-flash"
+      "gemini-3.8-flash"
   """
   @spec model_for_use_case(atom(), api_type() | nil) :: String.t()
   def model_for_use_case(use_case, api_type \\ nil)
@@ -817,9 +823,9 @@ defmodule Gemini.Config do
 
       iex> Gemini.Config.resolved_use_case_models()
       %{
-        cache_context: "gemini-2.5-flash",
-        report_section: "gemini-2.5-pro",
-        fast_path: "gemini-2.5-flash-lite"
+        cache_context: "gemini-3.8-flash",
+        report_section: "gemini-4-argon",
+        fast_path: "gemini-3.5-flash-lite"
       }
   """
   @spec resolved_use_case_models() :: %{atom() => String.t()}

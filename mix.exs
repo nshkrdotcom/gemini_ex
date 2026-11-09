@@ -10,7 +10,7 @@ defmodule Gemini.MixProject do
     [
       app: :gemini_ex,
       version: @version,
-      elixir: "~> 1.14",
+      elixir: "~> 1.17",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
@@ -54,8 +54,8 @@ defmodule Gemini.MixProject do
   defp deps do
     [
       # Core dependencies
-      {:req, "~> 0.7.4"},
-      {:jason, "~> 1.4.4"},
+      {:req, "~> 0.7.5"},
+      {:jason, "~> 1.4.5"},
       {:typed_struct, "~> 0.3.0"},
       {:joken, "~> 2.7"},
       {:telemetry, "~> 1.4.2"},
@@ -65,15 +65,15 @@ defmodule Gemini.MixProject do
       {:altar, "~> 0.2.0"},
 
       # Development and testing
-      {:ex_doc, "~> 0.40.0", only: :dev, runtime: false},
-      {:credo, "~> 1.7.12", only: [:dev, :test], runtime: false},
-      {:dialyxir, "~> 1.4.5", only: [:dev], runtime: false},
-      {:mox, "~> 1.0", only: :test},
+      {:ex_doc, "~> 0.40.4", only: :dev, runtime: false},
+      {:credo, "~> 1.7.19", only: [:dev, :test], runtime: false},
+      {:dialyxir, "~> 1.4.8", only: [:dev], runtime: false},
+      {:mox, "~> 1.3", only: :test},
       {:excoveralls, "~> 0.18", only: :test},
       {:meck, "~> 1.2.0", only: :test},
       {:supertester, "~> 0.6.0", only: :test},
-      {:bandit, "~> 1.12", only: :test},
-      {:plug, "~> 1.18", only: :test}
+      {:bandit, "~> 1.14", only: :test},
+      {:plug, "~> 1.20", only: :test}
     ]
   end
 

@@ -1,9 +1,30 @@
 defmodule Gemini.Auth.VertexStrategyTestNew do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias Gemini.Auth.VertexStrategy
 
   import Gemini.Test.ModelHelpers
+
+  setup do
+    :meck.new(Gemini.Auth.ADC, [:non_strict, :no_link])
+    :meck.expect(Gemini.Auth.ADC, :load_credentials, fn -> {:error, "offline test"} end)
+    :meck.new(Req, [:passthrough, :no_link])
+
+    :meck.expect(Req, :post, fn url, opts ->
+      if URI.parse(url).host in ["localhost", "127.0.0.1", "::1"] do
+        :meck.passthrough([url, opts])
+      else
+        {:error, %Req.TransportError{reason: :econnrefused}}
+      end
+    end)
+
+    on_exit(fn ->
+      :meck.unload(Req)
+      :meck.unload(Gemini.Auth.ADC)
+    end)
+
+    :ok
+  end
 
   @sample_service_account_key %{
     type: "service_account",

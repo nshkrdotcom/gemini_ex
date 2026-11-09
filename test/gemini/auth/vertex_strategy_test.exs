@@ -6,6 +6,27 @@ defmodule Gemini.Auth.VertexStrategyTest do
   import ExUnit.CaptureLog
   import Gemini.Test.ModelHelpers
 
+  setup do
+    :meck.new(Gemini.Auth.ADC, [:non_strict, :no_link])
+    :meck.expect(Gemini.Auth.ADC, :load_credentials, fn -> {:error, "offline test"} end)
+    :meck.new(Req, [:passthrough, :no_link])
+
+    :meck.expect(Req, :post, fn url, opts ->
+      if URI.parse(url).host in ["localhost", "127.0.0.1", "::1"] do
+        :meck.passthrough([url, opts])
+      else
+        {:error, %Req.TransportError{reason: :econnrefused}}
+      end
+    end)
+
+    on_exit(fn ->
+      :meck.unload(Req)
+      :meck.unload(Gemini.Auth.ADC)
+    end)
+
+    :ok
+  end
+
   @sample_service_account_key %{
     type: "service_account",
     project_id: "test-project",
@@ -318,6 +339,17 @@ defmodule Gemini.Auth.VertexStrategyTest do
   end
 
   describe "base_url/1" do
+    test "uses the unprefixed hostname for the global location" do
+      assert VertexStrategy.base_url(%{project_id: "test-project", location: "global"}) ==
+               "https://aiplatform.googleapis.com/v1"
+
+      assert VertexStrategy.build_path("gemini-4-argon", "generateContent", %{
+               project_id: "test-project",
+               location: "global"
+             }) ==
+               "projects/test-project/locations/global/publishers/google/models/gemini-4-argon:generateContent"
+    end
+
     test "creates correct base URL with project_id and location" do
       Application.delete_env(:gemini_ex, :base_url)
       config = %{project_id: "test-project", location: "us-central1"}
@@ -483,8 +515,9 @@ defmodule Gemini.Auth.VertexStrategyTest do
 
       result = VertexStrategy.create_signed_jwt(service_account_email, audience, credentials)
 
-      # Should return either success or error (depending on API call)
-      assert match?({:ok, _}, result) or match?({:error, _}, result)
+      # The mocked IAM transport error must be returned without crashing.
+      assert {:error, message} = result
+      assert message =~ "econnrefused"
     end
 
     test "returns error when no suitable credentials found" do

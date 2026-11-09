@@ -171,11 +171,12 @@ defmodule Gemini.Auth.VertexStrategy do
 
   @impl true
   def base_url(%{project_id: _project_id, location: location}) do
-    Application.get_env(
-      :gemini_ex,
-      :base_url,
-      "https://#{location}-aiplatform.googleapis.com/v1"
-    )
+    host =
+      if location == "global",
+        do: "aiplatform.googleapis.com",
+        else: "#{location}-aiplatform.googleapis.com"
+
+    Application.get_env(:gemini_ex, :base_url, "https://#{host}/v1")
   end
 
   def base_url(%{project_id: _project_id}) do

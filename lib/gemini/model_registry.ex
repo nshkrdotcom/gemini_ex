@@ -10,7 +10,9 @@ defmodule Gemini.ModelRegistry do
   - live-model candidate selection by modality (`:text` / `:audio`)
 
   This keeps model selection logic out of tests and centralizes support
-  decisions in one place.
+  decisions in one place. Lifecycle metadata follows the linked Gemini API
+  catalog; Vertex availability and retirement dates can differ. The `:caching`
+  capability includes implicit caching; consult model notes before using explicit caches.
   """
 
   @type support_state :: :supported | :not_supported | :experimental | :unknown
@@ -45,6 +47,124 @@ defmodule Gemini.ModelRegistry do
 
   @entries [
     %{
+      key: :gemini_4_argon,
+      code: "gemini-4-argon",
+      source_page: "https://ai.google.dev/gemini-api/docs/models/gemini-4-argon",
+      track: :stable,
+      latest_update: "October 2026",
+      input_modalities: [:text, :image, :video, :audio, :pdf],
+      output_modalities: [:text],
+      capabilities: %{
+        audio_generation: :not_supported,
+        batch_api: :supported,
+        caching: :supported,
+        function_calling: :supported,
+        image_generation: :not_supported,
+        live_api: :not_supported,
+        structured_outputs: :supported,
+        thinking: :supported
+      },
+      aliases: [],
+      live_modalities: [],
+      notes:
+        "Flagship reasoning model; 1M unified context; long decode requires provider opt-in; caching is implicit only (no explicit cachedContents)"
+    },
+    %{
+      key: :gemini_3_8_live,
+      code: "gemini-3.8-live",
+      source_page: "https://ai.google.dev/gemini-api/docs/models/gemini-3.8-live",
+      track: :stable,
+      latest_update: "September 2026",
+      input_modalities: [:text, :image, :audio],
+      output_modalities: [:text, :audio],
+      capabilities: %{
+        audio_generation: :supported,
+        batch_api: :not_supported,
+        caching: :not_supported,
+        function_calling: :supported,
+        image_generation: :not_supported,
+        live_api: :supported,
+        structured_outputs: :not_supported,
+        thinking: :supported
+      },
+      aliases: [],
+      live_modalities: [:audio],
+      live_session_response_modalities: [:audio],
+      live_text_input_method: :client_content,
+      notes: "Current Gemini 3.8 Live API model; low-latency bidirectional voice and video"
+    },
+    %{
+      key: :gemini_3_8_live_extended_thinking,
+      code: "gemini-3.8-live-extended-thinking",
+      source_page:
+        "https://ai.google.dev/gemini-api/docs/models/gemini-3.8-live-extended-thinking",
+      track: :stable,
+      latest_update: "September 2026",
+      input_modalities: [:text, :image, :audio],
+      output_modalities: [:text, :audio],
+      capabilities: %{
+        audio_generation: :supported,
+        batch_api: :not_supported,
+        caching: :not_supported,
+        function_calling: :supported,
+        image_generation: :not_supported,
+        live_api: :supported,
+        structured_outputs: :not_supported,
+        thinking: :supported
+      },
+      aliases: [],
+      live_modalities: [:audio],
+      live_session_response_modalities: [:audio],
+      live_text_input_method: :client_content,
+      notes:
+        "Gemini 3.8 Live model with extended background thinking for complex real-time agent tasks"
+    },
+    %{
+      key: :gemini_3_8_flash_tts,
+      code: "gemini-3.8-flash-tts",
+      source_page: "https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash-tts",
+      track: :stable,
+      latest_update: "September 2026",
+      input_modalities: [:text],
+      output_modalities: [:audio],
+      capabilities: %{
+        audio_generation: :supported,
+        batch_api: :supported,
+        caching: :not_supported,
+        function_calling: :not_supported,
+        image_generation: :not_supported,
+        live_api: :not_supported,
+        structured_outputs: :not_supported,
+        thinking: :not_supported
+      },
+      aliases: [],
+      live_modalities: [],
+      notes:
+        "Studio-grade creative text-to-speech with multi-speaker voice design across 130+ languages"
+    },
+    %{
+      key: :gemini_3_8_flash_lite_tts,
+      code: "gemini-3.8-flash-lite-tts",
+      source_page: "https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash-lite-tts",
+      track: :stable,
+      latest_update: "September 2026",
+      input_modalities: [:text],
+      output_modalities: [:audio],
+      capabilities: %{
+        audio_generation: :supported,
+        batch_api: :supported,
+        caching: :not_supported,
+        function_calling: :not_supported,
+        image_generation: :not_supported,
+        live_api: :not_supported,
+        structured_outputs: :not_supported,
+        thinking: :not_supported
+      },
+      aliases: [],
+      live_modalities: [],
+      notes: "High-throughput, cost-efficient text-to-speech variant"
+    },
+    %{
       key: :gemini_3_8_flash,
       code: "gemini-3.8-flash",
       source_page: "https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash",
@@ -70,7 +190,7 @@ defmodule Gemini.ModelRegistry do
       key: :gemini_3_7_flash,
       code: "gemini-3.7-flash",
       source_page: "https://ai.google.dev/gemini-api/docs/models/gemini-3.7-flash",
-      track: :stable,
+      track: :deprecated,
       latest_update: "August 2026",
       input_modalities: [:text, :image, :video, :audio, :pdf],
       output_modalities: [:text],
@@ -86,7 +206,7 @@ defmodule Gemini.ModelRegistry do
       },
       aliases: [],
       live_modalities: [],
-      notes: "GA Flash model; thinking levels are low, medium, and high (not minimal)"
+      notes: "Deprecated on Gemini API; requests are automatically routed to gemini-3.8-flash"
     },
     %{
       key: :gemini_3_6_flash,

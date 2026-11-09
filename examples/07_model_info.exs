@@ -27,7 +27,7 @@ defmodule ModelInfoExample do
 
     case Gemini.list_models() do
       {:ok, response} ->
-        models = Map.get(response, "models", [])
+        models = Map.get(response, :models, [])
         IO.puts("Found #{length(models)} models:")
         IO.puts("")
 
@@ -35,12 +35,12 @@ defmodule ModelInfoExample do
         grouped =
           models
           |> Enum.group_by(fn model ->
-            name = Map.get(model, "name", "")
+            name = Map.get(model, :name, "")
 
             cond do
+              String.contains?(name, "gemini-4") -> "Gemini 4.x"
+              String.contains?(name, "gemini-3") -> "Gemini 3.x"
               String.contains?(name, "gemini-2") -> "Gemini 2.x"
-              String.contains?(name, "gemini-1.5") -> "Gemini 1.5"
-              String.contains?(name, "gemini-1.0") -> "Gemini 1.0"
               String.contains?(name, "embedding") -> "Embedding Models"
               String.contains?(name, "aqa") -> "AQA Models"
               true -> "Other"
@@ -52,8 +52,8 @@ defmodule ModelInfoExample do
 
           Enum.take(family_models, 5)
           |> Enum.each(fn model ->
-            name = Map.get(model, "name", "unknown")
-            display = Map.get(model, "displayName", "")
+            name = Map.get(model, :name, "unknown")
+            display = Map.get(model, :display_name, "")
             IO.puts("  - #{name}")
             if display != "", do: IO.puts("    Display: #{display}")
           end)
@@ -82,9 +82,9 @@ defmodule ModelInfoExample do
 
     # Try a few common models
     models_to_check = [
-      Gemini.Config.get_model(:flash_lite_latest),
-      "models/gemini-1.5-flash",
-      "models/gemini-1.5-pro"
+      Gemini.Config.default_model(),
+      "models/gemini-3.8-flash",
+      "models/gemini-4-argon"
     ]
 
     Enum.each(models_to_check, fn model_name ->
@@ -92,25 +92,25 @@ defmodule ModelInfoExample do
 
       case Gemini.get_model(model_name) do
         {:ok, model} ->
-          IO.puts("  Display Name: #{Map.get(model, "displayName", "N/A")}")
+          IO.puts("  Display Name: #{Map.get(model, :display_name, "N/A")}")
 
           IO.puts(
-            "  Description: #{String.slice(Map.get(model, "description", "N/A"), 0, 80)}..."
+            "  Description: #{String.slice(Map.get(model, :description, "N/A"), 0, 80)}..."
           )
 
           IO.puts("  Version: #{Map.get(model, "version", "N/A")}")
           IO.puts("")
 
           # Token limits
-          input_limit = Map.get(model, "inputTokenLimit", 0)
-          output_limit = Map.get(model, "outputTokenLimit", 0)
+          input_limit = Map.get(model, :input_token_limit, 0)
+          output_limit = Map.get(model, :output_token_limit, 0)
           IO.puts("  TOKEN LIMITS:")
           IO.puts("    Input:  #{format_number(input_limit)} tokens")
           IO.puts("    Output: #{format_number(output_limit)} tokens")
           IO.puts("")
 
           # Supported methods
-          methods = Map.get(model, "supportedGenerationMethods", [])
+          methods = Map.get(model, :supported_generation_methods, [])
           IO.puts("  SUPPORTED METHODS:")
           Enum.each(methods, &IO.puts("    - #{&1}"))
           IO.puts("")
@@ -132,9 +132,9 @@ defmodule ModelInfoExample do
     print_section("3. Model Comparison")
 
     models = [
-      "models/gemini-2.5-flash",
-      "models/gemini-2.5-pro",
-      "models/gemini-3-pro-preview",
+      "models/gemini-4-argon",
+      "models/gemini-3.8-flash",
+      "models/gemini-3.5-flash-lite",
       "models/gemini-embedding-001"
     ]
 
@@ -158,9 +158,9 @@ defmodule ModelInfoExample do
             |> String.replace("models/", "")
             |> String.slice(0, 33)
 
-          input = format_number(Map.get(model, "inputTokenLimit", 0))
-          output = format_number(Map.get(model, "outputTokenLimit", 0))
-          methods = Map.get(model, "supportedGenerationMethods", []) |> Enum.join(", ")
+          input = format_number(Map.get(model, :input_token_limit, 0))
+          output = format_number(Map.get(model, :output_token_limit, 0))
+          methods = Map.get(model, :supported_generation_methods, []) |> Enum.join(", ")
 
           IO.puts(
             String.pad_trailing(short_name, 35) <>
@@ -196,20 +196,14 @@ defmodule ModelInfoExample do
   defp format_number(_), do: "N/A"
 
   defp check_auth! do
-    cond do
-      System.get_env("GEMINI_API_KEY") ->
-        key = System.get_env("GEMINI_API_KEY")
-        masked = String.slice(key, 0, 4) <> "..." <> String.slice(key, -4, 4)
-        IO.puts("AUTH: Using Gemini API Key (#{masked})")
+    case Gemini.Config.auth_config() do
+      %{type: type} ->
+        IO.puts("AUTH: Using #{type}")
         IO.puts("")
 
-      System.get_env("VERTEX_JSON_FILE") || System.get_env("GOOGLE_APPLICATION_CREDENTIALS") ->
-        IO.puts("AUTH: Using Vertex AI / Application Default Credentials")
-        IO.puts("")
-
-      true ->
+      _ ->
         IO.puts("[ERROR] No authentication configured!")
-        IO.puts("Set GEMINI_API_KEY or VERTEX_JSON_FILE environment variable.")
+        IO.puts("Configure Gemini API or Vertex AI credentials in config/runtime.exs.")
         System.halt(1)
     end
   end

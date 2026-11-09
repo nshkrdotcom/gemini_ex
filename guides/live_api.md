@@ -20,6 +20,22 @@ The Live API enables low-latency, real-time voice and video interactions with Ge
 14. [Limitations](#limitations)
 15. [Examples](#examples)
 
+## Current default models
+
+`Gemini.Live.Models.default(:audio)` selects `gemini-3.8-live` for both
+Gemini API and Vertex AI. It supports audio responses only; enable output audio
+transcription for text. Both 3.8 Live models accept `send_client_content/3`
+throughout a session. Video is supplied as image frames.
+
+For `gemini-3.8-live`, omit thinking configuration and affective dialog options.
+Proactive audio is always enabled; do not send `proactive_audio: false`.
+For configurable background reasoning, explicitly select
+`gemini-3.8-live-extended-thinking` and use low, medium, or high thinking levels.
+Older model examples below retain their model-specific feature settings.
+
+Sources: [Live model](https://ai.google.dev/gemini-api/docs/models/gemini-3.8-live),
+[Extended Thinking model](https://ai.google.dev/gemini-api/docs/models/gemini-3.8-live-extended-thinking).
+
 ## Overview
 
 The Live API is a stateful, bidirectional streaming API built on WebSockets. Unlike the standard `generateContent` API, the Live API maintains a persistent connection where you can:

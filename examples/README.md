@@ -156,7 +156,7 @@ Discover available models and capabilities:
 
 ```elixir
 {:ok, models} = Gemini.list_models()
-{:ok, model} = Gemini.get_model("models/gemini-1.5-flash")
+{:ok, model} = Gemini.get_model("models/gemini-3.8-flash")
 ```
 
 ### 08 - Token Counting
@@ -391,8 +391,8 @@ Make sure you've set either `GEMINI_API_KEY` or `VERTEX_JSON_FILE` environment v
 
 ### "Model not found"
 Some models may not be available in all regions. Try:
-- `gemini-1.5-flash` (widely available)
-- `gemini-1.5-pro` (may have restricted access)
+- `gemini-3.8-flash` (GA model)
+- `gemini-4-argon` (frontier reasoning model)
 
 ### Rate Limiting
 If you see 429 errors, the examples are running faster than your quota allows. Wait a minute and try again, or run examples individually.

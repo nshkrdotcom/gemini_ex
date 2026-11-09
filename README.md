@@ -38,6 +38,7 @@ A comprehensive Elixir client for Google's Gemini AI API with dual authenticatio
 - **Chat Sessions & System Instructions**: Multi-turn conversation management with persistent guardrails
 - **Flexible Multimodal Input**: Intuitive formats for images/text with automatic MIME detection
 - **Thinking Budget Control**: Optimize costs by controlling thinking token usage
+- **Gemini 4 Argon & Gemini 3.8 Live Support**: frontier reasoning with `gemini-4-argon` (1M input/output context) and real-time bidirectional streaming with `gemini-3.8-live`
 - **Gemini 3.8 Flash Support**: stable `gemini-3.8-flash` with structured outputs, function calling, caching, and `:low`/`:medium`/`:high` thinking levels
 - **Context Caching**: Cache large contexts once and reuse by ID (NEW in v0.6.0!)
 - **Complete Generation Config**: Full support for all generation config options including structured output
@@ -53,6 +54,8 @@ We've adopted ALTAR's `LATER` protocol to provide a best-in-class local tool-cal
 **[Learn the full story behind our integration in `ALTAR_INTEGRATION.md`](guides/ALTAR_INTEGRATION.md)**
 
 ## Installation
+
+Requires Elixir 1.17 or later (including the Altar dependency).
 
 Add `gemini` to your list of dependencies in `mix.exs`:
 
@@ -430,6 +433,13 @@ alias Gemini.Types.Content
 ```
 
 **TTL defaults:** The default cache TTL is configurable via `config :gemini_ex, :context_cache, default_ttl_seconds: ...` (defaults to 3_600). You can also override per call with `default_ttl_seconds:` or pass `:ttl`/`:expire_time` explicitly.
+
+Argon supports implicit caching only; do not create or reference explicit
+`cachedContents` for `gemini-4-argon`. Its supported thinking levels are `:low`,
+`:medium` (default), and `:high`. Gemini API synchronous output defaults to 65,536 tokens; Vertex foreground
+limits differ by streaming mode. Output up to 1M tokens requires provider
+continuation handling, which this model update does not add.
+See the [Argon migration guide](https://ai.google.dev/gemini-api/docs/whats-new-gemini-4-argon).
 
 **Models that support explicit caching:**
 - `gemini-3.8-flash`
@@ -1511,11 +1521,17 @@ Gemini.Config.default_embedding_model()  #=> "embeddinggemma"
 
 ### Model Compatibility
 
+Vertex retains `gemini-2.5-flash-lite` as its regional default. For newer models
+such as `gemini-3.5-flash-lite` and `gemini-4-argon`, select a supported location
+(e.g. `global`) in your Vertex configuration and choose the model explicitly.
+Availability on both APIs does not imply availability in every Vertex region.
+See [Vertex Flash-Lite locations](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/3-5-flash-lite).
+
 Models are organized by API compatibility:
 
 | Category | Example Models | Gemini API | Vertex AI |
 |----------|---------------|------------|-----------|
-| **Universal** | `gemini-2.5-flash`, `gemini-3.7-flash`, `gemini-3.8-flash` | ✓ | ✓ |
+| **Universal** | `gemini-4-argon`, `gemini-3.8-flash`, `gemini-3.5-flash-lite`, `gemini-2.5-flash` | ✓ | ✓ |
 | **AI Studio Only** | `gemini-flash-lite-latest`, `gemini-pro-latest` | ✓ | ✗ |
 | **Vertex AI Only** | `embeddinggemma`, `embeddinggemma-300m` | ✗ | ✓ |
 
@@ -1683,12 +1699,14 @@ All generation config options are fully supported across all API entry points:
 ```
 
 **Model quick picks**
-- `gemini-flash-lite-latest` (default; fastest + most cost-efficient)
-- `gemini-3.5-flash-lite` and `gemini-3.1-flash-lite` (stable low-latency models)
-- `gemini-2.5-flash` (balanced price/performance for high-volume workloads)
+- `gemini-flash-lite-latest` (AI Studio default; fastest + most cost-efficient)
+- `gemini-4-argon` (frontier reasoning model; 1M unified context, implicit caching only)
 - `gemini-3.8-flash` (flagship capable Flash model for agentic coding; use `thinking_level: :low` for lower latency)
-- `gemini-3.7-flash` (stable capable Flash model)
-- `gemini-3.1-pro-preview` (most capable multimodal reasoning and agentic coding)
+- `gemini-3.8-live` (current GA Live API model; low-latency bidirectional voice and video streaming)
+- `gemini-3.5-flash-lite` and `gemini-3.1-flash-lite` (stable low-latency models; select a supported Vertex location explicitly)
+- `gemini-3.7-flash` (deprecated; automatically routed to Gemini 3.8 Flash)
+- `gemini-3.1-pro-preview` (multimodal reasoning and agentic coding)
+- `gemini-2.5-flash` (balanced price/performance for high-volume workloads)
 
 For 3.8 Flash, use low, medium (provider default), or high thinking. Do not send
 `temperature`, `top_p`, `top_k`, `candidate_count`, `presence_penalty`, or

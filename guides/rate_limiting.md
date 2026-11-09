@@ -460,16 +460,16 @@ Use the built-in use-case aliases to avoid scattering model strings:
 
 | Use Case | Model Key | Recommended Token Budget |
 |----------|-----------|--------------------------|
-| `:cache_context` | `:flash_2_5` | 32,000 |
-| `:report_section` | `:pro_2_5` | 16,000 |
-| `:fast_path` | `:flash_2_5_lite` | 8,000 |
+| `:cache_context` | `:flash_3_8` | 32,000 |
+| `:report_section` | `:argon_4` | 32,768 |
+| `:fast_path` | `:flash_3_5_lite` | 8,000 |
 
 ```elixir
 Gemini.Config.model_for_use_case(:cache_context)
-#=> "gemini-2.5-flash"
+#=> "gemini-3.8-flash"
 
 Gemini.Config.resolved_use_case_models()
-#=> %{cache_context: "gemini-2.5-flash", report_section: "gemini-2.5-pro", fast_path: "gemini-2.5-flash-lite"}
+#=> %{cache_context: "gemini-3.8-flash", report_section: "gemini-4-argon", fast_path: "gemini-3.5-flash-lite"}
 ```
 
 ## Checking Status

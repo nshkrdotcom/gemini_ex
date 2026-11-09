@@ -12,6 +12,24 @@ defmodule Gemini.Validation.ThinkingConfigTest do
   @flash_3 Config.get_model(:flash_3_preview)
   @flash_3_8 "gemini-3.8-flash"
   @flash_3_7 "gemini-3.7-flash"
+  @argon_4 Config.get_model(:argon_4)
+
+  describe "validate_level/2 for Gemini 4 models" do
+    test "accepts low, medium, and high but rejects minimal for Gemini 4 Argon" do
+      assert {:error, _} = ThinkingConfig.validate_level(:minimal, @argon_4)
+      assert :ok = ThinkingConfig.validate_level(:low, @argon_4)
+      assert :ok = ThinkingConfig.validate_level(:medium, @argon_4)
+      assert :ok = ThinkingConfig.validate_level(:high, @argon_4)
+      assert :ok = ThinkingConfig.validate_level(:unspecified, @argon_4)
+    end
+  end
+
+  test "Argon rejects token budgets including dynamic budgeting" do
+    for model <- [@argon_4, "models/#{@argon_4}"], budget <- [-1, 0, 1024] do
+      assert {:error, _} = ThinkingConfig.validate(%{thinking_budget: budget}, model)
+      assert {:error, _} = ThinkingConfig.validate_level(:minimal, model)
+    end
+  end
 
   describe "validate_level/2 for Gemini 3 models" do
     test "accepts low/high for Gemini 3 Pro" do

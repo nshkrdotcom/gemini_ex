@@ -66,11 +66,12 @@ defmodule Gemini.Live.ModelsTest do
           candidates: ["definitely-not-a-model"],
           available_models: [
             "models/gemini-2.5-flash-native-audio-preview-12-2025",
-            "models/gemini-3.1-flash-live-preview"
+            "models/gemini-3.1-flash-live-preview",
+            "models/gemini-3.8-live"
           ]
         )
 
-      assert model == "gemini-3.1-flash-live-preview"
+      assert model == "gemini-3.8-live"
     end
 
     test "does not infer audio-first Live models as text session candidates" do
@@ -99,6 +100,11 @@ defmodule Gemini.Live.ModelsTest do
         end
 
       assert String.contains?(error.message, "No live default model available for modality :text")
+    end
+
+    test "default/2 returns gemini-3.8-live for audio modality across auth types" do
+      assert Models.default(:audio, auth: :gemini) == "gemini-3.8-live"
+      assert Models.default(:audio, auth: :vertex_ai) == "gemini-3.8-live"
     end
 
     test "does not expose legacy text-live aliases as current vertex candidates" do
