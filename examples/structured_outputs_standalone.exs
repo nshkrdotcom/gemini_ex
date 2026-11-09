@@ -7,11 +7,11 @@
 # To run during development (from the examples directory):
 #   elixir structured_outputs_standalone.exs
 #
-# After v0.4.0 is published to Hex.pm, change the dependency to:
-#   {:gemini_ex, "~> 0.4.0"}
+# To use the published 0.19.0 release instead of this checkout:
+#   {:gemini_ex, "~> 0.19.0"}
 
 Mix.install([
-  # Change to "~> 0.4.0" after publishing
+  # Change to "~> 0.19.0" to use the published release
   {:gemini_ex, path: ".."},
   {:jason, "~> 1.4"}
 ])

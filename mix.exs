@@ -1,7 +1,7 @@
 defmodule Gemini.MixProject do
   use Mix.Project
 
-  @version "0.18.0"
+  @version "0.19.0"
   @source_url "https://github.com/nshkrdotcom/gemini_ex"
   @homepage_url "https://hex.pm/packages/gemini_ex"
   @docs_url "https://hexdocs.pm/gemini_ex"
