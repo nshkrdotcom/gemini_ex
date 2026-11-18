@@ -107,7 +107,7 @@ defmodule Gemini.Test.ModelHelpers do
   Returns the default generation model for the detected auth type.
 
   - **Gemini API**: `"gemini-flash-lite-latest"`
-  - **Vertex AI**: `"gemini-2.5-flash-lite"`
+  - **Vertex AI**: `"gemini-3.5-flash-lite"`
 
   Use this for ALL tests unless a specific capability is required.
   """
@@ -126,7 +126,7 @@ defmodule Gemini.Test.ModelHelpers do
       #=> "gemini-flash-lite-latest"
 
       default_model_for(:vertex_ai)
-      #=> "gemini-2.5-flash-lite"
+      #=> "gemini-3.5-flash-lite"
   """
   @spec default_model_for(:gemini | :vertex_ai) :: String.t()
   def default_model_for(api_type), do: Config.default_model_for(api_type)

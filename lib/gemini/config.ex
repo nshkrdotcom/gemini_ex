@@ -19,7 +19,7 @@ defmodule Gemini.Config do
 
   Default models are automatically selected based on detected authentication:
   - Gemini API: `gemini-flash-lite-latest` (convenience alias)
-  - Vertex AI: `gemini-2.5-flash-lite` (regional compatibility default)
+  - Vertex AI: `gemini-3.5-flash-lite` (requires a supported location)
 
   For embeddings:
   - Gemini API: `gemini-embedding-001` (3072 dimensions)
@@ -57,10 +57,17 @@ defmodule Gemini.Config do
   # Model Registry - Organized by API Compatibility
   # ===========================================================================
 
-  # Universal models - work identically in both Gemini API and Vertex AI
+  # Shared model IDs across Gemini API and Vertex AI
   @universal_models %{
     # Gemini 4 frontier models
     argon_4: "gemini-4-argon",
+    carbon_4: "gemini-4-carbon",
+    hydrogen_4: "gemini-4-hydrogen",
+    neon_4: "gemini-4-neon",
+    nano_banana_2_1: "gemini-nano-banana-2.1",
+    embedding_2: "gemini-embedding-2",
+    omni_1_2_flash: "gemini-omni-1.2-flash",
+    robotics_er_2_preview: "gemini-robotics-er-2-preview",
 
     # Gemini 3.8 models
     live_3_8: "gemini-3.8-live",
@@ -170,13 +177,13 @@ defmodule Gemini.Config do
     embedding_gemma_300m: "embeddinggemma-300m",
 
     # Vertex AI default alias
-    default: "gemini-2.5-flash-lite"
+    default: "gemini-3.5-flash-lite"
   }
 
   # Default models per API type
   @default_generation_models %{
     gemini: "gemini-flash-lite-latest",
-    vertex_ai: "gemini-2.5-flash-lite"
+    vertex_ai: "gemini-3.5-flash-lite"
   }
 
   # Use-case aliases with recommended token budgets
@@ -418,7 +425,7 @@ defmodule Gemini.Config do
 
   Returns different defaults based on detected auth:
   - Gemini API (AI Studio): `"gemini-flash-lite-latest"` (convenience alias)
-  - Vertex AI: `"gemini-2.0-flash-lite"` (universal name)
+  - Vertex AI: `"gemini-3.5-flash-lite"` (requires a supported location)
 
   Can be overridden via application config:
 
@@ -432,7 +439,7 @@ defmodule Gemini.Config do
 
       # With VERTEX_PROJECT_ID set
       Config.default_model()
-      #=> "gemini-2.5-flash-lite"
+      #=> "gemini-3.5-flash-lite"
   """
   @spec default_model() :: String.t()
   def default_model do
@@ -454,7 +461,7 @@ defmodule Gemini.Config do
       #=> "gemini-flash-lite-latest"
 
       Config.default_model_for(:vertex_ai)
-      #=> "gemini-2.5-flash-lite"
+      #=> "gemini-3.5-flash-lite"
   """
   @spec default_model_for(api_type()) :: String.t()
   def default_model_for(:gemini), do: @default_generation_models[:gemini]

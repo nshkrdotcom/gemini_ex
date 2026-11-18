@@ -2,10 +2,10 @@ defmodule Gemini.Validation.ThinkingConfig do
   @moduledoc """
   Validation for thinking configuration parameters based on model capabilities.
 
-  ## Gemini 4 Argon
+  ## Gemini 4
 
-  Argon supports `:low`, `:medium` (default), and `:high`. Use levels rather
-  than token budgets; `:minimal` is not supported.
+  Use `:low`, `:medium`, or `:high` instead of token budgets.
+  Neon and Hydrogen also support `:xhigh`.
 
   ## Gemini 3 Models
 
@@ -40,7 +40,7 @@ defmodule Gemini.Validation.ThinkingConfig do
   """
 
   @type validation_result :: :ok | {:error, String.t()}
-  @type thinking_level :: :unspecified | :minimal | :low | :medium | :high
+  @type thinking_level :: :unspecified | :minimal | :low | :medium | :high | :xhigh
 
   @doc """
   Validate thinking level for Gemini 3 models.
@@ -68,6 +68,13 @@ defmodule Gemini.Validation.ThinkingConfig do
   def validate_level(:low, _model), do: :ok
   def validate_level(:high, _model), do: :ok
 
+  def validate_level(:xhigh, model) do
+    case gemini_4_model(model) do
+      variant when variant in ["neon", "hydrogen"] -> :ok
+      _other -> {:error, "Thinking level :xhigh requires Gemini 4 Neon or Hydrogen"}
+    end
+  end
+
   def validate_level(:minimal, "models/gemini-4-argon"),
     do: validate_level(:minimal, "gemini-4-argon")
 
@@ -75,6 +82,27 @@ defmodule Gemini.Validation.ThinkingConfig do
     do: {:error, "Thinking level :minimal is not supported by Gemini 4 Argon"}
 
   def validate_level(:minimal, model) do
+    if gemini_4_model(model) do
+      {:error, "Thinking level :minimal is not supported by this Gemini 4 model"}
+    else
+      validate_legacy_minimal(model)
+    end
+  end
+
+  def validate_level(:medium, model) do
+    if model && String.contains?(model, "gemini-3-pro") && !String.contains?(model, "flash") do
+      {:error, "Thinking level :medium is only supported on Gemini 3 Flash models"}
+    else
+      :ok
+    end
+  end
+
+  def validate_level(level, _model) do
+    {:error,
+     "Invalid thinking level: #{inspect(level)}. Use :minimal, :low, :medium, :high, or :xhigh."}
+  end
+
+  defp validate_legacy_minimal(model) do
     cond do
       model && String.contains?(model, "gemini-3.8-flash") ->
         {:error, "Thinking level :minimal is not supported by Gemini 3.8 Flash"}
@@ -88,18 +116,6 @@ defmodule Gemini.Validation.ThinkingConfig do
       true ->
         :ok
     end
-  end
-
-  def validate_level(:medium, model) do
-    if model && String.contains?(model, "gemini-3-pro") && !String.contains?(model, "flash") do
-      {:error, "Thinking level :medium is only supported on Gemini 3 Flash models"}
-    else
-      :ok
-    end
-  end
-
-  def validate_level(level, _model) do
-    {:error, "Invalid thinking level: #{inspect(level)}. Use :minimal, :low, :medium, or :high."}
   end
 
   @doc """
@@ -128,6 +144,14 @@ defmodule Gemini.Validation.ThinkingConfig do
   end
 
   def validate_budget(budget, model) when is_integer(budget) and is_binary(model) do
+    if gemini_4_model(model) do
+      {:error, "Gemini 4 models use thinking_level instead of thinking_budget"}
+    else
+      validate_legacy_budget(budget, model)
+    end
+  end
+
+  defp validate_legacy_budget(budget, model) do
     cond do
       budget == -1 ->
         # Dynamic thinking allowed for all models
@@ -182,6 +206,18 @@ defmodule Gemini.Validation.ThinkingConfig do
   end
 
   def validate(_config, _model), do: :ok
+
+  defp gemini_4_model(model) when is_binary(model) do
+    case Gemini.ModelRegistry.get(model) do
+      %{code: "gemini-4-" <> variant} when variant in ["argon", "carbon", "neon", "hydrogen"] ->
+        variant
+
+      _other ->
+        nil
+    end
+  end
+
+  defp gemini_4_model(_model), do: nil
 
   # Private validation functions for each model type
 

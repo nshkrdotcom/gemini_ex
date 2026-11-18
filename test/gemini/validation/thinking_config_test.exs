@@ -14,6 +14,16 @@ defmodule Gemini.Validation.ThinkingConfigTest do
   @flash_3_7 "gemini-3.7-flash"
   @argon_4 Config.get_model(:argon_4)
 
+  test "Gemini 4 Neon and Hydrogen accept XHigh and reject budgets" do
+    for model <- ["gemini-4-neon", "publishers/google/models/gemini-4-hydrogen"] do
+      assert :ok = ThinkingConfig.validate_level(:xhigh, model)
+      assert {:error, _message} = ThinkingConfig.validate_level(:minimal, model)
+      assert {:error, _message} = ThinkingConfig.validate_budget(-1, model)
+    end
+
+    assert {:error, _message} = ThinkingConfig.validate_level(:xhigh, "gemini-4-argon")
+  end
+
   describe "validate_level/2 for Gemini 4 models" do
     test "accepts low, medium, and high but rejects minimal for Gemini 4 Argon" do
       assert {:error, _} = ThinkingConfig.validate_level(:minimal, @argon_4)

@@ -7,11 +7,11 @@
 # To run during development (from the examples directory):
 #   elixir structured_outputs_standalone.exs
 #
-# To use the published 0.19.0 release instead of this checkout:
-#   {:gemini_ex, "~> 0.19.0"}
+# To use the published 0.19.1 release instead of this checkout:
+#   {:gemini_ex, "~> 0.19.1"}
 
 Mix.install([
-  # Change to "~> 0.19.0" to use the published release
+  # Change to "~> 0.19.1" to use the published release
   {:gemini_ex, path: ".."},
   {:jason, "~> 1.4"}
 ])

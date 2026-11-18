@@ -3,6 +3,23 @@ defmodule Gemini.ModelRegistryTest do
 
   alias Gemini.ModelRegistry
 
+  test "resolves every model from the captured Developer API and Vertex inventories" do
+    fixtures = Path.expand("../fixtures/model_catalog", __DIR__)
+
+    developer =
+      fixtures |> Path.join("developer_20261118.json") |> File.read!() |> Jason.decode!()
+
+    vertex =
+      fixtures |> Path.join("vertex_documented_20261118.json") |> File.read!() |> Jason.decode!()
+
+    for name <- Enum.map(developer, & &1["name"]) ++ Map.keys(vertex) do
+      assert ModelRegistry.get(name), "registry is missing #{name}"
+    end
+
+    refute ModelRegistry.get("gemini-4-neon-xhigh")
+    refute ModelRegistry.get("gemini-pro-orchestrator-neon")
+  end
+
   describe "get/1" do
     test "resolves Gemini 4 Argon with its published capabilities" do
       assert %{

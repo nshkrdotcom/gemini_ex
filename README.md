@@ -38,7 +38,7 @@ A comprehensive Elixir client for Google's Gemini AI API with dual authenticatio
 - **Chat Sessions & System Instructions**: Multi-turn conversation management with persistent guardrails
 - **Flexible Multimodal Input**: Intuitive formats for images/text with automatic MIME detection
 - **Thinking Budget Control**: Optimize costs by controlling thinking token usage
-- **Gemini 4 Argon & Gemini 3.8 Live Support**: frontier reasoning with `gemini-4-argon` (1M input/output context) and real-time bidirectional streaming with `gemini-3.8-live`
+- **Gemini 4 and Gemini 3.8 Live**: explicit Neon, Carbon, Hydrogen, and Argon model selection and real-time bidirectional streaming. See the [model catalog guide](guides/model_catalog.md) for backend availability.
 - **Gemini 3.8 Flash Support**: stable `gemini-3.8-flash` with structured outputs, function calling, caching, and `:low`/`:medium`/`:high` thinking levels
 - **Context Caching**: Cache large contexts once and reuse by ID (NEW in v0.6.0!)
 - **Complete Generation Config**: Full support for all generation config options including structured output
@@ -62,7 +62,7 @@ Add `gemini` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:gemini_ex, "~> 0.19.0"}
+    {:gemini_ex, "~> 0.19.1"}
   ]
 end
 ```
@@ -1515,29 +1515,28 @@ Gemini.Config.default_model()        #=> "gemini-flash-lite-latest"
 Gemini.Config.default_embedding_model()  #=> "gemini-embedding-001"
 
 # With VERTEX_PROJECT_ID set (no GEMINI_API_KEY):
-Gemini.Config.default_model()        #=> "gemini-2.5-flash-lite"
+Gemini.Config.default_model()        #=> "gemini-3.5-flash-lite"
 Gemini.Config.default_embedding_model()  #=> "embeddinggemma"
 ```
 
 ### Model Compatibility
 
-Vertex retains `gemini-2.5-flash-lite` as its regional default. For newer models
-such as `gemini-3.5-flash-lite` and `gemini-4-argon`, select a supported location
-(e.g. `global`) in your Vertex configuration and choose the model explicitly.
-Availability on both APIs does not imply availability in every Vertex region.
-See [Vertex Flash-Lite locations](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/3-5-flash-lite).
+Vertex defaults to `gemini-3.5-flash-lite`. Configure a supported location
+such as `global`, or explicitly select a model available in your location.
+Availability also depends on project access and quota.
+See the [model catalog guide](guides/model_catalog.md) for backend details.
 
 Models are organized by API compatibility:
 
 | Category | Example Models | Gemini API | Vertex AI |
 |----------|---------------|------------|-----------|
-| **Universal** | `gemini-4-argon`, `gemini-3.8-flash`, `gemini-3.5-flash-lite`, `gemini-2.5-flash` | ✓ | ✓ |
+| **Documented on both** | `gemini-4-neon`, `gemini-4-carbon`, `gemini-4-hydrogen`, `gemini-4-argon`, `gemini-3.5-flash-lite` | ✓ | ✓ |
 | **AI Studio Only** | `gemini-flash-lite-latest`, `gemini-pro-latest` | ✓ | ✗ |
 | **Vertex AI Only** | `embeddinggemma`, `embeddinggemma-300m` | ✗ | ✓ |
 
 ```elixir
 # Check model availability
-Gemini.Config.model_available?(:flash_2_5, :vertex_ai)     #=> true
+Gemini.Config.model_available?(:neon_4, :vertex_ai)       #=> true
 Gemini.Config.model_available?(:flash_lite_latest, :vertex_ai) #=> false
 
 # Get models for a specific API
@@ -1545,8 +1544,8 @@ Gemini.Config.models_for(:vertex_ai)  # All Vertex-compatible models
 Gemini.Config.models_for(:both)       # Only universal models
 
 # Get model by key with validation
-Gemini.Config.get_model(:flash_2_5)  #=> "gemini-2.5-flash"
-Gemini.Config.get_model(:flash_2_5, api: :vertex_ai)  # Validates compatibility
+Gemini.Config.get_model(:neon_4)  #=> "gemini-4-neon"
+Gemini.Config.get_model(:neon_4, api: :vertex_ai)  # Validates compatibility
 
 # Registry metadata helpers
 Gemini.Config.model_info(:pro_3_1_preview)
@@ -1700,7 +1699,7 @@ All generation config options are fully supported across all API entry points:
 
 **Model quick picks**
 - `gemini-flash-lite-latest` (AI Studio default; fastest + most cost-efficient)
-- `gemini-4-argon` (frontier reasoning model; 1M unified context, implicit caching only)
+- `gemini-4-neon`, `gemini-4-hydrogen`, `gemini-4-carbon`, and `gemini-4-argon` (Gemini 4 generation models; see backend access and thinking options in the [model catalog guide](guides/model_catalog.md))
 - `gemini-3.8-flash` (flagship capable Flash model for agentic coding; use `thinking_level: :low` for lower latency)
 - `gemini-3.8-live` (current GA Live API model; low-latency bidirectional voice and video streaming)
 - `gemini-3.5-flash-lite` and `gemini-3.1-flash-lite` (stable low-latency models; select a supported Vertex location explicitly)
@@ -1714,9 +1713,10 @@ For 3.8 Flash, use low, medium (provider default), or high thinking. Do not send
 not suitable for this model. Omit model-prefill turns and preserve matching
 tool-call IDs/names. These restrictions are documented in Google's
 [3.8 migration guide](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/guides/gemini-3-8-flash).
-No authenticated Gemini API or Vertex test was run for this release candidate.
+See the [model catalog guide](guides/model_catalog.md) for the authenticated verification results.
 
-Current stable Gemini API aliases include `:flash_3_8`, `:flash_3_7`, `:flash_3_6`,
+Current stable Gemini API aliases include `:neon_4`, `:hydrogen_4`,
+`:carbon_4`, `:argon_4`, `:flash_3_8`, `:flash_3_7`, `:flash_3_6`,
 `:flash_3_5`, `:flash_3_5_lite`, `:flash_3_1_lite`, `:flash_3_1_image`,
 `:flash_3_1_lite_image`, and `:pro_3_image`.
 

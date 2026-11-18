@@ -274,7 +274,9 @@ defmodule Gemini.ConfigTest do
       assert Config.get_model(:latest) == "gemini-4-argon"
       assert Config.get_model(:stable) == "gemini-3.8-flash"
       assert Config.get_model(:default_universal) == "gemini-3.5-flash-lite"
-      assert Config.default_model_for(:vertex_ai) == "gemini-2.5-flash-lite"
+      assert Config.default_model_for(:vertex_ai) == "gemini-3.5-flash-lite"
+      assert Config.model_available?(:neon_4, :vertex_ai)
+      assert Config.model_available?(:hydrogen_4, :gemini)
     end
 
     test "model_info/1 resolves metadata for key and raw model name" do

@@ -64,6 +64,37 @@ defmodule Gemini.APIs.CoordinatorModelPathBuildingTest do
       )
   end
 
+  test "Gemini API sends XHigh for Gemini 4 Neon", %{bypass: bypass} do
+    :meck.expect(Gemini.Auth, :get_base_url, fn _type, _creds ->
+      "http://localhost:#{bypass.port}"
+    end)
+
+    Application.put_env(:gemini_ex, :auth, %{type: :gemini, credentials: %{api_key: "test"}})
+
+    Gemini.TestHTTPServer.expect_once(
+      bypass,
+      "POST",
+      "/models/gemini-4-neon:generateContent",
+      fn conn ->
+        {:ok, body, conn} = Conn.read_body(conn)
+
+        assert get_in(Jason.decode!(body), ["generationConfig", "thinkingConfig", "thinkingLevel"]) ==
+                 "xhigh"
+
+        Conn.resp(conn, 200, ~s({"candidates":[]}))
+      end
+    )
+
+    assert {:ok, _response} =
+             Coordinator.generate_content(
+               "Return OK",
+               model: "gemini-4-neon",
+               auth: :gemini,
+               thinking_config: %{thinking_level: :xhigh},
+               disable_rate_limiter: true
+             )
+  end
+
   test "Vertex AI preserves user model with endpoint suffix", %{bypass: bypass} do
     :meck.expect(Gemini.Auth, :get_base_url, fn _type, _creds ->
       "http://localhost:#{bypass.port}"
@@ -137,7 +168,8 @@ defmodule Gemini.APIs.CoordinatorModelPathBuildingTest do
              )
 
     assert Enum.any?(response.models, fn model ->
-             model.name == "models/gemini-2.5-flash-native-audio-latest"
+             model.name == "models/gemini-2.5-flash-native-audio-latest" and
+               model.supported_generation_methods == []
            end)
   end
 

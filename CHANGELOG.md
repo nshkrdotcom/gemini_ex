@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.1] - 2026-11-18
+
+### Added
+
+- Refresh the Gemini Developer API and Vertex model inventories, including Gemini 4 Neon, Carbon, Hydrogen, and current specialized models.
+- Support the XHigh thinking level for Gemini 4 Neon and Hydrogen.
+
+### Changed
+
+- Default Vertex generation to Gemini 3.5 Flash-Lite. Use a supported location or explicitly select a model supported by your configured location.
+- Preserve missing Vertex publisher methods as unknown.
+- Refresh compatible Hex dependencies, including the Plug test dependency security fix.
+
 ## [0.19.0] - 2026-11-09
 
 ### Added
@@ -2202,6 +2215,7 @@ config :gemini_ex,
 - Minimal latency overhead
 - Concurrent request processing
 
+[0.19.1]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.19.0...v0.19.1
 [0.19.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.18.0...v0.19.0
 [0.18.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.17.0...v0.18.0
 [0.17.0]: https://github.com/nshkrdotcom/gemini_ex/compare/v0.16.0...v0.17.0

@@ -1491,7 +1491,7 @@ defmodule Gemini.APIs.Coordinator do
         Map.put(acc, "thinkingBudget", budget)
 
       {:thinking_level, level}, acc
-      when level in [:unspecified, :minimal, :low, :medium, :high] ->
+      when level in [:unspecified, :minimal, :low, :medium, :high, :xhigh] ->
         case convert_thinking_level(level) do
           nil -> acc
           api_level -> Map.put(acc, "thinkingLevel", api_level)
@@ -1523,6 +1523,7 @@ defmodule Gemini.APIs.Coordinator do
   defp convert_thinking_level(:low), do: "low"
   defp convert_thinking_level(:medium), do: "medium"
   defp convert_thinking_level(:high), do: "high"
+  defp convert_thinking_level(:xhigh), do: "xhigh"
   defp convert_thinking_level(nil), do: nil
 
   # Convert ImageConfig to API format with camelCase keys
@@ -1806,7 +1807,7 @@ defmodule Gemini.APIs.Coordinator do
   defp normalize_publisher_model(model) when is_map(model) do
     name = get_model_value(model, ["name", :name], "")
     normalized_name = normalize_model_name_for_lookup(name)
-    supported_methods = publisher_supported_methods(model, normalized_name)
+    supported_methods = publisher_supported_methods(model)
 
     %{
       "name" => "models/#{normalized_name}",
@@ -1831,27 +1832,10 @@ defmodule Gemini.APIs.Coordinator do
     end)
   end
 
-  defp publisher_supported_methods(model, normalized_name) do
-    explicit_methods =
-      get_model_value(
-        model,
-        [
-          "supportedGenerationMethods",
-          :supported_generation_methods
-        ],
-        nil
-      )
-
-    cond do
-      is_list(explicit_methods) and explicit_methods != [] ->
-        explicit_methods
-
-      String.contains?(normalized_name, "native-audio") or
-          String.contains?(normalized_name, "live") ->
-        ["generateContent", "bidiGenerateContent"]
-
-      true ->
-        ["generateContent"]
+  defp publisher_supported_methods(model) do
+    case get_model_value(model, ["supportedGenerationMethods", :supported_generation_methods], []) do
+      methods when is_list(methods) -> methods
+      _other -> []
     end
   end
 

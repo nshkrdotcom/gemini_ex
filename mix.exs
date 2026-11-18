@@ -1,7 +1,7 @@
 defmodule Gemini.MixProject do
   use Mix.Project
 
-  @version "0.19.0"
+  @version "0.19.1"
   @source_url "https://github.com/nshkrdotcom/gemini_ex"
   @homepage_url "https://hex.pm/packages/gemini_ex"
   @docs_url "https://hexdocs.pm/gemini_ex"
@@ -57,8 +57,8 @@ defmodule Gemini.MixProject do
       {:req, "~> 0.7.5"},
       {:jason, "~> 1.4.5"},
       {:typed_struct, "~> 0.3.0"},
-      {:joken, "~> 2.7"},
-      {:telemetry, "~> 1.4.2"},
+      {:joken, "~> 2.8"},
+      {:telemetry, "~> 1.4.3"},
       {:websockex, "~> 0.5.1"},
 
       # ALTAR ADM - tool contract dependency
@@ -67,13 +67,13 @@ defmodule Gemini.MixProject do
       # Development and testing
       {:ex_doc, "~> 0.40.4", only: :dev, runtime: false},
       {:credo, "~> 1.7.19", only: [:dev, :test], runtime: false},
-      {:dialyxir, "~> 1.4.8", only: [:dev], runtime: false},
+      {:dialyxir, "~> 1.4.9", only: [:dev], runtime: false},
       {:mox, "~> 1.3", only: :test},
       {:excoveralls, "~> 0.18", only: :test},
       {:meck, "~> 1.2.0", only: :test},
       {:supertester, "~> 0.6.0", only: :test},
-      {:bandit, "~> 1.14", only: :test},
-      {:plug, "~> 1.20", only: :test}
+      {:bandit, "~> 1.15", only: :test},
+      {:plug, "~> 1.20.4", only: :test}
     ]
   end
 
@@ -98,6 +98,7 @@ defmodule Gemini.MixProject do
         "README.md",
 
         # Core Features
+        "guides/model_catalog.md",
         "guides/live_api.md",
         "guides/STREAMING.md",
         "guides/function_calling.md",
@@ -143,6 +144,7 @@ defmodule Gemini.MixProject do
           "README.md"
         ],
         "Core Features": [
+          "guides/model_catalog.md",
           "guides/live_api.md",
           "guides/STREAMING.md",
           "guides/function_calling.md",

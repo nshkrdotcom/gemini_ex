@@ -41,7 +41,7 @@ defmodule Gemini.Types.GenerationConfig do
 
     use TypedStruct
 
-    @type thinking_level :: :unspecified | :minimal | :low | :medium | :high
+    @type thinking_level :: :unspecified | :minimal | :low | :medium | :high | :xhigh
 
     @derive Jason.Encoder
     typedstruct do
@@ -266,7 +266,7 @@ defmodule Gemini.Types.GenerationConfig do
   """
   @spec thinking_level(t(), ThinkingConfig.thinking_level()) :: t()
   def thinking_level(config \\ %__MODULE__{}, level)
-      when level in [:unspecified, :minimal, :low, :medium, :high] do
+      when level in [:unspecified, :minimal, :low, :medium, :high, :xhigh] do
     thinking_config = %ThinkingConfig{thinking_level: level}
     %{config | thinking_config: thinking_config}
   end
